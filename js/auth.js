@@ -130,8 +130,8 @@ const Auth = {
           <div class="relative inline-block mb-4">
             <div class="auth-logo-bg w-28 h-28 rounded-3xl mx-auto" role="img" aria-label="Tennis"></div>
           </div>
-          <h1 class="text-2xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">✩ ʜᴀᴘᴘʏ ᴛᴇɴɴɪs 𓃭</h1>
-          <p class="text-sm text-gray-400 mt-1">TMI에 오신 것을 환영합니다!</p>
+          <h1 class="text-2xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">✩ ᴛᴍɪ ᴄʟᴜʙ 𓃭</h1>
+          <p class="text-sm text-gray-400 mt-1">테니스에 미친 아이들</p>
         </div>
 
         <!-- 로그인 카드 -->
