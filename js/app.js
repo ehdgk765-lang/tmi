@@ -1,0 +1,2310 @@
+// app.js - 앱 초기화, 탭 전환, 대회/대진표 생성
+// GAME_TYPES, SCHEDULE_GAME_TYPES → utils.js 에서 정의
+
+const App = {
+  currentTab: 'players',
+  currentTournamentId: null,
+  _createSubTab: 'custom-bracket',
+  _scheduleSubTab: 'custom-schedule',
+  _viewMode: 'home', // 'home' | 'calendar' | 'settings'
+
+  init() {
+    // 재로그인 시 이전 화면 잔존 방지
+    var content = document.getElementById('main-content');
+    if (content) content.innerHTML = '';
+    this.applyRoleUI();
+    this.bindTabs();
+    this.navigate(RolesConfig.getDefaultTab());
+  },
+
+  // 멤버 이름 관련
+  getMemberName() {
+    return localStorage.getItem('tennis_member_name') || '';
+  },
+
+  setMemberName(name) {
+    localStorage.setItem('tennis_member_name', name);
+  },
+
+  clearMemberName() {
+    localStorage.removeItem('tennis_member_name');
+  },
+
+  showMemberNameModal() {
+    var self = this;
+    var players = Storage.getPlayers();
+    var playerNames = players.map(function(p) { return p.name; });
+
+    var modal = document.createElement('div');
+    modal.id = 'member-name-modal';
+    modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
+    modal.innerHTML =
+      '<div class="absolute inset-0 bg-black/50"></div>' +
+      '<div class="member-name-inner relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 overflow-y-auto">' +
+        '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden"></div>' +
+        '<button id="member-name-close" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="닫기">' +
+          '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>' +
+        '<h3 class="text-lg font-bold text-gray-800 text-center">이름 확인</h3>' +
+        '<p class="text-sm text-gray-500 text-center">멤버 목록에 등록된 본인의 이름을 입력해주세요.</p>' +
+        '<input type="text" autocomplete="off" id="member-name-input" class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-700 transition" placeholder="이름 입력">' +
+        '<p id="member-name-error" class="text-sm text-red-500 hidden text-center"></p>' +
+        '<button id="member-name-submit" class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 font-semibold transition">확인</button>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+    lockScroll();
+
+    // 모바일 키보드 대응: visualViewport로 모달 높이 동적 조정
+    var innerDiv = modal.querySelector('.member-name-inner');
+    var adjustForKeyboard = function() {
+      if (window.visualViewport) {
+        var vh = window.visualViewport.height;
+        var offsetTop = window.visualViewport.offsetTop;
+        modal.style.height = vh + 'px';
+        modal.style.top = offsetTop + 'px';
+        modal.style.bottom = 'auto';
+        innerDiv.style.maxHeight = (vh - 16) + 'px';
+      }
+    };
+    if (window.visualViewport) {
+      adjustForKeyboard();
+      window.visualViewport.addEventListener('resize', adjustForKeyboard);
+      window.visualViewport.addEventListener('scroll', adjustForKeyboard);
+    } else {
+      innerDiv.style.maxHeight = '90vh';
+    }
+    modal._vpCleanup = function() {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', adjustForKeyboard);
+        window.visualViewport.removeEventListener('scroll', adjustForKeyboard);
+      }
+    };
+
+    setTimeout(function() {
+      document.getElementById('member-name-input').focus();
+    }, 100);
+
+    function trySubmit() {
+      var name = document.getElementById('member-name-input').value.trim();
+      var errorEl = document.getElementById('member-name-error');
+
+      if (!name) {
+        errorEl.textContent = '이름을 입력해주세요.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      var found = playerNames.find(function(n) { return n === name; });
+      if (!found) {
+        errorEl.textContent = '멤버 목록에 등록되지 않은 이름입니다.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      self.setMemberName(found);
+      self.applyRoleUI();
+      if (modal._vpCleanup) modal._vpCleanup();
+      modal.remove();
+      unlockScroll();
+      self.navigate(RolesConfig.getDefaultTab());
+    }
+
+    document.getElementById('member-name-submit').addEventListener('click', trySubmit);
+    document.getElementById('member-name-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        trySubmit();
+      }
+    });
+    document.getElementById('member-name-close').addEventListener('click', function() {
+      if (modal._vpCleanup) modal._vpCleanup();
+      modal.remove();
+      unlockScroll();
+      Storage.clearData();
+      localStorage.removeItem('tennis_last_uid');
+      localStorage.removeItem('tennis_member_name');
+      fbAuth.signOut();
+    });
+  },
+
+  applyRoleUI() {
+    var visibleTabs = RolesConfig.getVisibleTabs();
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.style.display = visibleTabs.includes(tab.dataset.tab) ? '' : 'none';
+    });
+
+    // 사이드 메뉴에 역할 뱃지 표시
+    var menuHeader = document.querySelector('#left-menu h2');
+    if (menuHeader) {
+      var badge = document.getElementById('role-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.id = 'role-badge';
+        menuHeader.appendChild(badge);
+      }
+      var roleLabel = RolesConfig.isAdmin() ? '관리자' : '';
+      if (RolesConfig.isMember()) {
+        var mName = this.getMemberName();
+        roleLabel = mName ? mName + '님' : '멤버';
+      }
+      if (roleLabel) {
+        badge.textContent = roleLabel;
+        badge.style.display = '';
+        badge.className = RolesConfig.isAdmin()
+          ? 'text-xs font-normal ml-2 px-2 py-0.5 rounded-full bg-red-100 text-red-600'
+          : RolesConfig.hasAdminAccess()
+            ? 'text-xs font-normal ml-2 px-2 py-0.5 rounded-full bg-purple-100 text-purple-600'
+            : 'text-xs font-normal ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-600';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    // 회원 관리 메뉴: 관리자 + 권한 부여 멤버 표시
+    var membersBtn = document.getElementById('menu-members');
+    if (membersBtn) {
+      membersBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
+    }
+
+    // 설정 메뉴: 관리자만 표시
+    var settingsBtn = document.getElementById('menu-settings');
+    if (settingsBtn) {
+      settingsBtn.classList.toggle('hidden', !RolesConfig.isAdmin());
+    }
+
+    // 가계부 보기 버튼: 관리자/멤버만 표시
+    var ledgerBtn = document.getElementById('btn-ledger');
+    if (ledgerBtn) {
+      if (RolesConfig.isClubUser()) {
+        ledgerBtn.classList.remove('hidden');
+        ledgerBtn.classList.add('flex');
+        ledgerBtn.onclick = function() {
+          window.open('https://docs.google.com/spreadsheets/d/1SCsekMiWsNr8qfBE4PCNzkb36QGBOog0_cnP2ehHvl8/edit?usp=sharing', '_blank');
+        };
+      } else {
+        ledgerBtn.classList.add('hidden');
+        ledgerBtn.classList.remove('flex');
+      }
+    }
+
+    // 멤버: 좌측 메뉴 버튼 숨기고 멤버 정보 표시
+    // 관리자 + 권한 부여 멤버: 햄버거 메뉴 표시
+    var menuBtn = document.getElementById('menu-btn');
+    var memberHeaderInfo = document.getElementById('member-header-info');
+    if (menuBtn && memberHeaderInfo) {
+      if (!RolesConfig.hasAdminAccess()) {
+        // 일반 멤버: 햄버거 숨기고 이름 헤더 표시
+        menuBtn.classList.add('hidden');
+        memberHeaderInfo.classList.remove('hidden');
+        memberHeaderInfo.classList.add('flex');
+        var nameEl = document.getElementById('member-header-name');
+        if (nameEl) {
+          var mName = this.getMemberName();
+          nameEl.textContent = (mName || '멤버') + '님';
+        }
+      } else {
+        // 관리자 + 권한 부여 멤버: 햄버거 메뉴 표시
+        menuBtn.classList.remove('hidden');
+        memberHeaderInfo.classList.add('hidden');
+        memberHeaderInfo.classList.remove('flex');
+      }
+    }
+  },
+
+  bindTabs() {
+    document.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.onclick = () => this.navigate(tab.dataset.tab);
+    });
+  },
+
+  showHome() {
+    this._viewMode = 'home';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = '';
+    this._updateMenuActive();
+    this.navigate(this.currentTab || RolesConfig.getDefaultTab());
+  },
+
+  showCalendar() {
+    this._viewMode = 'calendar';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    // 탭 active 스타일 제거
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    Calendar.render(content);
+  },
+
+  showMembers() {
+    this._viewMode = 'members';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    Members.render(content);
+  },
+
+  showSettings() {
+    this._viewMode = 'settings';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    this.renderSettings(content);
+  },
+
+  renderSettings(container) {
+    var self = this;
+    var courts = Storage.getCourts();
+
+    // 월 옵션 생성 (현재 월 기준 앞뒤 포함)
+    var now = new Date();
+    var curYear = now.getFullYear();
+    var curMonth = now.getMonth(); // 0-based
+    var monthOptions = '';
+    for (var mi = 0; mi < 12; mi++) {
+      var selected = mi === curMonth ? ' selected' : '';
+      monthOptions += '<option value="' + mi + '"' + selected + '>' + (mi + 1) + '월</option>';
+    }
+
+    patchDOM(container,
+      '<div class="max-w-lg mx-auto">' +
+        '<h2 class="text-2xl font-bold text-gray-800 mb-6">설정</h2>' +
+        // 정규 일정 등록
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mb-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">정규 일정 등록</h3>' +
+            '<div class="flex items-center gap-2">' +
+              '<select id="reg-year-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
+                '<option value="' + (curYear - 1) + '">' + (curYear - 1) + '년</option>' +
+                '<option value="' + curYear + '" selected>' + curYear + '년</option>' +
+                '<option value="' + (curYear + 1) + '">' + (curYear + 1) + '년</option>' +
+              '</select>' +
+              '<select id="reg-month-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
+                monthOptions +
+              '</select>' +
+              '<button id="reg-exercise-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-blue-200/50">정규 일정 등록</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        // 정규 일정 확인
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mb-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">정규 일정 확인</h3>' +
+            '<div class="flex items-center gap-2 mb-2">' +
+              '<select id="reg-check-year" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
+                '<option value="' + (curYear - 1) + '">' + (curYear - 1) + '년</option>' +
+                '<option value="' + curYear + '" selected>' + curYear + '년</option>' +
+                '<option value="' + (curYear + 1) + '">' + (curYear + 1) + '년</option>' +
+              '</select>' +
+              '<select id="reg-check-month" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
+                monthOptions +
+              '</select>' +
+              '<select id="reg-check-day" class="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700"></select>' +
+            '</div>' +
+            '<button id="reg-check-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium shadow-sm shadow-blue-200/50">참석자 확인</button>' +
+          '</div>' +
+        '</div>' +
+        // 코트 관리
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60">' +
+          '<div class="px-4 py-3 border-b border-gray-100">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-2">코트 관리</h3>' +
+            '<div class="flex gap-2">' +
+              '<input type="text" autocomplete="off" id="court-name-input" class="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-base" placeholder="코트 이름 입력" maxlength="30">' +
+              '<button id="add-court-btn" class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-sm shadow-blue-200/50">추가</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">' +
+            '<span class="text-xs text-gray-500">등록 코트 ' + courts.length + '면</span>' +
+          '</div>' +
+          '<div id="court-list" class="divide-y divide-gray-100">' +
+            (courts.length === 0
+              ? '<p class="text-gray-400 text-center py-8">등록된 코트가 없습니다.</p>'
+              : courts.map(function(c, i) {
+                  var slots = c.slots || [];
+                  var colorOptions = Calendar.COLORS.map(function(col) {
+                    return '<option value="' + col.value + '">' + col.label + '</option>';
+                  }).join('');
+                  var startTimeOptions = '';
+                  var endTimeOptions = '';
+                  for (var h = 5; h <= 23; h++) {
+                    var hh = String(h).padStart(2, '0') + ':00';
+                    startTimeOptions += '<option value="' + hh + '"' + (hh === '06:00' ? ' selected' : '') + '>' + hh + '</option>';
+                    endTimeOptions += '<option value="' + hh + '"' + (hh === '09:00' ? ' selected' : '') + '>' + hh + '</option>';
+                  }
+                  return '<div class="px-4 py-3">' +
+                    '<div class="flex items-center justify-between">' +
+                      '<div class="flex items-center gap-3 min-w-0">' +
+                        '<span class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">' + (i + 1) + '</span>' +
+                        '<span class="court-name-display text-gray-800 font-medium truncate cursor-pointer hover:text-blue-700 transition" data-court-id="' + c.id + '" title="클릭하여 이름 수정">' + self._escapeHtml(c.name) + '</span>' +
+                        '<input type="text" autocomplete="off" class="court-name-edit hidden px-2 py-1 border border-blue-500 rounded-lg text-sm font-medium text-gray-800 focus:ring-2 focus:ring-blue-700 focus:outline-none" data-court-id="' + c.id + '" value="' + self._escapeHtml(c.name) + '" maxlength="30">' +
+                        (slots.length > 0 ? '<span class="text-gray-400 text-xs ml-1">' + slots.length + '개</span>' : '') +
+                      '</div>' +
+                      '<div class="flex items-center gap-1 flex-shrink-0 ml-2">' +
+                        '<button class="toggle-slot-btn text-gray-400 hover:text-gray-600 rounded-lg px-2 py-1 transition text-xs" data-court-id="' + c.id + '">시간대</button>' +
+                        '<button class="delete-court-btn text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg px-3 py-1 transition text-sm" data-id="' + c.id + '">삭제</button>' +
+                      '</div>' +
+                    '</div>' +
+                    // 슬롯 영역 (접힌 상태로 시작)
+                    '<div class="slot-area hidden" data-court-id="' + c.id + '">' +
+                      // 슬롯 목록
+                      (slots.length > 0
+                        ? '<div class="mt-2 ml-10 space-y-1">' +
+                            slots.map(function(s, si) {
+                              var colObj = Calendar.COLORS.find(function(col) { return col.value === s.color; }) || Calendar.COLORS[0];
+                              var dayLabel = s.day === 6 ? '토' : s.day === 0 ? '일' : '토/일';
+                              return '<div class="flex items-center gap-2 text-xs">' +
+                                '<span class="w-3 h-3 rounded-full ' + colObj.dot + ' flex-shrink-0"></span>' +
+                                '<span class="text-gray-600">' + s.startTime + ' ~ ' + s.endTime + '</span>' +
+                                '<span class="text-gray-400">(' + dayLabel + ', ' + colObj.label + ')</span>' +
+                                '<button class="delete-slot-btn text-red-300 hover:text-red-500 transition" data-court-id="' + c.id + '" data-slot-index="' + si + '">x</button>' +
+                              '</div>';
+                            }).join('') +
+                          '</div>'
+                        : '') +
+                      // 슬롯 추가 UI
+                      '<div class="mt-2 ml-10 flex items-center gap-1.5 flex-wrap">' +
+                        '<select class="slot-day px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" data-court-id="' + c.id + '">' +
+                          '<option value="both">토/일</option>' +
+                          '<option value="6">토</option>' +
+                          '<option value="0">일</option>' +
+                        '</select>' +
+                        '<select class="slot-start-time px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" data-court-id="' + c.id + '">' + startTimeOptions + '</select>' +
+                        '<span class="text-gray-400 text-xs">~</span>' +
+                        '<select class="slot-end-time px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" data-court-id="' + c.id + '">' + endTimeOptions + '</select>' +
+                        '<select class="slot-color px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" data-court-id="' + c.id + '">' + colorOptions + '</select>' +
+                        '<button class="add-slot-btn px-2.5 py-1.5 bg-blue-400 text-white rounded-lg text-xs hover:bg-blue-500 active:scale-[0.97] transition-all flex-shrink-0" data-court-id="' + c.id + '">+</button>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>';
+                }).join('')) +
+          '</div>' +
+        '</div>' +
+        // 데이터 백업/복원
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">데이터 백업 / 복원</h3>' +
+            '<div class="flex gap-2">' +
+              '<button id="backup-export-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-green-200/50">내보내기</button>' +
+              '<button id="backup-import-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-orange-200/50">가져오기</button>' +
+              '<input type="file" id="backup-file-input" accept=".json" class="hidden">' +
+            '</div>' +
+            '<p class="text-xs text-gray-400 mt-2">내보내기: 전체 데이터를 JSON 파일로 다운로드 / 가져오기: 백업 파일에서 복원</p>' +
+          '</div>' +
+        '</div>' +
+        // 관리자 권한 부여 (admin만 표시)
+        (RolesConfig.isAdmin() ?
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
+          '<div class="px-4 py-3 border-b border-gray-100">' +
+            '<h3 class="font-semibold text-gray-700 text-sm">관리자 권한 부여</h3>' +
+            '<p class="text-xs text-gray-400 mt-1">멤버에게 대진표 관리 등 관리자 권한을 부여합니다. (멤버 관리 제외)</p>' +
+            '<input type="text" autocomplete="off" id="admin-access-search" class="w-full mt-2 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition" placeholder="이름 검색">' +
+          '</div>' +
+          '<div id="admin-access-list" class="divide-y divide-gray-100 max-h-64 overflow-y-auto">' +
+            '<p class="text-gray-400 text-center py-4 text-sm">불러오는 중...</p>' +
+          '</div>' +
+        '</div>' : '') +
+        /* [역할 관리 - 비활성화] 필요 시 주석 해제하여 사용
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
+          '<div class="px-4 py-3 border-b border-gray-100">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-2">역할 관리</h3>' +
+            '<div class="flex gap-2">' +
+              '<input type="email" id="role-email-input" class="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-base" placeholder="아이디 입력" maxlength="50">' +
+              '<select id="role-type-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
+                '<option value="admin">관리자</option>' +
+                '<option value="member">멤버</option>' +
+              '</select>' +
+              '<button id="add-role-btn" class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-sm shadow-blue-200/50">추가</button>' +
+            '</div>' +
+          '</div>' +
+          '<div id="role-list" class="divide-y divide-gray-50">' +
+            '<p class="text-gray-400 text-center py-4 text-sm">불러오는 중...</p>' +
+          '</div>' +
+        '</div>' +
+        */
+      '</div>');
+
+    /* [역할 관리 - 비활성화] 필요 시 주석 해제하여 사용
+    // 역할 목록 로드
+    self._loadRoleList();
+
+    // 역할 추가
+    var roleEmailInput = document.getElementById('role-email-input');
+    var roleTypeSelect = document.getElementById('role-type-select');
+    var addRoleBtn = document.getElementById('add-role-btn');
+
+    var addRole = async function() {
+      var email = roleEmailInput.value.trim().toLowerCase();
+      if (!email) return;
+      var role = roleTypeSelect.value;
+      addRoleBtn.disabled = true;
+      addRoleBtn.textContent = '처리 중...';
+      var ok = await RolesConfig.setRole(email, role);
+      if (ok) {
+        roleEmailInput.value = '';
+        self._loadRoleList();
+      } else {
+        alert('역할 설정에 실패했습니다.');
+      }
+      addRoleBtn.disabled = false;
+      addRoleBtn.textContent = '추가';
+    };
+
+    addRoleBtn.onclick = addRole;
+    roleEmailInput.onkeydown = function(e) {
+      if (e.key === 'Enter') addRole();
+    };
+    */
+
+    // 관리자 권한 부여 목록 로드 (admin만)
+    if (RolesConfig.isAdmin()) {
+      self._loadAdminAccessList();
+    }
+
+    // 데이터 내보내기
+    var exportBtn = document.getElementById('backup-export-btn');
+    if (exportBtn) {
+      exportBtn.onclick = function() {
+        var data = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          players: Storage.getPlayers(),
+          tournaments: Storage.getTournaments(),
+          events: Storage.getEvents(),
+          teams: Storage.getTeams(),
+          courts: Storage.getCourts()
+        };
+        var json = JSON.stringify(data, null, 2);
+        var blob = new Blob([json], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var now = new Date();
+        var ts = now.getFullYear() +
+          String(now.getMonth() + 1).padStart(2, '0') +
+          String(now.getDate()).padStart(2, '0') + '_' +
+          String(now.getHours()).padStart(2, '0') +
+          String(now.getMinutes()).padStart(2, '0');
+        a.href = url;
+        a.download = 'backup_' + ts + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      };
+    }
+
+    // 데이터 가져오기
+    var importBtn = document.getElementById('backup-import-btn');
+    var fileInput = document.getElementById('backup-file-input');
+    if (importBtn && fileInput) {
+      importBtn.onclick = function() { fileInput.click(); };
+      fileInput.onchange = function() {
+        var file = fileInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = async function(e) {
+          try {
+            var data = JSON.parse(e.target.result);
+            if (!data.players && !data.tournaments && !data.events) {
+              alert('유효한 백업 파일이 아닙니다.');
+              return;
+            }
+            var summary = [];
+            if (data.players) summary.push('멤버 ' + data.players.length + '명');
+            if (data.tournaments) summary.push('대진표 ' + data.tournaments.length + '개');
+            if (data.events) summary.push('일정 ' + data.events.length + '개');
+            if (data.teams) summary.push('팀 ' + data.teams.length + '개');
+            if (data.courts) summary.push('코트 ' + data.courts.length + '면');
+            var msg = '다음 데이터를 복원합니다:\n' + summary.join(', ') +
+              '\n\n현재 데이터가 모두 덮어씌워집니다. 계속하시겠습니까?';
+            if (!confirm(msg)) { fileInput.value = ''; return; }
+            await Storage.restoreBackup(data);
+            fileInput.value = '';
+            alert('데이터가 복원되었습니다.');
+            self.renderSettings(container);
+          } catch (err) {
+            alert('파일을 읽을 수 없습니다. 올바른 JSON 파일인지 확인해주세요.');
+            fileInput.value = '';
+          }
+        };
+        reader.readAsText(file);
+      };
+    }
+
+    // 코트 추가
+    var courtInput = document.getElementById('court-name-input');
+    var addCourtBtn = document.getElementById('add-court-btn');
+
+    var addCourt = function() {
+      var name = courtInput.value.trim();
+      if (!name) return;
+      var courts = Storage.getCourts();
+      if (courts.some(function(c) { return c.name === name; })) {
+        alert('이미 등록된 코트입니다.');
+        return;
+      }
+      courts.push({ id: Storage.generateId(), name: name, slots: [] });
+      Storage.saveCourts(courts);
+      self.renderSettings(container);
+    };
+
+    addCourtBtn.onclick = addCourt;
+    courtInput.onkeydown = function(e) {
+      if (e.key === 'Enter') addCourt();
+    };
+
+    // 코트 삭제 (onclick 할당으로 중복 방지)
+    container.querySelectorAll('.delete-court-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        if (!confirm('이 코트를 삭제하시겠습니까?')) return;
+        var courts = Storage.getCourts().filter(function(c) { return c.id !== btn.dataset.id; });
+        Storage.saveCourts(courts);
+        self.renderSettings(container);
+      };
+    });
+
+    // 코트 이름 수정 (클릭하면 input 표시, Enter/blur로 확정)
+    container.querySelectorAll('.court-name-display').forEach(function(span) {
+      span.onclick = function() {
+        var courtId = span.dataset.courtId;
+        var input = container.querySelector('.court-name-edit[data-court-id="' + courtId + '"]');
+        if (!input) return;
+        span.classList.add('hidden');
+        input.classList.remove('hidden');
+        input.focus();
+        input.select();
+      };
+    });
+
+    container.querySelectorAll('.court-name-edit').forEach(function(input) {
+      var commitRename = async function() {
+        var courtId = input.dataset.courtId;
+        var newName = input.value.trim();
+        var span = container.querySelector('.court-name-display[data-court-id="' + courtId + '"]');
+        if (!newName) {
+          // 빈 이름이면 원래 이름 복원
+          input.classList.add('hidden');
+          if (span) span.classList.remove('hidden');
+          return;
+        }
+        var courts = Storage.getCourts();
+        var court = courts.find(function(c) { return c.id === courtId; });
+        if (!court) return;
+        var oldName = court.name;
+        if (newName === oldName) {
+          // 이름 변경 없음
+          input.classList.add('hidden');
+          if (span) span.classList.remove('hidden');
+          return;
+        }
+        // 중복 이름 체크
+        if (courts.some(function(c) { return c.id !== courtId && c.name === newName; })) {
+          alert('이미 등록된 코트 이름입니다.');
+          input.value = oldName;
+          input.classList.add('hidden');
+          if (span) span.classList.remove('hidden');
+          return;
+        }
+        // 코트 이름 변경
+        court.name = newName;
+        Storage.saveCourts(courts);
+        // 기존 이벤트에서 이전 코트 이름이 포함된 제목 일괄 변경 (Firestore Transaction 기반)
+        input.disabled = true;
+        await Storage.renameCourtInEvents(oldName, newName);
+        self.renderSettings(container);
+      };
+      input.onblur = commitRename;
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          input.blur();
+        } else if (e.key === 'Escape') {
+          var courtId = input.dataset.courtId;
+          var courts = Storage.getCourts();
+          var court = courts.find(function(c) { return c.id === courtId; });
+          if (court) input.value = court.name;
+          input.blur();
+        }
+      };
+    });
+
+    // 슬롯 영역 토글
+    container.querySelectorAll('.toggle-slot-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var area = container.querySelector('.slot-area[data-court-id="' + btn.dataset.courtId + '"]');
+        if (area) area.classList.toggle('hidden');
+      };
+    });
+
+    // 슬롯 추가
+    container.querySelectorAll('.add-slot-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var courtId = btn.dataset.courtId;
+        var row = btn.parentElement;
+        var dayVal = row.querySelector('.slot-day').value;
+        var startTime = row.querySelector('.slot-start-time').value;
+        var endTime = row.querySelector('.slot-end-time').value;
+        var color = row.querySelector('.slot-color').value;
+        if (startTime >= endTime) {
+          alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+          return;
+        }
+        var courts = Storage.getCourts();
+        var court = courts.find(function(c) { return c.id === courtId; });
+        if (!court) return;
+        if (!court.slots) court.slots = [];
+        var day = dayVal === 'both' ? null : parseInt(dayVal);
+        var dup = court.slots.some(function(s) {
+          return s.startTime === startTime && s.endTime === endTime && (s.day == null ? null : s.day) === day;
+        });
+        if (dup) {
+          alert('같은 요일/시간대의 슬롯이 이미 등록되어 있습니다.');
+          return;
+        }
+        var slotData = { startTime: startTime, endTime: endTime, color: color };
+        if (day !== null) slotData.day = day;
+        court.slots.push(slotData);
+        court.slots.sort(function(a, b) { return a.startTime.localeCompare(b.startTime); });
+        Storage.saveCourts(courts);
+        self.renderSettings(container);
+      };
+    });
+
+    // 슬롯 삭제
+    container.querySelectorAll('.delete-slot-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var courtId = btn.dataset.courtId;
+        var slotIndex = parseInt(btn.dataset.slotIndex);
+        var courts = Storage.getCourts();
+        var court = courts.find(function(c) { return c.id === courtId; });
+        if (!court || !court.slots) return;
+        court.slots.splice(slotIndex, 1);
+        Storage.saveCourts(courts);
+        self.renderSettings(container);
+      };
+    });
+
+    // 정규 일정 등록 버튼
+    var regBtn = document.getElementById('reg-exercise-btn');
+    if (regBtn) {
+      regBtn.onclick = function() {
+        var year = parseInt(document.getElementById('reg-year-select').value);
+        var month = parseInt(document.getElementById('reg-month-select').value);
+        self.handleRegularExercise(container, year, month);
+      };
+    }
+
+    // 정규 일정 확인 - 일(day) 옵션 동적 생성
+    var regCheckYear = document.getElementById('reg-check-year');
+    var regCheckMonth = document.getElementById('reg-check-month');
+    var regCheckDay = document.getElementById('reg-check-day');
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    function updateDayOptions() {
+      var y = parseInt(regCheckYear.value);
+      var m = parseInt(regCheckMonth.value);
+      var days = new Date(y, m + 1, 0).getDate();
+      var prevVal = regCheckDay.value;
+      var todayDate = now.getDate();
+      regCheckDay.innerHTML = '';
+
+      // 1일이 일요일이면 단독 표시
+      if (new Date(y, m, 1).getDay() === 0) {
+        var opt = document.createElement('option');
+        opt.value = 1;
+        opt.textContent = '1일(일)';
+        regCheckDay.appendChild(opt);
+      }
+
+      // 토요일 기준으로 토~일 쌍 생성
+      for (var di = 1; di <= days; di++) {
+        if (new Date(y, m, di).getDay() !== 6) continue;
+        var opt = document.createElement('option');
+        opt.value = di;
+        if (di + 1 <= days) {
+          opt.textContent = di + '일(토)~' + (di + 1) + '일(일)';
+        } else {
+          opt.textContent = di + '일(토)';
+        }
+        regCheckDay.appendChild(opt);
+      }
+
+      // 기본값: 이전 선택값 유지 또는 오늘 이후 가장 가까운 주말
+      var options = regCheckDay.options;
+      if (prevVal && regCheckDay.querySelector('option[value="' + prevVal + '"]')) {
+        regCheckDay.value = prevVal;
+      } else {
+        var found = false;
+        for (var oi = 0; oi < options.length; oi++) {
+          if (parseInt(options[oi].value) >= todayDate) {
+            regCheckDay.value = options[oi].value;
+            found = true;
+            break;
+          }
+        }
+        if (!found && options.length > 0) {
+          regCheckDay.selectedIndex = 0;
+        }
+      }
+    }
+    updateDayOptions();
+    regCheckYear.onchange = updateDayOptions;
+    regCheckMonth.onchange = updateDayOptions;
+
+    // 정규 일정 확인 버튼
+    var regCheckBtn = document.getElementById('reg-check-btn');
+    if (regCheckBtn) {
+      regCheckBtn.onclick = function() {
+        var year = parseInt(regCheckYear.value);
+        var month = parseInt(regCheckMonth.value);
+        var day = parseInt(regCheckDay.value);
+        self.handleRegularExerciseCheck(year, month, day);
+      };
+    }
+  },
+
+  handleRegularExercise(container, year, month) {
+    // 선택한 년/월의 모든 토요일·일요일 구하기
+    var weekendDates = [];
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dayOfWeek = new Date(year, month, d).getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) { // 일요일(0) 또는 토요일(6)
+        var mm = String(month + 1).padStart(2, '0');
+        var dd = String(d).padStart(2, '0');
+        weekendDates.push(year + '-' + mm + '-' + dd);
+      }
+    }
+
+    if (weekendDates.length === 0) {
+      alert('해당 월에 주말이 없습니다.');
+      return;
+    }
+
+    // 코트 관리에서 등록된 코트+슬롯 기반으로 일정 템플릿 생성
+    var courts = Storage.getCourts();
+    var templates = [];
+    courts.forEach(function(court) {
+      (court.slots || []).forEach(function(slot) {
+        var timeLabel = slot.startTime.replace(':00', '') + '~' + slot.endTime.replace(':00', '');
+        templates.push({
+          title: court.name + ' ' + timeLabel + ' 정규 일정',
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          color: slot.color,
+          day: slot.day != null ? slot.day : null  // 6=토, 0=일, null=토/일 모두
+        });
+      });
+    });
+
+    if (templates.length === 0) {
+      alert('등록된 코트에 시간대 슬롯이 없습니다. 코트 관리에서 슬롯을 먼저 추가해주세요.');
+      return;
+    }
+
+    var events = Storage.getEvents();
+
+    // 중복 체크: 같은 날짜 + 같은 제목이 이미 있으면 건너뜀
+    var newCount = 0;
+    for (var i = 0; i < weekendDates.length; i++) {
+      var dateStr = weekendDates[i];
+      var dow = new Date(year, month, parseInt(dateStr.slice(8))).getDay(); // 0=일, 6=토
+      for (var j = 0; j < templates.length; j++) {
+        var tmpl = templates[j];
+        // 슬롯에 요일이 지정되어 있으면 해당 요일만 등록
+        if (tmpl.day !== null && tmpl.day !== dow) continue;
+        var exists = events.some(function(e) {
+          return e.date === dateStr && e.title === tmpl.title;
+        });
+        if (!exists) {
+          events.push({
+            id: Storage.generateId(),
+            title: tmpl.title,
+            date: dateStr,
+            startTime: tmpl.startTime,
+            endTime: tmpl.endTime,
+            description: '',
+            color: tmpl.color,
+            maxParticipants: 0,
+            participants: [],
+            waitlist: []
+          });
+          newCount++;
+        }
+      }
+    }
+
+    if (newCount === 0) {
+      alert((month + 1) + '월 주말 정규 일정이 이미 모두 등록되어 있습니다.');
+      return;
+    }
+
+    // 날짜순 정렬
+    events.sort(function(a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
+    });
+
+    Storage.saveEvents(events);
+    alert((month + 1) + '월 주말 정규 일정 ' + newCount + '건이 등록되었습니다.');
+  },
+
+  handleRegularExerciseCheck(year, month, day) {
+    var selectedDate = new Date(year, month, day);
+    var dow = selectedDate.getDay();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // 선택한 날의 토·일 쌍 구하기
+    var satDay, sunDay;
+    if (dow === 6) { satDay = day; sunDay = day + 1; }
+    else { satDay = day - 1; sunDay = day; }
+
+    var weekendDays = [];
+    if (satDay >= 1 && satDay <= daysInMonth) weekendDays.push({ day: satDay, dow: 6 });
+    if (sunDay >= 1 && sunDay <= daysInMonth) weekendDays.push({ day: sunDay, dow: 0 });
+
+    var events = Storage.getEvents();
+    var mm = String(month + 1).padStart(2, '0');
+
+    var lines = [];
+    lines.push('안녕하세요.');
+    lines.push('금주 참석자 명단입니다. 변동사항이 있으시면 말씀해주세요 !');
+    lines.push('');
+
+    for (var i = 0; i < weekendDays.length; i++) {
+      var wd = weekendDays[i];
+      var dd = String(wd.day).padStart(2, '0');
+      var dateStr = year + '-' + mm + '-' + dd;
+
+      // 해당 날짜의 정규 일정 이벤트를 모두 찾기 (시간순 정렬)
+      var dayEvents = events.filter(function(e) {
+        return e.date === dateStr && e.title.indexOf('정규 일정') >= 0;
+      }).sort(function(a, b) {
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
+      if (dayEvents.length === 0) {
+        lines.push('* ' + wd.day + '일(' + dayNames[wd.dow] + ') : 일정 없음');
+        lines.push('');
+        continue;
+      }
+
+      for (var j = 0; j < dayEvents.length; j++) {
+        var ev = dayEvents[j];
+        var participants = ev.participants || [];
+        // 제목에서 코트명+시간 추출 (예: "코트1 6~9 정규 일정" → "코트1 6~9")
+        var label = ev.title.replace(' 정규 일정', '');
+        lines.push('* ' + wd.day + '일(' + dayNames[wd.dow] + ') ' + label + ' : ' + participants.length + '명');
+        if (participants.length > 0) {
+          for (var pi = 0; pi < participants.length; pi += 6) {
+            lines.push(participants.slice(pi, pi + 6).join(', '));
+          }
+        }
+        lines.push('');
+      }
+    }
+
+    var text = lines.join('\n').trim();
+
+    var fallbackCopy = function(str) {
+      var ta = document.createElement('textarea');
+      ta.value = str;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        alert('클립보드에 복사되었습니다.');
+      }).catch(function() {
+        fallbackCopy(text);
+        alert('클립보드에 복사되었습니다.');
+      });
+    } else {
+      fallbackCopy(text);
+      alert('클립보드에 복사되었습니다.');
+    }
+  },
+
+  _escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+
+  // 역할 목록 Firestore에서 로드하여 UI 갱신
+  async _loadRoleList() {
+    var self = this;
+    var listEl = document.getElementById('role-list');
+    if (!listEl) return;
+    var roles = await RolesConfig.getRoles();
+    var currentEmail = fbAuth.currentUser ? fbAuth.currentUser.email.toLowerCase() : '';
+    var roleLabels = { admin: '관리자', member: '멤버' };
+    if (roles.length === 0) {
+      listEl.innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">등록된 역할이 없습니다.</p>';
+      return;
+    }
+    listEl.innerHTML = roles.map(function(r, i) {
+      var isSelf = r.email === currentEmail;
+      return '<div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">' +
+        '<div class="flex items-center gap-3 min-w-0">' +
+          '<span class="w-7 h-7 ' + (r.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700') + ' rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">' + (roleLabels[r.role] || r.role).charAt(0) + '</span>' +
+          '<div class="min-w-0">' +
+            '<span class="text-gray-800 font-medium text-sm truncate block">' + self._escapeHtml(r.email) + '</span>' +
+            '<span class="text-xs text-gray-400">' + (roleLabels[r.role] || r.role) + '</span>' +
+          '</div>' +
+        '</div>' +
+        (isSelf ? '<span class="text-xs text-gray-400 flex-shrink-0 ml-2">나</span>' :
+          '<button class="delete-role-btn text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg px-3 py-1 transition text-sm flex-shrink-0 ml-2" data-email="' + self._escapeHtml(r.email) + '">삭제</button>') +
+      '</div>';
+    }).join('');
+
+    // 역할 삭제 이벤트
+    listEl.querySelectorAll('.delete-role-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var email = btn.dataset.email;
+        if (!confirm(email + '의 역할을 삭제하시겠습니까?\n삭제 후 해당 계정은 "그 외" 사용자가 됩니다.')) return;
+        btn.disabled = true;
+        btn.textContent = '삭제 중...';
+        var ok = await RolesConfig.removeRole(email);
+        if (ok) {
+          self._loadRoleList();
+        } else {
+          alert('역할 삭제에 실패했습니다.');
+          btn.disabled = false;
+          btn.textContent = '삭제';
+        }
+      });
+    });
+  },
+
+  // 관리자 권한 부여 목록 로드 (admin 전용, 멤버 이름 기반)
+  _loadAdminAccessList(filter) {
+    var self = this;
+    var listEl = document.getElementById('admin-access-list');
+    if (!listEl) return;
+    var players = Storage.getPlayers();
+    if (players.length === 0) {
+      listEl.innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">등록된 멤버가 없습니다.</p>';
+      return;
+    }
+
+    // 검색 이벤트 바인딩 (최초 1회)
+    var searchInput = document.getElementById('admin-access-search');
+    if (searchInput && !searchInput._bound) {
+      searchInput._bound = true;
+      searchInput.addEventListener('input', function() {
+        self._loadAdminAccessList(searchInput.value.trim());
+      });
+    }
+
+    // 필터링: 권한 부여된 멤버를 상단에, 검색어로 필터
+    var keyword = (filter || '').toLowerCase();
+    var filtered = players.filter(function(p) {
+      return !keyword || p.name.toLowerCase().indexOf(keyword) >= 0;
+    });
+    // 권한 부여된 멤버 먼저 표시
+    filtered.sort(function(a, b) {
+      var aOn = a.adminAccess ? 1 : 0;
+      var bOn = b.adminAccess ? 1 : 0;
+      return bOn - aOn;
+    });
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">검색 결과가 없습니다.</p>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(function(p) {
+      var isOn = !!p.adminAccess;
+      return '<div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">' +
+        '<div class="flex items-center gap-2 min-w-0">' +
+          '<span class="text-gray-800 font-medium text-sm truncate">' + self._escapeHtml(p.name) + '</span>' +
+          (isOn ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600">권한 부여됨</span>' : '') +
+        '</div>' +
+        '<label class="admin-access-toggle relative inline-flex items-center cursor-pointer flex-shrink-0 ml-2">' +
+          '<input type="checkbox" class="sr-only peer" data-name="' + self._escapeHtml(p.name) + '"' + (isOn ? ' checked' : '') + '>' +
+          '<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>' +
+        '</label>' +
+      '</div>';
+    }).join('');
+
+    // 토글 이벤트
+    listEl.querySelectorAll('.admin-access-toggle input').forEach(function(input) {
+      input.addEventListener('change', function() {
+        var name = input.dataset.name;
+        var enabled = input.checked;
+        var players = Storage.getPlayers();
+        var player = players.find(function(p) { return p.name === name; });
+        if (player) {
+          if (enabled) {
+            player.adminAccess = true;
+          } else {
+            delete player.adminAccess;
+          }
+          Storage.savePlayers(players);
+          if (typeof showToast === 'function') {
+            showToast(enabled ? name + '님에게 관리자 권한을 부여했습니다.' : name + '님의 관리자 권한을 해제했습니다.', 'info');
+          }
+          // 뱃지 상태 갱신 (현재 검색어 유지)
+          var searchInput = document.getElementById('admin-access-search');
+          self._loadAdminAccessList(searchInput ? searchInput.value.trim() : '');
+        }
+      });
+    });
+  },
+
+  _updateMenuActive() {
+    var homeBtn = document.getElementById('menu-home');
+    var calBtn = document.getElementById('menu-calendar');
+    var membersBtn = document.getElementById('menu-members');
+    var settingsBtn = document.getElementById('menu-settings');
+    if (homeBtn) {
+      if (this._viewMode === 'home') {
+        homeBtn.classList.add('active');
+      } else {
+        homeBtn.classList.remove('active');
+      }
+    }
+    if (calBtn) {
+      if (this._viewMode === 'calendar') {
+        calBtn.classList.add('active');
+      } else {
+        calBtn.classList.remove('active');
+      }
+    }
+    if (membersBtn) {
+      if (this._viewMode === 'members') {
+        membersBtn.classList.add('active');
+      } else {
+        membersBtn.classList.remove('active');
+      }
+    }
+    if (settingsBtn) {
+      if (this._viewMode === 'settings') {
+        settingsBtn.classList.add('active');
+      } else {
+        settingsBtn.classList.remove('active');
+      }
+    }
+  },
+
+  navigate(tabName, tournamentId) {
+    // 탭 전환 시 홈 모드로 전환 + 탭 네비 보이기
+    this._viewMode = 'home';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = '';
+    this._updateMenuActive();
+
+    // 멤버가 관리자 전용 탭 접근 시 기본 탭으로 리다이렉트
+    var visibleTabs = RolesConfig.getVisibleTabs();
+    if (!visibleTabs.includes(tabName)) {
+      tabName = RolesConfig.getDefaultTab();
+    }
+    this.currentTab = tabName;
+
+    document.querySelectorAll('[data-tab]').forEach(tab => {
+      if (tab.dataset.tab === tabName) {
+        tab.classList.add('tab-active');
+        tab.classList.remove('text-gray-500');
+      } else {
+        tab.classList.remove('tab-active');
+        tab.classList.add('text-gray-500');
+      }
+    });
+
+    const content = document.getElementById('main-content');
+
+    switch (tabName) {
+      case 'players':
+        Players.render(content);
+        break;
+      case 'create':
+        this.renderCreateForm(content);
+        break;
+      case 'schedule':
+        this.renderScheduleForm(content);
+        break;
+      case 'calendar':
+        Calendar.render(content);
+        break;
+      case 'active':
+        this.renderTournamentList(content, tournamentId);
+        break;
+      case 'stats':
+        Stats.render(content);
+        break;
+    }
+  },
+
+  // ─── 대회 만들기 (토너먼트/리그) ───
+
+  getEligiblePlayers(gameType) {
+    const players = Storage.getPlayers();
+    const config = GAME_TYPES[gameType];
+    if (config.gender === 'mixed') return players;
+    return players.filter(p => p.gender === config.gender);
+  },
+
+  renderCreateForm(container) {
+    const activeSubTab = this._createSubTab || 'auto';
+
+    patchDOM(container, `
+      <div class="max-w-lg mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">대회 만들기</h2>
+        <div class="flex gap-2 mb-6">
+          <button data-subtab="auto"
+            class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition
+              ${activeSubTab === 'auto' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            자동 대회
+          </button>
+          <button data-subtab="custom-bracket"
+            class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition
+              ${activeSubTab === 'custom-bracket' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            커스텀 대회
+          </button>
+        </div>
+        <div id="create-sub-content"></div>
+      </div>`);
+
+    container.querySelectorAll('[data-subtab]').forEach(btn => {
+      btn.onclick = () => {
+        this._createSubTab = btn.dataset.subtab;
+        this.renderCreateForm(container);
+      };
+    });
+
+    const subContent = container.querySelector('#create-sub-content');
+    if (activeSubTab === 'auto') {
+      this._renderAutoCreateForm(subContent);
+    } else {
+      CustomBracket.renderBuilder(subContent);
+    }
+  },
+
+  _renderAutoCreateForm(container) {
+    const allPlayers = Storage.getPlayers();
+
+    if (allPlayers.length < 2) {
+      patchDOM(container, `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
+          <p class="text-yellow-800 font-medium mb-2">멤버를 2명 이상 등록해주세요.</p>
+          <button onclick="App.navigate('players')" class="text-blue-700 font-semibold hover:underline">멤버 관리로 이동</button>
+        </div>`);
+      return;
+    }
+
+    patchDOM(container, `
+      <form id="create-form" class="space-y-5">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">대회명</label>
+          <input type="text" autocomplete="off" id="tournament-name" required maxlength="30"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700"
+            placeholder="예: 2024년 봄 정기대회">
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">경기 종류</label>
+          <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            ${Object.entries(GAME_TYPES).map(([key, cfg], i) => `
+              <label class="cursor-pointer">
+                <input type="radio" name="gameType" value="${key}" ${key === 'XD' ? 'checked' : ''} class="sr-only peer">
+                <div class="border-2 border-gray-200 rounded-xl py-2.5 px-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                  <div class="text-lg">${cfg.icon}</div>
+                  <div class="text-xs font-semibold text-gray-700 mt-0.5">${cfg.label}</div>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">대회 형식</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="format-option relative cursor-pointer">
+              <input type="radio" name="format" value="tournament" checked class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <div class="text-2xl mb-1">🏆</div>
+                <div class="font-semibold text-gray-800">토너먼트</div>
+                <div class="text-xs text-gray-500 mt-1">싱글 엘리미네이션</div>
+              </div>
+            </label>
+            <label class="format-option relative cursor-pointer">
+              <input type="radio" name="format" value="league" class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <div class="text-2xl mb-1">📊</div>
+                <div class="font-semibold text-gray-800">리그</div>
+                <div class="text-xs text-gray-500 mt-1">라운드 로빈</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">세트 수</label>
+          <div class="flex gap-3">
+            ${[1, 3, 5].map(n => `
+              <label class="flex-1 cursor-pointer">
+                <input type="radio" name="setCount" value="${n}" ${n === 3 ? 'checked' : ''} class="sr-only peer">
+                <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                  <span class="font-semibold text-gray-800">${n}세트</span>
+                  <div class="text-xs text-gray-500">${Math.ceil(n / 2)}세트 선승</div>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <div id="participants-section"></div>
+
+        <button type="submit"
+          class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-lg shadow-md shadow-blue-200/50">
+          대회 생성
+        </button>
+      </form>`);
+
+    const gameTypeRadios = container.querySelectorAll('input[name="gameType"]');
+    gameTypeRadios.forEach(r => {
+      r.onchange = () => this.renderParticipantsSection(container);
+    });
+
+    this.renderParticipantsSection(container);
+
+    container.querySelector('#create-form').onsubmit = (e) => {
+      e.preventDefault();
+
+      const name = container.querySelector('#tournament-name').value.trim();
+      const gameType = container.querySelector('input[name="gameType"]:checked').value;
+      const format = container.querySelector('input[name="format"]:checked').value;
+      const setCount = parseInt(container.querySelector('input[name="setCount"]:checked').value);
+      const config = GAME_TYPES[gameType];
+
+      if (!name) { alert('대회명을 입력해주세요.'); return; }
+
+      let participants;
+
+      if (config.doubles) {
+        participants = this.collectDoublesTeams(container, gameType);
+        if (!participants) return;
+      } else {
+        const selected = Array.from(container.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
+        if (selected.length < 2) { alert('2명 이상 선택해주세요.'); return; }
+        participants = selected;
+      }
+
+      const tournament = {
+        id: Storage.generateId(),
+        name,
+        gameType,
+        gameTypeLabel: config.label,
+        format,
+        setCount,
+        players: participants,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        rounds: format === 'tournament'
+          ? Tournament.generateBracket(participants)
+          : League.generateSchedule(participants),
+      };
+
+      const tournaments = Storage.getTournaments();
+      tournaments.push(tournament);
+      Storage.saveTournaments(tournaments);
+
+      this.navigate('active', tournament.id);
+    };
+  },
+
+  renderParticipantsSection(container) {
+    const section = container.querySelector('#participants-section');
+    const gameType = container.querySelector('input[name="gameType"]:checked').value;
+
+    if (gameType === 'XD') {
+      this.renderMixedSection(section);
+    } else {
+      this.renderSinglesSection(section, gameType);
+    }
+  },
+
+  renderSinglesSection(section, gameType) {
+    const eligible = this.getEligiblePlayers(gameType);
+    const config = GAME_TYPES[gameType];
+    const minPlayers = config.doubles ? 4 : 2;
+
+    if (eligible.length < minPlayers) {
+      patchDOM(section, `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center text-sm">
+          <p class="text-yellow-800">${config.label}에 참가 가능한 멤버가 부족합니다. (현재 ${eligible.length}명, 최소 ${minPlayers}명 필요)</p>
+        </div>`);
+      return;
+    }
+
+    const groups = Storage.getGroups();
+
+    patchDOM(section, `
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">참가 멤버 선택</label>
+        <input type="text" autocomplete="off" id="player-search" placeholder="이름 검색..."
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm mb-2">
+        <div class="flex justify-between items-center mb-2">
+          <span id="selected-count" class="text-sm text-gray-500">0명 선택</span>
+          <button type="button" id="select-all-btn" class="text-sm text-blue-700 font-medium hover:underline">전체 선택</button>
+        </div>
+        <div id="player-checkbox-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
+          ${eligible.map(p => {
+            const pGroups = (p.groups || []).map(gid => groups.find(g => g.id === gid)).filter(Boolean);
+            return `
+            <label class="player-item flex items-center px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition" data-name="${Results.escapeHtml(p.name.toLowerCase())}">
+              <input type="checkbox" name="players" value="${Results.escapeHtml(p.name)}" class="player-checkbox w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+              <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
+              <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${p.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}">${p.gender === 'M' ? '남' : '여'}</span>
+              <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
+              ${pGroups.map(g => `<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-600">${Results.escapeHtml(g.name)}</span>`).join('')}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>`);
+
+    const searchInput = section.querySelector('#player-search');
+    const playerItems = section.querySelectorAll('.player-item');
+    searchInput.oninput = () => {
+      const query = searchInput.value.trim().toLowerCase();
+      playerItems.forEach(item => {
+        const name = item.dataset.name;
+        item.style.display = (!query || name.includes(query)) ? '' : 'none';
+      });
+    };
+
+    const selectAllBtn = section.querySelector('#select-all-btn');
+    const countEl = section.querySelector('#selected-count');
+
+    const updateCount = () => {
+      const checked = section.querySelectorAll('.player-checkbox:checked').length;
+      countEl.textContent = `${checked}명 선택`;
+    };
+
+    section.querySelectorAll('.player-checkbox').forEach(cb => { cb.onchange = updateCount; });
+
+    let allSelected = false;
+    selectAllBtn.onclick = () => {
+      allSelected = !allSelected;
+      section.querySelectorAll('.player-item').forEach(item => {
+        if (item.style.display !== 'none') {
+          item.querySelector('.player-checkbox').checked = allSelected;
+        }
+      });
+      selectAllBtn.textContent = allSelected ? '선택 해제' : '전체 선택';
+      updateCount();
+    };
+  },
+
+  renderMixedSection(section) {
+    const allPlayers = Storage.getPlayers();
+    const males = allPlayers.filter(p => p.gender === 'M');
+    const females = allPlayers.filter(p => p.gender === 'F');
+
+    if (males.length < 2 || females.length < 2) {
+      patchDOM(section, `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center text-sm">
+          <p class="text-yellow-800">혼합복식: 남자 2명, 여자 2명 이상 필요합니다. (남 ${males.length}명, 여 ${females.length}명)</p>
+        </div>`);
+      return;
+    }
+
+    const renderList = (players, prefix, genderLabel, badgeClass) => `
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          ${genderLabel}자 멤버 선택
+          <span id="${prefix}-count" class="text-blue-700 font-normal">(0명 선택)</span>
+        </label>
+        <input type="text" autocomplete="off" id="${prefix}-search" placeholder="이름 검색..."
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm mb-2">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-sm text-gray-500">${players.length}명 중 선택</span>
+          <button type="button" id="${prefix}-all-btn" class="text-sm text-blue-700 font-medium hover:underline">전체 선택</button>
+        </div>
+        <div class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50">
+          ${players.map(p => `
+            <label class="${prefix}-item player-item flex items-center px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition" data-name="${Results.escapeHtml(p.name.toLowerCase())}">
+              <input type="checkbox" name="${prefix}" value="${Results.escapeHtml(p.name)}" class="${prefix}-cb w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+              <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
+              <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${badgeClass}">${genderLabel}</span>
+              <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>`;
+
+    patchDOM(section, `
+      <div class="space-y-4">
+        ${renderList(males, 'xd-male', '남', 'bg-blue-100 text-blue-700')}
+        ${renderList(females, 'xd-female', '여', 'bg-pink-100 text-pink-700')}
+        <p class="text-xs text-gray-400">남녀 같은 수를 선택하면 자동으로 팀이 구성됩니다.</p>
+      </div>`);
+
+    const bindList = (prefix) => {
+      const search = section.querySelector(`#${prefix}-search`);
+      const items = section.querySelectorAll(`.${prefix}-item`);
+      const countEl = section.querySelector(`#${prefix}-count`);
+      const allBtn = section.querySelector(`#${prefix}-all-btn`);
+
+      search.oninput = () => {
+        const q = search.value.trim().toLowerCase();
+        items.forEach(item => {
+          item.style.display = (!q || item.dataset.name.includes(q)) ? '' : 'none';
+        });
+      };
+
+      const updateCount = () => {
+        const checked = section.querySelectorAll(`.${prefix}-cb:checked`).length;
+        countEl.textContent = `(${checked}명 선택)`;
+      };
+
+      section.querySelectorAll(`.${prefix}-cb`).forEach(cb => { cb.onchange = updateCount; });
+
+      let allSelected = false;
+      allBtn.onclick = () => {
+        allSelected = !allSelected;
+        items.forEach(item => {
+          if (item.style.display !== 'none') {
+            item.querySelector(`.${prefix}-cb`).checked = allSelected;
+          }
+        });
+        allBtn.textContent = allSelected ? '선택 해제' : '전체 선택';
+        updateCount();
+      };
+    };
+
+    bindList('xd-male');
+    bindList('xd-female');
+  },
+
+  shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+
+  collectDoublesTeams(container, gameType) {
+    if (gameType === 'XD') {
+      const males = Array.from(container.querySelectorAll('.xd-male-cb:checked')).map(cb => cb.value);
+      const females = Array.from(container.querySelectorAll('.xd-female-cb:checked')).map(cb => cb.value);
+      if (males.length < 2 || females.length < 2) {
+        alert('혼합복식: 남자 2명, 여자 2명 이상 선택해주세요.');
+        return null;
+      }
+      if (males.length !== females.length) {
+        alert(`남녀 수가 같아야 합니다. (남 ${males.length}명, 여 ${females.length}명)`);
+        return null;
+      }
+      const sm = this.shuffleArray(males);
+      const sf = this.shuffleArray(females);
+      return sm.map((m, i) => `${m} / ${sf[i]}`);
+    } else {
+      const selected = Array.from(container.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
+      if (selected.length < 4) {
+        alert('복식: 최소 4명 이상 선택해주세요.');
+        return null;
+      }
+      if (selected.length % 2 !== 0) {
+        alert('복식: 짝수 인원을 선택해주세요.');
+        return null;
+      }
+      const shuffled = this.shuffleArray(selected);
+      const teams = [];
+      for (let i = 0; i < shuffled.length; i += 2) {
+        teams.push(`${shuffled[i]} / ${shuffled[i + 1]}`);
+      }
+      return teams;
+    }
+  },
+
+  // ─── 대진표 만들기 (시간/코트 기반) ───
+
+  generateTimeOptions(selectedValue) {
+    const options = [];
+    for (let h = 6; h <= 22; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        if (h === 22 && m > 0) break;
+        const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        options.push(`<option value="${val}" ${val === selectedValue ? 'selected' : ''}>${val}</option>`);
+      }
+    }
+    return options.join('');
+  },
+
+  renderScheduleForm(container) {
+    const activeSubTab = this._scheduleSubTab || 'time-court';
+
+    patchDOM(container, `
+      <div class="max-w-lg mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">대진표 만들기</h2>
+        <div class="flex gap-2 mb-6">
+          <button data-subtab="time-court"
+            class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition
+              ${activeSubTab === 'time-court' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            시간/코트 대진표
+          </button>
+          <button data-subtab="custom-schedule"
+            class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition
+              ${activeSubTab === 'custom-schedule' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            커스텀 대진표
+          </button>
+        </div>
+        <div id="schedule-sub-content"></div>
+      </div>`);
+
+    container.querySelectorAll('[data-subtab]').forEach(btn => {
+      btn.onclick = () => {
+        this._scheduleSubTab = btn.dataset.subtab;
+        this.renderScheduleForm(container);
+      };
+    });
+
+    const subContent = container.querySelector('#schedule-sub-content');
+    if (activeSubTab === 'time-court') {
+      this._renderTimeCourtForm(subContent);
+    } else {
+      this._renderCustomScheduleForm(subContent);
+    }
+  },
+
+  _renderCustomScheduleForm(container) {
+    patchDOM(container, `
+      <p class="text-xs text-gray-400 mb-4">빈 대진표를 생성한 후, 직접 매치를 추가할 수 있습니다.</p>
+      <form id="custom-schedule-form" class="space-y-5">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-semibold text-gray-700">대진표 이름</label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="cs-team-mode" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+              <span class="text-xs text-gray-500">팀전</span>
+            </label>
+          </div>
+          <input type="text" autocomplete="off" id="cs-name" maxlength="30"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700"
+            placeholder="미입력 시 게임 날짜로 자동 생성">
+        </div>
+
+        <!-- 게임 날짜 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">게임 날짜</label>
+          <input type="date" id="cs-date" value="${new Date().toISOString().slice(0, 10)}"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700">
+        </div>
+
+        <!-- 단식/복식 선택 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">경기 방식</label>
+          <div class="flex gap-3">
+            <label class="flex-1 cursor-pointer">
+              <input type="radio" name="cs-match-type" value="doubles" checked class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <span class="font-semibold text-gray-800">복식</span>
+                <div class="text-xs text-gray-500">2 vs 2</div>
+              </div>
+            </label>
+            <label class="flex-1 cursor-pointer">
+              <input type="radio" name="cs-match-type" value="singles" class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <span class="font-semibold text-gray-800">단식</span>
+                <div class="text-xs text-gray-500">1 vs 1</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">코트 수</label>
+          <div class="grid grid-cols-4 gap-2">
+            ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
+              <label class="cursor-pointer">
+                <input type="radio" name="cs-courts" value="${n}" ${n === 2 ? 'checked' : ''} class="sr-only peer">
+                <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                  <span class="font-semibold text-gray-800">${n}면</span>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <button type="submit"
+          class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-lg shadow-md shadow-blue-200/50">
+          빈 대진표 생성
+        </button>
+      </form>`);
+
+    container.querySelector('#custom-schedule-form').onsubmit = (e) => {
+      e.preventDefault();
+
+      const courts = parseInt(container.querySelector('input[name="cs-courts"]:checked').value);
+      const isTeamMode = container.querySelector('#cs-team-mode')?.checked || false;
+      const isSingles = container.querySelector('input[name="cs-match-type"]:checked')?.value === 'singles';
+
+      const gameDate = container.querySelector('#cs-date').value || new Date().toISOString().slice(0, 10);
+      const customName = container.querySelector('#cs-name').value.trim();
+      const tournament = {
+        id: Storage.generateId(),
+        name: customName || `${gameDate} 커스텀 대진표`,
+        format: 'schedule',
+        isCustom: true,
+        gameDate,
+        isSingles,
+        isTeamMode,
+        setCount: 1,
+        courts,
+        allowMixed: true,
+        males: [],
+        females: [],
+        players: [],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        timeSlots: [{ time: '', matches: [] }],
+      };
+
+      const tournaments = Storage.getTournaments();
+      tournaments.push(tournament);
+      Storage.saveTournaments(tournaments);
+
+      this.navigate('active', tournament.id);
+    };
+  },
+
+  _renderTimeCourtForm(container) {
+    const allPlayers = Storage.getPlayers();
+    const males = allPlayers.filter(p => p.gender === 'M').sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    const females = allPlayers.filter(p => p.gender === 'F').sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    const _teamMap = buildTeamMap();
+
+    if (allPlayers.length < 2) {
+      patchDOM(container, `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
+          <p class="text-yellow-800 font-medium mb-2">최소 2명의 멤버가 필요합니다.</p>
+          <p class="text-yellow-700 text-sm mb-3">현재: 남 ${males.length}명, 여 ${females.length}명</p>
+          <button onclick="App.navigate('players')" class="text-blue-700 font-semibold hover:underline">멤버 관리로 이동</button>
+        </div>`);
+      return;
+    }
+
+    patchDOM(container, `
+      <div class="flex items-center justify-end gap-4 mb-4">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="sch-team-mode" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+          <span class="text-xs text-gray-500">팀전</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="allow-xd" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+          <span id="allow-xd-label" class="text-xs text-gray-500">혼복</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="allow-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+          <span id="allow-mixed-label" class="text-xs text-gray-500">섞어복식 허용</span>
+        </label>
+      </div>
+
+      <!-- 단식/복식 선택 -->
+      <div class="mb-5">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">경기 방식</label>
+        <div class="flex gap-3">
+          <label class="flex-1 cursor-pointer">
+            <input type="radio" name="sch-match-type" value="doubles" checked class="sr-only peer">
+            <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+              <span class="font-semibold text-gray-800">복식</span>
+              <div class="text-xs text-gray-500">2 vs 2</div>
+            </div>
+          </label>
+          <label class="flex-1 cursor-pointer">
+            <input type="radio" name="sch-match-type" value="singles" class="sr-only peer">
+            <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+              <span class="font-semibold text-gray-800">단식</span>
+              <div class="text-xs text-gray-500">1 vs 1</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <form id="schedule-form" class="space-y-5">
+        <!-- 대진표 이름 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">대진표 이름</label>
+          <input type="text" autocomplete="off" id="schedule-name" maxlength="30"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700"
+            placeholder="미입력 시 게임 날짜로 자동 생성">
+        </div>
+
+        <!-- 게임 날짜 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">게임 날짜</label>
+          <input type="date" id="schedule-date" value="${new Date().toISOString().slice(0, 10)}"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700">
+        </div>
+
+        <!-- 시간 설정 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">시간 설정</label>
+          <div class="flex items-center gap-2">
+            <select id="start-time" class="flex-1 px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
+              ${this.generateTimeOptions('06:00')}
+            </select>
+            <span class="text-gray-500 font-medium">~</span>
+            <select id="end-time" class="flex-1 px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
+              ${this.generateTimeOptions('09:00')}
+            </select>
+          </div>
+          <p id="time-info" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- 코트 수 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">코트 수</label>
+          <div class="grid grid-cols-4 gap-2">
+            ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
+              <label class="cursor-pointer">
+                <input type="radio" name="courts" value="${n}" ${n === 2 ? 'checked' : ''} class="sr-only peer">
+                <div class="border-2 border-gray-200 rounded-xl py-2.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                  <span class="font-semibold text-gray-800">${n}면</span>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- 남자 멤버 선택 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            남자 멤버 <span id="male-count" class="text-blue-700 font-normal">(0/${males.length}명 선택)</span>
+          </label>
+          ${males.length === 0 ? '<p class="text-sm text-gray-400">등록된 남자 멤버가 없습니다.</p>' : `
+          <input type="text" autocomplete="off" id="sch-male-search" placeholder="이름 검색..."
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm mb-2">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-gray-500">${males.length}명 중 선택</span>
+            <button type="button" id="sch-male-all-btn" class="text-sm text-blue-700 font-medium hover:underline">전체 선택</button>
+          </div>
+          <div class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50">
+            ${males.map(p => {
+              const tn = _teamMap[p.name];
+              return `
+              <label class="sch-male-item flex items-center px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition" data-name="${Results.escapeHtml(p.name.toLowerCase())}">
+                <input type="checkbox" name="males" value="${Results.escapeHtml(p.name)}" class="male-cb w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+                <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
+                <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700">남</span>
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
+                ${tn ? `<span class="sch-team-badge text-xs px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
+              </label>`;
+            }).join('')}
+          </div>`}
+        </div>
+
+        <!-- 여자 멤버 선택 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            여자 멤버 <span id="female-count" class="text-blue-700 font-normal">(0/${females.length}명 선택)</span>
+          </label>
+          ${females.length === 0 ? '<p class="text-sm text-gray-400">등록된 여자 멤버가 없습니다.</p>' : `
+          <input type="text" autocomplete="off" id="sch-female-search" placeholder="이름 검색..."
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm mb-2">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-gray-500">${females.length}명 중 선택</span>
+            <button type="button" id="sch-female-all-btn" class="text-sm text-blue-700 font-medium hover:underline">전체 선택</button>
+          </div>
+          <div class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50">
+            ${females.map(p => {
+              const tn = _teamMap[p.name];
+              return `
+              <label class="sch-female-item flex items-center px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition" data-name="${Results.escapeHtml(p.name.toLowerCase())}">
+                <input type="checkbox" name="females" value="${Results.escapeHtml(p.name)}" class="female-cb w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+                <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
+                <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium bg-pink-100 text-pink-700">여</span>
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
+                ${tn ? `<span class="sch-team-badge text-xs px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
+              </label>`;
+            }).join('')}
+          </div>`}
+        </div>
+
+        <!-- 미리보기 정보 -->
+        <div id="preview-info" class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 hidden">
+        </div>
+
+        <button type="submit"
+          class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-lg shadow-md shadow-blue-200/50">
+          대진표 생성
+        </button>
+      </form>`);
+
+    const updateCounts = () => {
+      const maleChecked = container.querySelectorAll('.male-cb:checked').length;
+      const femaleChecked = container.querySelectorAll('.female-cb:checked').length;
+      container.querySelector('#male-count').textContent = `(${maleChecked}/${males.length}명 선택)`;
+      container.querySelector('#female-count').textContent = `(${femaleChecked}/${females.length}명 선택)`;
+      this.updateSchedulePreview(container);
+    };
+
+    container.querySelectorAll('.male-cb, .female-cb').forEach(cb => {
+      cb.onchange = updateCounts;
+    });
+
+    // 팀전 체크박스: 팀 배지 토글
+    const teamModeCb = container.querySelector('#sch-team-mode');
+    if (teamModeCb) {
+      teamModeCb.onchange = () => {
+        container.querySelectorAll('.sch-team-badge').forEach(el => {
+          el.classList.toggle('hidden', !teamModeCb.checked);
+        });
+      };
+    }
+
+    const bindScheduleList = (prefix, cbClass) => {
+      const search = container.querySelector(`#sch-${prefix}-search`);
+      const items = container.querySelectorAll(`.sch-${prefix}-item`);
+      const allBtn = container.querySelector(`#sch-${prefix}-all-btn`);
+      if (!search || !allBtn) return;
+
+      search.oninput = () => {
+        const q = search.value.trim();
+        items.forEach(item => {
+          item.style.display = (!q || matchesKoreanSearch(item.dataset.name, q)) ? '' : 'none';
+        });
+      };
+
+      let allSelected = false;
+      allBtn.onclick = () => {
+        allSelected = !allSelected;
+        items.forEach(item => {
+          if (item.style.display !== 'none') {
+            item.querySelector(`.${cbClass}`).checked = allSelected;
+          }
+        });
+        allBtn.textContent = allSelected ? '선택 해제' : '전체 선택';
+        updateCounts();
+      };
+    };
+
+    bindScheduleList('male', 'male-cb');
+    bindScheduleList('female', 'female-cb');
+
+    container.querySelector('#start-time').onchange = () => this.updateSchedulePreview(container);
+    container.querySelector('#end-time').onchange = () => this.updateSchedulePreview(container);
+    container.querySelectorAll('input[name="courts"]').forEach(r => {
+      r.onchange = () => this.updateSchedulePreview(container);
+    });
+
+    this.updateSchedulePreview(container);
+
+    const allowMixedCb = container.querySelector('#allow-mixed');
+    if (allowMixedCb) {
+      allowMixedCb.onchange = () => this.updateSchedulePreview(container);
+    }
+    const allowXDCb = container.querySelector('#allow-xd');
+    if (allowXDCb) {
+      allowXDCb.onchange = () => this.updateSchedulePreview(container);
+    }
+
+    // 단식/복식 전환 시 라벨 업데이트
+    container.querySelectorAll('input[name="sch-match-type"]').forEach(r => {
+      r.onchange = () => {
+        const label = container.querySelector('#allow-mixed-label');
+        if (label) label.textContent = r.value === 'singles' ? '섞어단식 허용' : '섞어복식 허용';
+        const xdLabel = container.querySelector('#allow-xd-label');
+        if (xdLabel) xdLabel.textContent = r.value === 'singles' ? '혼단' : '혼복';
+        this.updateSchedulePreview(container);
+      };
+    });
+
+    container.querySelector('#schedule-form').onsubmit = (e) => {
+      e.preventDefault();
+
+      const startTime = container.querySelector('#start-time').value;
+      const endTime = container.querySelector('#end-time').value;
+      const courts = parseInt(container.querySelector('input[name="courts"]:checked').value);
+      const selectedMales = Array.from(container.querySelectorAll('.male-cb:checked')).map(cb => cb.value);
+      const selectedFemales = Array.from(container.querySelectorAll('.female-cb:checked')).map(cb => cb.value);
+      const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
+
+      if (startTime >= endTime) {
+        alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        return;
+      }
+
+      const totalPlayers = selectedMales.length + selectedFemales.length;
+      const minPlayers = isSingles ? 2 : 4;
+      if (totalPlayers < minPlayers) {
+        alert(`최소 ${minPlayers}명의 멤버를 선택해주세요.`);
+        return;
+      }
+
+      const allowMixed = container.querySelector('#allow-mixed')?.checked || false;
+      const allowXD = container.querySelector('#allow-xd')?.checked || false;
+      const isTeamMode = container.querySelector('#sch-team-mode')?.checked || false;
+
+      const possibleTypes = Schedule.getPossibleTypes(selectedMales, selectedFemales, allowMixed, isSingles, allowXD);
+      if (possibleTypes.length === 0) {
+        if (isSingles) {
+          alert('선택한 멤버 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
+        } else {
+          alert('선택한 멤버 구성으로 복식 경기를 만들 수 없습니다.\n혼합복식: 남2+여2, 남자복식: 남4, 여자복식: 여4 이상 필요\n또는 섞어복식 허용을 체크해주세요.');
+        }
+        return;
+      }
+
+      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, allowXD);
+
+      if (timeSlots.length === 0) {
+        alert('시간이 부족합니다. 최소 30분 이상 설정해주세요.');
+        return;
+      }
+
+      const gameDate = container.querySelector('#schedule-date').value || new Date().toISOString().slice(0, 10);
+      const customName = container.querySelector('#schedule-name').value.trim();
+      const tournament = {
+        id: Storage.generateId(),
+        name: customName || `${gameDate} ${startTime} 대진표`,
+        format: 'schedule',
+        isSingles,
+        isTeamMode,
+        setCount: 1,
+        courts,
+        startTime,
+        endTime,
+        allowMixed,
+        gameDate,
+        males: selectedMales,
+        females: selectedFemales,
+        players: [...selectedMales, ...selectedFemales],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        timeSlots,
+      };
+
+      const tournaments = Storage.getTournaments();
+      tournaments.push(tournament);
+      Storage.saveTournaments(tournaments);
+
+      this.navigate('active', tournament.id);
+    };
+  },
+
+  updateSchedulePreview(container) {
+    const startTime = container.querySelector('#start-time').value;
+    const endTime = container.querySelector('#end-time').value;
+    const courts = parseInt(container.querySelector('input[name="courts"]:checked').value);
+    const maleCount = container.querySelectorAll('.male-cb:checked').length;
+    const femaleCount = container.querySelectorAll('.female-cb:checked').length;
+
+    const preview = container.querySelector('#preview-info');
+    const timeInfo = container.querySelector('#time-info');
+
+    if (startTime >= endTime) {
+      timeInfo.textContent = '종료 시간을 시작 시간 이후로 설정해주세요.';
+      timeInfo.className = 'text-xs text-red-500 mt-1';
+      preview.classList.add('hidden');
+      return;
+    }
+
+    const slots = Schedule.calculateTimeSlots(startTime, endTime);
+    const totalGamesMax = slots.length * courts;
+
+    timeInfo.textContent = `${slots.length}개 타임 (30분 × ${slots.length})`;
+    timeInfo.className = 'text-xs text-gray-500 mt-1';
+
+    const allowMixed = container.querySelector('#allow-mixed')?.checked || false;
+    const allowXD = container.querySelector('#allow-xd')?.checked || false;
+    const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
+    const possibleTypes = [];
+    if (isSingles) {
+      if (maleCount >= 2) possibleTypes.push('남자단식');
+      if (femaleCount >= 2) possibleTypes.push('여자단식');
+      if (allowMixed && (maleCount + femaleCount) >= 2) possibleTypes.push('섞어단식');
+    } else {
+      if (allowXD && maleCount >= 2 && femaleCount >= 2) possibleTypes.push('혼합복식');
+      if (maleCount >= 4) possibleTypes.push('남자복식');
+      if (femaleCount >= 4) possibleTypes.push('여자복식');
+      if (allowMixed && (maleCount + femaleCount) >= 4) possibleTypes.push('섞어복식');
+    }
+    const minPlayers = isSingles ? 2 : 4;
+
+    if (maleCount + femaleCount >= minPlayers && possibleTypes.length > 0) {
+      preview.classList.remove('hidden');
+      preview.innerHTML = `
+        <div class="space-y-1">
+          <p><span class="font-medium">총 경기:</span> 최대 ${totalGamesMax}경기 (${slots.length}타임 × ${courts}코트)</p>
+          <p><span class="font-medium">멤버:</span> 남 ${maleCount}명, 여 ${femaleCount}명</p>
+          <p><span class="font-medium">가능한 게임:</span> ${possibleTypes.join(', ')}</p>
+        </div>`;
+    } else {
+      preview.classList.add('hidden');
+    }
+  },
+
+  // ─── 목록 / 상세 ───
+
+  renderTournamentList(container, openTournamentId) {
+    const tournaments = Storage.getTournaments();
+
+    if (openTournamentId) {
+      const t = tournaments.find(t => t.id === openTournamentId);
+      if (t) {
+        this.renderTournamentDetail(container, t);
+        return;
+      }
+    }
+
+    if (tournaments.length === 0) {
+      patchDOM(container, `
+        <div class="max-w-lg mx-auto text-center py-12">
+          <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-8">
+            <div class="text-5xl mb-4">🎾</div>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">등록된 대진표가 없습니다</h2>
+            <p class="text-gray-500 mb-4">새로운 매치를 만들어보세요!</p>
+          </div>
+        </div>`);
+      return;
+    }
+
+    // 게임 날짜 기준 정렬 (최신순), 없으면 createdAt 사용
+    const getGameDate = (t) => t.gameDate || (t.createdAt ? t.createdAt.slice(0, 10) : '');
+    const sorted = [...tournaments].sort((a, b) => getGameDate(b).localeCompare(getGameDate(a)));
+
+    // 월별 그룹핑
+    const monthGroups = {};
+    sorted.forEach(t => {
+      const d = getGameDate(t);
+      const monthKey = d ? d.slice(0, 7) : 'unknown';
+      if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+      monthGroups[monthKey].push(t);
+    });
+
+    const monthKeys = Object.keys(monthGroups);
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (!this._monthCollapsed) this._monthCollapsed = {};
+    monthKeys.forEach(key => {
+      if (key === currentMonth) {
+        if (!(key in this._monthCollapsed)) this._monthCollapsed[key] = false;
+      } else {
+        this._monthCollapsed[key] = true;
+      }
+    });
+
+    const renderCard = (t) => {
+      const isMember = RolesConfig.isMember();
+      let hasMyName = false;
+      if (isMember) {
+        const mn = App.getMemberName();
+        if (mn) {
+          if (t.format === 'schedule') {
+            hasMyName = Schedule.getAllMatches(t).some(m =>
+              (m.player1 && m.player1.split(' / ').includes(mn)) || (m.player2 && m.player2.split(' / ').includes(mn)));
+          } else if (t.players) {
+            hasMyName = t.players.some(p => p && p.split(' / ').includes(mn));
+          }
+        }
+      }
+      const myCardClass = isMember && hasMyName ? 'my-card' : 'border-white/60';
+
+      if (t.format === 'schedule') {
+        const allMatches = Schedule.getAllMatches(t);
+        const completed = allMatches.filter(m => m.winner).length;
+        const playerNames = new Set();
+        allMatches.forEach(m => {
+          if (m.player1) m.player1.split(' / ').forEach(n => playerNames.add(n.trim()));
+          if (m.player2) m.player2.split(' / ').forEach(n => playerNames.add(n.trim()));
+        });
+        const regPlayers = Storage.getPlayers();
+        let mCount = 0, fCount = 0;
+        playerNames.forEach(name => {
+          const p = regPlayers.find(rp => rp.name === name);
+          if (p) { if (p.gender === 'M') mCount++; else fCount++; }
+        });
+        return `
+          <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
+               data-id="${t.id}">
+            ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>` : ''}
+            <div class="flex items-center justify-between mb-2 pr-6">
+              <h3 class="font-bold text-gray-800">${Results.escapeHtml(t.name)}</h3>
+              <div class="flex items-center gap-1.5">
+                ${t.status === 'completed'
+                  ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">완료</span>'
+                  : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">진행중</span>'}
+                ${t.isTeamMode ? '<span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">팀전</span>' : ''}
+                <span class="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">대진표</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-4 text-sm text-gray-500">
+              <span>남${mCount} · 여${fCount}</span>
+              ${t.isCustom ? `<span>코트 ${t.courts}면</span>` : `<span>${t.startTime}~${t.endTime}</span>`}
+              <span>${completed}/${allMatches.length}경기</span>
+            </div>
+          </div>`;
+      }
+
+      const dateStr = new Date(t.createdAt).toLocaleDateString('ko-KR');
+      const gameLabel = t.gameTypeLabel || (t.gameType ? GAME_TYPES[t.gameType]?.label : '');
+      const isDoubles = t.gameType ? GAME_TYPES[t.gameType]?.doubles : false;
+      const countLabel = isDoubles ? `${t.players.length}팀` : `${t.players.length}명`;
+      return `
+        <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
+             data-id="${t.id}">
+          ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>` : ''}
+          <div class="flex items-center justify-between mb-2 pr-6">
+            <h3 class="font-bold text-gray-800">${Results.escapeHtml(t.name)}</h3>
+            <div class="flex items-center gap-1.5">
+              ${t.status === 'completed'
+                ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">완료</span>'
+                : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">진행중</span>'}
+              ${gameLabel ? `<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">${gameLabel}</span>` : ''}
+              <span class="text-xs px-2 py-1 rounded-full ${t.format === 'tournament' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                ${t.format === 'tournament' ? '토너먼트' : '리그'}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-sm text-gray-500">
+            <span>${countLabel}</span>
+            <span>${dateStr}</span>
+            ${t.status === 'completed' && t.format === 'tournament' ?
+              `<span class="text-yellow-600 font-medium">우승: ${Results.escapeHtml(t.rounds[t.rounds.length - 1][0].winner || '-')}</span>` : ''}
+          </div>
+        </div>`;
+    };
+
+    patchDOM(container, `
+      <div class="max-w-lg mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">대진표</h2>
+        <div class="space-y-4">
+          ${monthKeys.map(key => {
+            const items = monthGroups[key];
+            const collapsed = !!this._monthCollapsed[key];
+            let label;
+            if (key === 'unknown') {
+              label = '날짜 미지정';
+            } else {
+              const [y, m] = key.split('-');
+              label = `${y}년 ${parseInt(m)}월`;
+            }
+            return `
+              <div class="month-group">
+                <button type="button" class="month-toggle w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition" data-month="${key}">
+                  <span class="font-semibold text-gray-700 text-sm">${label} <span class="text-gray-400 font-normal">(${items.length})</span></span>
+                  <svg class="w-4 h-4 text-gray-400 transition-transform ${collapsed ? '' : 'rotate-180'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </button>
+                <div class="month-content space-y-3 mt-3 ${collapsed ? 'hidden' : ''}">
+                  ${items.map(t => renderCard(t)).join('')}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`);
+
+    // 월별 접기/펼치기
+    container.querySelectorAll('.month-toggle').forEach(btn => {
+      btn.onclick = () => {
+        const key = btn.dataset.month;
+        this._monthCollapsed[key] = !this._monthCollapsed[key];
+        const content = btn.closest('.month-group').querySelector('.month-content');
+        const arrow = btn.querySelector('svg');
+        content.classList.toggle('hidden');
+        arrow.classList.toggle('rotate-180');
+      };
+    });
+
+    // 관리자 권한 없는 멤버: 삭제 버튼 숨기기
+    if (!RolesConfig.hasAdminAccess()) {
+      container.querySelectorAll('.delete-tournament-btn').forEach(el => el.style.display = 'none');
+    }
+
+    // 삭제 버튼 (관리자 권한만)
+    container.querySelectorAll('.delete-tournament-btn').forEach(btn => {
+      if (!RolesConfig.hasAdminAccess()) return;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const name = Storage.getTournamentById(id)?.name || '';
+        if (!confirm(`"${name}" 대회를 삭제하시겠습니까?`)) return;
+        Storage.deleteTournament(id);
+        // 카드만 DOM에서 제거 (리스트 접힘 방지)
+        const card = btn.closest('.tournament-card');
+        if (card) {
+          const monthContent = card.closest('.month-content');
+          card.remove();
+          // 월 그룹 내 카드가 없으면 그룹 전체 제거
+          if (monthContent && monthContent.querySelectorAll('.tournament-card').length === 0) {
+            const monthGroup = monthContent.closest('.month-group');
+            if (monthGroup) monthGroup.remove();
+          } else if (monthContent) {
+            // 월별 카운트 갱신
+            const monthGroup = monthContent.closest('.month-group');
+            const countSpan = monthGroup && monthGroup.querySelector('.month-toggle .text-gray-400');
+            if (countSpan) countSpan.textContent = '(' + monthContent.querySelectorAll('.tournament-card').length + ')';
+          }
+        }
+      };
+    });
+
+    // 카드 클릭 → 상세 보기
+    container.querySelectorAll('.tournament-card').forEach(card => {
+      card.onclick = (e) => {
+        if (e.target.closest('.delete-tournament-btn')) return;
+        const t = Storage.getTournamentById(card.dataset.id);
+        if (t) this.renderTournamentDetail(container, t);
+      };
+    });
+  },
+
+  renderTournamentDetail(container, tournament) {
+    this.currentTournamentId = tournament.id;
+
+    patchDOM(container, `
+      <div class="max-w-4xl mx-auto">
+        <button id="detail-back-btn" class="flex items-center gap-1 text-gray-500 hover:text-gray-800 mb-4 text-sm font-medium transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> 목록으로
+        </button>
+        <div id="tournament-detail-view"></div>
+      </div>`);
+
+    document.getElementById('detail-back-btn').onclick = () => {
+      this.currentTournamentId = null;
+      this.navigate('active');
+    };
+
+    const viewContainer = document.getElementById('tournament-detail-view');
+
+    if (tournament.format === 'schedule') {
+      Schedule.render(viewContainer, tournament);
+    } else if (tournament.format === 'tournament') {
+      Tournament.render(viewContainer, tournament);
+    } else {
+      League.render(viewContainer, tournament);
+    }
+  },
+};
+
+// App.init()은 Auth.init()에서 로그인 확인 후 호출됨

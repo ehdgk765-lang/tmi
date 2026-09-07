@@ -1,0 +1,1341 @@
+/* style.css - 커스텀 스타일 */
+
+/* 기본 폰트 */
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+}
+
+/* 토스트 알림 */
+#toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 90vw;
+}
+.toast-item {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: auto;
+  text-align: center;
+  white-space: nowrap;
+}
+.toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast-hide {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+.toast-error { background: #ef4444; }
+.toast-warn { background: #f59e0b; color: #78350f; }
+.toast-info { background: #3b82f6; }
+html.dark .toast-error { background: #dc2626; }
+html.dark .toast-warn { background: #d97706; color: #fffbeb; }
+html.dark .toast-info { background: #2563eb; }
+
+/* 오프라인 배너 */
+#offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  padding: 6px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fcd34d;
+}
+html.dark #offline-banner {
+  background: #78350f;
+  color: #fef3c7;
+  border-bottom-color: #92400e;
+}
+
+/* 기본 설정 */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: only light;
+}
+
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* iOS에서 input 확대 방지 (16px 이상이면 확대 안 됨) */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* safe-area 대응 (노치 폰) */
+body {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+header {
+  width: 100%;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* 탭 네비게이션 */
+.tab-active {
+  color: #2563eb !important;
+  border-bottom-color: #2563eb !important;
+  font-weight: 700;
+  background: linear-gradient(to top, rgba(37, 99, 235, 0.06), transparent);
+}
+
+[data-tab] {
+  min-height: 44px; /* 최소 터치 영역 */
+}
+
+/* 사이드 메뉴 */
+#left-menu {
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+#left-menu.menu-open {
+  transform: translateX(0) !important;
+}
+#menu-overlay {
+  transition: opacity 0.3s ease;
+}
+
+/* 사이드 메뉴 active 항목 */
+.menu-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+/* 캘린더 */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.calendar-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 6px 0;
+}
+.calendar-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 2px 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  min-height: 48px;
+}
+.calendar-day:hover {
+  background-color: #f3f4f6;
+}
+.calendar-day.empty {
+  cursor: default;
+}
+.calendar-day.empty:hover {
+  background-color: transparent;
+}
+.calendar-day .day-number {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  line-height: 1;
+}
+.calendar-day.sunday .day-number {
+  color: #ef4444;
+}
+.calendar-day.saturday .day-number {
+  color: #3b82f6;
+}
+.calendar-day.today {
+  background-color: #eff6ff;
+}
+.calendar-day.today .day-number {
+  background-color: #2563eb;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.calendar-day.selected {
+  background-color: #dbeafe;
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+.calendar-dots {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+.calendar-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+/* 캘린더 모달 */
+#cal-modal {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* 토너먼트 브래킷 */
+.bracket-container {
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.bracket {
+  padding: 16px 0;
+}
+
+.bracket-round {
+  padding: 0 4px;
+}
+
+.bracket-match {
+  transition: transform 0.15s ease;
+}
+
+.bracket-match:hover .match-card {
+  transform: translateY(-1px);
+}
+
+.bracket-connector {
+  position: relative;
+}
+
+/* 브래킷 스크롤 힌트 (그라데이션) */
+.bracket-scroll-hint {
+  position: relative;
+}
+.bracket-scroll-hint::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  background: linear-gradient(to right, transparent, rgba(249,250,251,0.9));
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 0.3s;
+}
+.bracket-scroll-hint.scrolled-end::after {
+  opacity: 0;
+}
+
+/* 스코어 입력 모달 */
+.score-input::-webkit-inner-spin-button,
+.score-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.score-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 포맷 선택 라디오 */
+.format-option input:checked + div {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+}
+
+/* 애니메이션 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#main-content > * {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* 모달 배경 애니메이션 */
+#score-modal {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* 검색형 드롭다운 */
+.searchable-dropdown {
+  animation: fadeIn 0.1s ease-out;
+}
+.searchable-dropdown .search-option:first-child {
+  border-radius: 8px 8px 0 0;
+}
+.searchable-dropdown .search-option:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+/* 대진표 시간표 그리드 */
+.schedule-grid {
+  gap: 8px;
+}
+
+.schedule-match-card {
+  min-height: 80px;
+}
+
+/* 멤버 본인 매치 하이라이트 */
+.my-match .match-card,
+.my-match.schedule-match-card {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+.my-match.league-match {
+  background-color: rgba(239, 246, 255, 0.6);
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+
+/* 멤버 본인 대진표 카드 하이라이트 */
+.tournament-card.my-card,
+.tournament-card.ring-2 {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* 스코어 바 */
+.match-score-bar {
+  min-height: 28px;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 640px) {
+  /* 대진표: 모바일에서 1열로 */
+  .schedule-grid {
+    grid-template-columns: 1fr !important;
+  }
+  /* 브래킷 축소 */
+  .bracket-round {
+    min-width: 150px !important;
+  }
+  .match-player {
+    padding: 6px 8px !important;
+  }
+  .match-player span {
+    max-width: 90px;
+    font-size: 12px !important;
+  }
+
+  /* 리그 매치 행: 모바일에서 세로 배치 */
+  .league-match-mobile {
+    flex-direction: column !important;
+    gap: 4px;
+    padding: 12px !important;
+  }
+  .league-match-mobile .league-p1,
+  .league-match-mobile .league-p2 {
+    justify-content: center !important;
+    text-align: center;
+  }
+  .league-match-mobile .league-score {
+    min-width: auto !important;
+    margin: 4px 0 !important;
+  }
+
+  /* 복식 팀 폼: 세로 스택 */
+  #team-form {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  #team-form > .flex-1 {
+    width: 100%;
+  }
+  #team-form > button {
+    align-self: stretch !important;
+    width: 100%;
+  }
+
+  /* 팀 엔트리 */
+  .team-entry {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* 모달 작은 화면 대응 - 공통 bottom-sheet 스타일 */
+  #score-modal > div,
+  #cal-modal .cal-modal-inner,
+  .add-match-modal .am-modal-inner,
+  .am-player-picker .amp-inner,
+  .cb-player-picker .cb-inner {
+    margin: 0;
+    padding: 16px !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 순위표 글자 크기 */
+  .standings-table th,
+  .standings-table td {
+    padding: 6px 4px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* 매우 작은 화면 (320px) */
+@media (max-width: 380px) {
+  .bracket-round {
+    min-width: 130px !important;
+  }
+  .match-player span {
+    max-width: 70px;
+    font-size: 11px !important;
+  }
+  [data-tab] {
+    font-size: 12px !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+}
+
+/* ─── Dark Mode ─── */
+html.dark {
+  color-scheme: only dark;
+}
+
+html.dark body {
+  background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a) !important;
+  color: #e2e8f0 !important;
+}
+
+/* 사이드 메뉴 */
+html.dark #left-menu {
+  background-color: #1e293b !important;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4) !important;
+}
+html.dark #left-menu h2 {
+  color: #e2e8f0;
+}
+html.dark #left-menu .menu-item {
+  color: #94a3b8;
+}
+html.dark #left-menu .menu-item.active {
+  background-color: rgba(96, 165, 250, 0.12) !important;
+  color: #60a5fa !important;
+}
+html.dark #left-menu .menu-item:hover {
+  background-color: rgba(96, 165, 250, 0.1) !important;
+  color: #60a5fa !important;
+}
+html.dark #left-menu #menu-logout:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #f87171 !important;
+}
+html.dark #left-menu #menu-close {
+  color: #64748b;
+}
+html.dark #left-menu #menu-close:hover {
+  background-color: #334155;
+}
+html.dark #left-menu .border-gray-100 {
+  border-color: #334155 !important;
+}
+html.dark #menu-overlay {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* 헤더 */
+html.dark header {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3) !important;
+}
+html.dark header h1 {
+  background-image: linear-gradient(to right, #60a5fa, #93c5fd) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+
+/* 탭 */
+html.dark .tab-active {
+  color: #60a5fa !important;
+  border-bottom-color: #60a5fa !important;
+  background: linear-gradient(to top, rgba(96, 165, 250, 0.08), transparent) !important;
+}
+html.dark [data-tab] {
+  color: #94a3b8;
+}
+html.dark [data-tab]:hover {
+  color: #cbd5e1;
+}
+
+/* 배경 오버라이드 */
+html.dark .bg-white {
+  background-color: #1e293b !important;
+}
+html.dark .bg-white\/80 {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+html.dark .bg-white\/95 {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+html.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+html.dark .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+html.dark .bg-gray-50\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* 글래스 카드 다크 모드 */
+html.dark .tournament-card {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+html.dark .tournament-card.my-card,
+html.dark .tournament-card.ring-2 {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 2px 8px rgba(59, 130, 246, 0.2) !important;
+}
+html.dark .tournament-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(96, 165, 250, 0.3) !important;
+}
+html.dark .tournament-card.my-card:hover,
+html.dark .tournament-card.ring-2:hover {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(59, 130, 246, 0.25) !important;
+  border-color: #60a5fa !important;
+}
+html.dark .shadow-blue-50\/30 {
+  --tw-shadow-color: transparent !important;
+}
+html.dark .shadow-blue-200\/50 {
+  --tw-shadow-color: rgba(37, 99, 235, 0.15) !important;
+}
+html.dark .shadow-green-200\/50 {
+  --tw-shadow-color: rgba(16, 185, 129, 0.15) !important;
+}
+html.dark .shadow-orange-200\/50 {
+  --tw-shadow-color: rgba(249, 115, 22, 0.15) !important;
+}
+html.dark .shadow-blue-100\/30 {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1) !important;
+}
+html.dark .shadow-blue-100\/50 {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15) !important;
+}
+html.dark .border-white\/60 {
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* 텍스트 오버라이드 */
+html.dark .text-gray-800 {
+  color: #e2e8f0 !important;
+}
+html.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+html.dark .text-gray-600 {
+  color: #94a3b8 !important;
+}
+html.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+html.dark .text-gray-400 {
+  color: #7d8ca0 !important;
+}
+html.dark .text-gray-300 {
+  color: #64748b !important;
+}
+
+/* 테두리 오버라이드 */
+html.dark .border-gray-200 {
+  border-color: #334155 !important;
+}
+html.dark .border-gray-100 {
+  border-color: #1e293b !important;
+}
+html.dark .border-gray-50 {
+  border-color: #1e293b !important;
+}
+html.dark .border-t {
+  border-color: #334155 !important;
+}
+html.dark .divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+html.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* 폼 요소 */
+html.dark input[type="text"],
+html.dark input[type="number"],
+html.dark input[type="date"],
+html.dark input[type="email"],
+html.dark input[type="password"],
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+html.dark input[type="text"]::placeholder,
+html.dark input[type="email"]::placeholder,
+html.dark input[type="password"]::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+html.dark input[type="text"]:focus,
+html.dark input[type="email"]:focus,
+html.dark input[type="password"]:focus,
+html.dark select:focus {
+  border-color: #2563eb !important;
+}
+
+/* 로그인 페이지 */
+html.dark #auth-container {
+  background-color: #0f172a !important;
+}
+
+/* 카드 호버 */
+html.dark .hover\:bg-gray-50:hover {
+  background-color: #334155 !important;
+}
+html.dark .hover\:shadow-md:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4) !important;
+}
+html.dark .hover\:border-blue-300:hover {
+  border-color: #60a5fa !important;
+}
+
+/* 라운드/배지 - 색상 톤 다운 */
+html.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+html.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .bg-yellow-50 {
+  background-color: rgba(234, 179, 8, 0.1) !important;
+}
+html.dark .bg-yellow-100 {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+html.dark .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+html.dark .bg-pink-100 {
+  background-color: rgba(236, 72, 153, 0.15) !important;
+}
+html.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+html.dark .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+}
+html.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* 포맷 선택 라디오 (다크) */
+html.dark .format-option input:checked + div {
+  border-color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.1);
+}
+html.dark .peer:checked ~ .peer-checked\:border-blue-500 {
+  border-color: #2563eb !important;
+}
+html.dark .peer:checked ~ .peer-checked\:bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+/* 스코어 모달 */
+html.dark #score-modal > div {
+  background-color: rgba(30, 41, 59, 0.97) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+html.dark #score-modal h3 {
+  color: #e2e8f0;
+}
+/* 팀1 표시 (블루) */
+html.dark #score-modal .bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+}
+html.dark #score-modal .text-blue-700 {
+  color: #60a5fa !important;
+}
+html.dark #score-modal .text-blue-600 {
+  color: #60a5fa !important;
+}
+/* 팀2 표시 (보라) */
+html.dark #score-modal .bg-violet-50 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+html.dark #score-modal .text-violet-700 {
+  color: #a78bfa !important;
+}
+html.dark #score-modal .text-violet-600 {
+  color: #a78bfa !important;
+}
+/* 스코어 입력란 - 팀1 (블루) */
+html.dark #score-modal input[data-player="0"] {
+  background-color: rgba(37, 99, 235, 0.12) !important;
+  border-color: #1d4ed8 !important;
+  color: #60a5fa !important;
+}
+html.dark #score-modal input[data-player="0"]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3) !important;
+}
+/* 스코어 입력란 - 팀2 (보라) */
+html.dark #score-modal input[data-player="1"] {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+  border-color: #5b21b6 !important;
+  color: #a78bfa !important;
+}
+html.dark #score-modal input[data-player="1"]:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3) !important;
+}
+/* 세트 라벨, vs, 콜론 */
+html.dark #score-modal .text-gray-500 {
+  color: #94a3b8 !important;
+}
+html.dark #score-modal .text-gray-400 {
+  color: #64748b !important;
+}
+html.dark #score-modal .text-gray-300 {
+  color: #475569 !important;
+}
+/* 버튼 */
+html.dark #score-modal #score-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+html.dark #score-modal #score-cancel:hover {
+  background-color: #475569 !important;
+}
+/* 드래그 핸들 */
+html.dark #score-modal .bg-gray-300 {
+  background-color: #475569 !important;
+}
+/* NTRP 뱃지 */
+html.dark #score-modal .text-yellow-600 {
+  color: #fbbf24 !important;
+}
+
+/* 대진표 매치 카드 */
+html.dark .schedule-match-card {
+  background-color: #1e293b !important;
+}
+html.dark .border-blue-200 {
+  border-color: #1d4ed8 !important;
+}
+
+/* 멤버 본인 매치 하이라이트 (다크모드) */
+html.dark .my-match .match-card,
+html.dark .my-match.schedule-match-card {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 2px 8px rgba(59, 130, 246, 0.2) !important;
+  border-color: #3b82f6 !important;
+}
+html.dark .my-match.league-match {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  box-shadow: inset 3px 0 0 #3b82f6 !important;
+}
+
+/* 스코어 바 (다크모드) */
+html.dark .match-score-bar {
+  background-color: rgba(31, 41, 55, 0.5) !important;
+  border-color: rgba(75, 85, 99, 0.4) !important;
+}
+
+/* 스코어 색상 (다크모드) */
+html.dark .match-score.text-blue-600 { color: #60a5fa !important; }
+html.dark .match-score.text-blue-700 { color: #60a5fa !important; }
+html.dark .match-score.text-gray-400 { color: #9ca3af !important; }
+html.dark .match-score.text-gray-500 { color: #9ca3af !important; }
+html.dark .match-score.bg-blue-100 { background-color: rgba(59, 130, 246, 0.15) !important; }
+html.dark .match-score.bg-gray-100 { background-color: rgba(107, 114, 128, 0.15) !important; }
+html.dark .match-score.bg-yellow-100 { background-color: rgba(202, 138, 4, 0.15) !important; }
+html.dark .match-score.text-yellow-600 { color: #facc15 !important; }
+
+/* 멤버 교환 선택 */
+html.dark .swap-player:hover {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+/* 브래킷 스크롤 힌트 */
+html.dark .bracket-scroll-hint::after {
+  background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.9));
+}
+
+/* 스크롤바 */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 캘린더 다크모드 */
+html.dark .calendar-weekday {
+  color: #94a3b8;
+}
+html.dark .calendar-day .day-number {
+  color: #cbd5e1;
+}
+html.dark .calendar-day.sunday .day-number {
+  color: #f87171;
+}
+html.dark .calendar-day.saturday .day-number {
+  color: #60a5fa;
+}
+html.dark .calendar-day:hover {
+  background-color: #334155;
+}
+html.dark .calendar-day.today {
+  background-color: rgba(37, 99, 235, 0.12);
+}
+html.dark .calendar-day.today .day-number {
+  background-color: #2563eb;
+  color: white;
+}
+html.dark .calendar-day.selected {
+  background-color: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+html.dark #cal-modal > div:not(:first-child) {
+  background-color: #1e293b !important;
+}
+html.dark #cal-modal h3 {
+  color: #e2e8f0;
+}
+html.dark #cal-modal #cal-modal-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+/* 참석 취소 확인 모달 다크모드 */
+html.dark #cal-cancel-modal > div:not(:first-child) {
+  background-color: #1e293b !important;
+}
+html.dark #cal-cancel-modal h3 {
+  color: #e2e8f0;
+}
+html.dark #cal-cancel-modal p {
+  color: #94a3b8;
+}
+html.dark #cal-cancel-modal #cal-cancel-no {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+/* 멤버 이름 확인 모달 다크모드 */
+html.dark #member-name-modal > div:not(:first-child) {
+  background-color: #1e293b !important;
+}
+html.dark #member-name-modal h3 {
+  color: #e2e8f0;
+}
+html.dark #member-name-modal p {
+  color: #94a3b8;
+}
+
+/* 가계부 보기 버튼 */
+#btn-ledger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color 0.2s;
+  color: #4b5563;
+}
+#btn-ledger:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+html.dark #btn-ledger {
+  color: #9ca3af;
+}
+html.dark #btn-ledger:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+#btn-ledger svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 테마 토글 버튼 */
+#theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color 0.2s;
+}
+#theme-toggle:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+html.dark #theme-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+#theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 프리뷰 영역 */
+html.dark #preview-info {
+  background-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* 서브탭 */
+html.dark .sub-tab {
+  background-color: #334155;
+  color: #94a3b8;
+}
+html.dark .sub-tab:hover {
+  background-color: #475569;
+}
+html.dark .sub-tab.bg-blue-500,
+html.dark .sub-tab[class*="bg-blue-500"] {
+  background-color: #2563eb !important;
+  color: white !important;
+}
+
+/* 커스텀 대진표 멤버 선택 모달 */
+html.dark .cb-player-picker > div {
+  background-color: #1e293b !important;
+  color: #e2e8f0;
+}
+html.dark .cb-player-picker .cb-pick-option:hover:not(.opacity-40) {
+  background-color: #334155 !important;
+}
+html.dark .cb-player-picker input[type="text"] {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+html.dark .cb-player-picker .cb-picker-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* 대진 추가 모달 */
+html.dark .add-match-modal > div {
+  background-color: #1e293b !important;
+  color: #e2e8f0;
+}
+html.dark .add-match-modal select,
+html.dark .add-match-modal input[type="text"] {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+html.dark .add-match-modal .am-player-slot {
+  border-color: #475569 !important;
+}
+html.dark .add-match-modal .am-player-slot:hover {
+  background-color: #334155 !important;
+}
+html.dark .add-match-modal .am-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+html.dark .add-match-modal label div {
+  border-color: #475569;
+}
+
+/* 대진 추가 멤버 피커 */
+html.dark .am-player-picker > div {
+  background-color: #1e293b !important;
+  color: #e2e8f0;
+}
+html.dark .am-player-picker .amp-option:hover:not(.opacity-40) {
+  background-color: #334155 !important;
+}
+html.dark .am-player-picker input[type="text"] {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+html.dark .am-player-picker .amp-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* 경기 종류 변경 모달 */
+html.dark .change-gametype-modal > div {
+  background-color: #1e293b !important;
+  color: #e2e8f0;
+}
+html.dark .change-gametype-modal .cgt-option {
+  border-color: #475569 !important;
+  color: #e2e8f0;
+}
+html.dark .change-gametype-modal .cgt-option:hover {
+  border-color: #64748b !important;
+}
+html.dark .change-gametype-modal .cgt-cancel {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* ─── 누락된 다크모드 오버라이드 보완 ─── */
+
+/* 체크박스 / 라디오 다크모드 */
+html.dark input[type="checkbox"],
+html.dark input[type="radio"] {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+  accent-color: #2563eb !important;
+}
+html.dark input[type="checkbox"]:checked,
+html.dark input[type="radio"]:checked {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+/* 배경색 보완 */
+html.dark .bg-gray-200 {
+  background-color: #334155 !important;
+}
+html.dark .bg-gray-300 {
+  background-color: #475569 !important;
+}
+html.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.1) !important;
+}
+html.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+}
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+html.dark .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+html.dark .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+html.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+html.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+html.dark .bg-pink-50 {
+  background-color: rgba(236, 72, 153, 0.1) !important;
+}
+html.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+html.dark .bg-violet-50 {
+  background-color: rgba(139, 92, 246, 0.1) !important;
+}
+
+/* 호버 배경 보완 */
+html.dark .hover\:bg-gray-200:hover {
+  background-color: #475569 !important;
+}
+
+/* 텍스트 색상 보완 - 뱃지/라벨 */
+html.dark .text-gray-900 {
+  color: #f1f5f9 !important;
+}
+html.dark .text-yellow-900 {
+  color: #fef08a !important;
+}
+html.dark .text-yellow-800 {
+  color: #fbbf24 !important;
+}
+html.dark .text-yellow-700 {
+  color: #fbbf24 !important;
+}
+html.dark .text-yellow-600 {
+  color: #facc15 !important;
+}
+html.dark .text-blue-700 {
+  color: #60a5fa !important;
+}
+html.dark .text-blue-600 {
+  color: #60a5fa !important;
+}
+html.dark .text-pink-700 {
+  color: #f472b6 !important;
+}
+html.dark .text-pink-600 {
+  color: #f472b6 !important;
+}
+html.dark .text-orange-700 {
+  color: #fb923c !important;
+}
+html.dark .text-orange-600 {
+  color: #fb923c !important;
+}
+html.dark .text-purple-700 {
+  color: #a78bfa !important;
+}
+html.dark .text-purple-600 {
+  color: #a78bfa !important;
+}
+html.dark .text-red-400 {
+  color: #f87171 !important;
+}
+html.dark .text-red-500 {
+  color: #f87171 !important;
+}
+html.dark .text-red-600 {
+  color: #ef4444 !important;
+}
+html.dark .text-blue-800 {
+  color: #60a5fa !important;
+}
+/* 에메랄드(초록) 텍스트 */
+html.dark .text-emerald-700 {
+  color: #34d399 !important;
+}
+html.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+html.dark .text-green-700 {
+  color: #4ade80 !important;
+}
+html.dark .text-green-600 {
+  color: #4ade80 !important;
+}
+/* 앰버 텍스트 (관리자 배지 등) */
+html.dark .text-amber-700 {
+  color: #fbbf24 !important;
+}
+html.dark .text-amber-600 {
+  color: #fbbf24 !important;
+}
+/* 바이올렛 텍스트 (결과/스코어 등) */
+html.dark .text-violet-700 {
+  color: #a78bfa !important;
+}
+html.dark .text-violet-600 {
+  color: #a78bfa !important;
+}
+/* 블루/레드 밝기 보완 */
+html.dark .text-blue-400 {
+  color: #60a5fa !important;
+}
+html.dark .text-blue-500 {
+  color: #60a5fa !important;
+}
+html.dark .text-red-700 {
+  color: #f87171 !important;
+}
+html.dark .text-red-300 {
+  color: #fca5a5 !important;
+}
+
+/* 테두리 색상 보완 */
+html.dark .border-gray-300 {
+  border-color: #475569 !important;
+}
+html.dark .border-blue-300 {
+  border-color: #1e40af !important;
+}
+html.dark .border-blue-400 {
+  border-color: #2563eb !important;
+}
+html.dark .border-yellow-200 {
+  border-color: rgba(234, 179, 8, 0.3) !important;
+}
+html.dark .border-violet-300 {
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+html.dark .border-yellow-300 {
+  border-color: rgba(234, 179, 8, 0.4) !important;
+}
+html.dark .border-red-300 {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+/* 링(ring) 다크모드 */
+html.dark .ring-blue-200 {
+  --tw-ring-color: rgba(59, 130, 246, 0.3) !important;
+}
+html.dark .ring-blue-300 {
+  --tw-ring-color: rgba(59, 130, 246, 0.4) !important;
+}
+html.dark .peer-checked\:ring-gray-400 {
+  --tw-ring-color: #64748b !important;
+}
+
+/* 포커스 배경 (로그인 등) */
+html.dark .focus\:bg-white:focus {
+  background-color: #1e293b !important;
+}
+
+/* 호버 다크모드 보완 */
+html.dark .hover\:bg-red-50:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+html.dark .hover\:bg-blue-50\/50:hover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+html.dark .hover\:border-blue-400:hover {
+  border-color: #3b82f6 !important;
+}
+html.dark .hover\:border-red-300:hover {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+html.dark .hover\:text-red-500:hover {
+  color: #f87171 !important;
+}
+html.dark .hover\:text-blue-500:hover {
+  color: #60a5fa !important;
+}
+html.dark .hover\:text-blue-600:hover {
+  color: #60a5fa !important;
+}
+html.dark .hover\:bg-blue-100:hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .hover\:bg-red-100:hover {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+html.dark .hover\:bg-white\/60:hover {
+  background-color: rgba(51, 65, 85, 0.6) !important;
+}
+html.dark .hover\:bg-blue-50:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+html.dark .hover\:border-blue-600:hover {
+  border-color: #2563eb !important;
+}
+html.dark .hover\:bg-gray-100:hover {
+  background-color: #334155 !important;
+}
+
+/* 투명도 분수 배경 */
+html.dark .bg-blue-50\/60 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+html.dark .hover\:bg-blue-50\/50:hover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+/* 로고 배경 */
+.auth-logo-bg {
+  background: url('android-chrome-192x192.png') center/cover no-repeat;
+  border-radius: 50%;
+  mix-blend-mode: multiply;
+}
+.header-logo-bg {
+  background: url('favicon-32x32.png') center/cover no-repeat;
+  border-radius: 50%;
+  mix-blend-mode: multiply;
+}
+/* 다크모드: blend 해제 + 가장자리 페이드 + 글로우 */
+html.dark .auth-logo-bg {
+  mix-blend-mode: normal;
+  -webkit-mask-image: radial-gradient(circle, #000 50%, transparent 75%);
+  mask-image: radial-gradient(circle, #000 50%, transparent 75%);
+  box-shadow: 0 0 24px 10px rgba(255, 255, 255, 0.08);
+}
+html.dark .header-logo-bg {
+  mix-blend-mode: normal;
+  -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+  box-shadow: 0 0 10px 4px rgba(255, 255, 255, 0.08);
+}
+
+/* 로그인 페이지 다크 모드 */
+html.dark #auth-container {
+  background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a) !important;
+}
+html.dark #auth-container h1 {
+  background-image: linear-gradient(to right, #60a5fa, #93c5fd) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+html.dark #auth-container p.text-gray-400,
+html.dark #auth-container .text-gray-400 {
+  color: #7d8ca0 !important;
+}
+html.dark #auth-container .bg-white\/80 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(71, 85, 105, 0.4) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+html.dark #auth-container input {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+html.dark #auth-container input:focus {
+  background-color: #1e293b !important;
+}
+html.dark #auth-container label {
+  color: #94a3b8 !important;
+}
+html.dark #auth-container .shadow-blue-200 {
+  --tw-shadow-color: rgba(37, 99, 235, 0.15) !important;
+}
+html.dark #auth-container .shadow-blue-100\/50 {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+html.dark #auth-theme-toggle {
+  background-color: rgba(51, 65, 85, 0.5) !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+}
+html.dark #auth-theme-toggle:hover {
+  background-color: rgba(71, 85, 105, 0.6) !important;
+}

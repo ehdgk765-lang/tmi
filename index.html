@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="color-scheme" content="only light">
+  <meta name="theme-color" content="#ffffff" id="meta-theme-color">
+  <title>TMI</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="css/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="css/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <script>
+    // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
+    var APP_VERSION = '20260812';
+  </script>
+  <script>
+    // 페이지 렌더 전 테마 적용 (깜빡임 방지)
+    (function() {
+      const saved = localStorage.getItem('theme');
+      var deviceDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      // 사용자 선택 우선, 없으면 기기 설정 따름
+      if (saved === 'dark' || (deviceDark && saved !== 'light')) {
+        document.documentElement.classList.add('dark');
+        // 크롬 강제 다크모드 방지: color-scheme 메타도 dark로 설정
+        document.querySelector('meta[name="color-scheme"]').content = 'only dark';
+      }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"Pretendard Variable"', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', '"Helvetica Neue"', '"Segoe UI"', '"Apple SD Gothic Neo"', '"Noto Sans KR"', '"Malgun Gothic"', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', 'sans-serif'] } } } }</script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <!-- morphdom: DOM diffing for flicker-free updates -->
+  <script src="https://unpkg.com/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
+  <script>
+    function patchDOM(container, html) {
+      if (!container.firstElementChild) {
+        container.innerHTML = html;
+        return;
+      }
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      morphdom(container, tmp, { childrenOnly: true });
+    }
+    // 무거운 라이브러리 동적 로딩 유틸 (xlsx ~300KB, html2canvas ~40KB, jspdf ~90KB)
+    // 페이지 로드 시에는 불필요 → 사용자 액션 시 최초 1회 로딩
+    var _loadedScripts = {};
+    function loadScript(url) {
+      if (_loadedScripts[url]) return _loadedScripts[url];
+      _loadedScripts[url] = new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = function() { _loadedScripts[url] = null; reject(new Error('Failed to load: ' + url)); };
+        document.head.appendChild(s);
+      });
+      return _loadedScripts[url];
+    }
+    function loadXLSX() { return loadScript('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'); }
+    // [PDF 기능 비활성화]
+    // function loadPdfLibs() {
+    //   return Promise.all([
+    //     loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+    //     loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js')
+    //   ]);
+    // }
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css" id="app-css">
+  <script>document.getElementById('app-css').href = 'css/style.css?v=' + APP_VERSION;</script>
+</head>
+<body class="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 min-h-screen">
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toast-container"></div>
+  <!-- 오프라인 배너 -->
+  <div id="offline-banner" class="hidden">오프라인 상태입니다. 변경사항이 저장되지 않을 수 있습니다.</div>
+
+  <!-- 로그인 페이지 -->
+  <div id="auth-container" class="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-white via-blue-50 to-gray-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+    <div class="min-h-full flex items-center justify-center text-center text-gray-400">로딩 중...</div>
+  </div>
+
+  <!-- 앱 -->
+  <div id="app-container" style="display:none">
+    <!-- 사이드 메뉴 오버레이 -->
+    <div id="menu-overlay" class="fixed inset-0 bg-black/40 z-50 hidden"></div>
+    <!-- 사이드 메뉴 -->
+    <aside id="left-menu" class="fixed top-0 left-0 bottom-0 w-72 bg-white z-50 shadow-xl">
+      <div class="p-5 h-full flex flex-col" style="padding-top: calc(env(safe-area-inset-top, 0px) + 20px)">
+        <!-- 메뉴 헤더 -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <span class="header-logo-bg inline-flex w-7 h-7 rounded-lg flex-shrink-0"></span>
+            TMI
+          </h2>
+          <button id="menu-close" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-gray-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <!-- 메뉴 항목 -->
+        <nav class="flex-1 space-y-1">
+          <button id="menu-home" class="menu-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/>
+            </svg>
+            <span>홈</span>
+          </button>
+          <button id="menu-calendar" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>일정 보기</span>
+          </button>
+          <button id="menu-members" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition hidden">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            <span>회원 관리</span>
+          </button>
+          <button id="menu-settings" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition hidden">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>설정</span>
+          </button>
+        </nav>
+        <!-- 하단: 로그아웃 -->
+        <div class="border-t border-gray-100 pt-3">
+          <button id="menu-logout" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-red-50 hover:text-red-600 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            <span>로그아웃</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <!-- 헤더 -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-blue-200/60 sticky top-0 z-40 shadow-sm shadow-blue-200/30">
+      <div class="max-w-4xl mx-auto px-4">
+        <div class="flex items-center py-3">
+          <!-- 좌측 영역 -->
+          <div class="flex-1 flex items-center">
+            <!-- 메뉴 버튼 (관리자용) -->
+            <button id="menu-btn" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 transition" title="메뉴" aria-label="메뉴 열기">
+              <svg class="w-[18px] h-[18px] text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </button>
+            <!-- 멤버 정보 (멤버용 - 관리자일 때 숨김) -->
+            <div id="member-header-info" class="hidden items-center gap-1.5">
+              <span id="member-header-name" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600"></span>
+              <button id="member-header-logout" class="px-1.5 py-0.5 text-[10px] font-medium text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded transition" title="로그아웃">로그아웃</button>
+            </div>
+          </div>
+          <!-- 중앙: 로고 -->
+          <h1 id="header-logo" class="text-lg font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-1.5 cursor-pointer select-none flex-shrink-0">
+            <span class="header-logo-bg inline-flex w-7 h-7 rounded-lg flex-shrink-0"></span>
+            <span>TMI</span>
+          </h1>
+          <!-- 우측 영역 -->
+          <div class="flex-1 flex items-center justify-end gap-1">
+            <button id="btn-ledger" class="hidden" title="가계부 보기" aria-label="가계부 보기">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </button>
+            <button id="theme-toggle" title="테마 전환" aria-label="테마 전환">
+              <svg id="icon-sun" class="text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+              <svg id="icon-moon" class="text-yellow-400" style="display:none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <!-- 탭 네비게이션 -->
+        <nav class="flex -mb-px gap-0.5">
+          <button data-tab="players"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            멤버 관리
+          </button>
+          <button data-tab="create"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            대회 만들기
+          </button>
+          <button data-tab="schedule"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            대진표 만들기
+          </button>
+          <button data-tab="calendar"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            일정 보기
+          </button>
+          <button data-tab="active"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            대진표
+          </button>
+          <button data-tab="stats"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            통계
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- 메인 콘텐츠 -->
+    <main id="main-content" class="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+    </main>
+  </div>
+
+  <!-- JS 모듈 (의존성 순서대로, 캐시 버스팅 적용) -->
+  <script>
+    [
+      'js/firebase-config.js',
+      'js/roles-config.js',
+      'js/storage.js',
+      'js/utils.js',
+      'js/results.js',
+      'js/players.js',
+      'js/tournament.js',
+      'js/league.js',
+      'js/schedule.js',
+      'js/custom-bracket.js',
+      'js/calendar.js',
+      'js/stats.js',
+      'js/members.js',
+      'js/app.js',
+      'js/auth.js'
+    ].forEach(function(src) {
+      document.write('<script src="' + src + '?v=' + APP_VERSION + '"><\/script>');
+    });
+  </script>
+  <script>
+    // 테마 토글 로직
+    (function() {
+      const toggle = document.getElementById('theme-toggle');
+      const iconSun = document.getElementById('icon-sun');
+      const iconMoon = document.getElementById('icon-moon');
+      const metaColor = document.getElementById('meta-theme-color');
+
+      function applyIcons(isDark) {
+        iconSun.style.display = isDark ? 'none' : 'block';
+        iconMoon.style.display = isDark ? 'block' : 'none';
+        metaColor.content = isDark ? '#1e293b' : '#ffffff';
+      }
+
+      // 초기 아이콘 상태
+      applyIcons(document.documentElement.classList.contains('dark'));
+
+      toggle.addEventListener('click', function() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        // color-scheme 메타 태그 업데이트 (크롬 강제 다크모드 방지)
+        var csMeta = document.querySelector('meta[name="color-scheme"]');
+        if (csMeta) csMeta.content = isDark ? 'only dark' : 'only light';
+        applyIcons(isDark);
+      });
+
+    })();
+
+    // 사이드 메뉴 열기/닫기
+    (function() {
+      var menuBtn = document.getElementById('menu-btn');
+      var leftMenu = document.getElementById('left-menu');
+      var overlay = document.getElementById('menu-overlay');
+      var closeBtn = document.getElementById('menu-close');
+
+      function openMenu() {
+        leftMenu.classList.add('menu-open');
+        overlay.classList.remove('hidden');
+      }
+      function closeMenu() {
+        leftMenu.classList.remove('menu-open');
+        overlay.classList.add('hidden');
+      }
+
+      menuBtn.addEventListener('click', openMenu);
+      overlay.addEventListener('click', closeMenu);
+      closeBtn.addEventListener('click', closeMenu);
+
+      // 메뉴: 홈
+      document.getElementById('menu-home').addEventListener('click', function() {
+        closeMenu();
+        App.showHome();
+      });
+
+      // 메뉴: 일정 보기
+      document.getElementById('menu-calendar').addEventListener('click', function() {
+        closeMenu();
+        App.showCalendar();
+      });
+
+      // 메뉴: 회원 관리
+      document.getElementById('menu-members').addEventListener('click', function() {
+        closeMenu();
+        App.showMembers();
+      });
+
+      // 메뉴: 설정
+      document.getElementById('menu-settings').addEventListener('click', function() {
+        closeMenu();
+        App.showSettings();
+      });
+
+      // 메뉴 내 로그아웃
+      document.getElementById('menu-logout').addEventListener('click', function() {
+        closeMenu();
+        Auth.logout();
+      });
+    })();
+
+    // 헤더 로고 클릭 → 홈 이동
+    document.getElementById('header-logo').addEventListener('click', function() {
+      App.showHome();
+      App.navigate(RolesConfig.getDefaultTab());
+    });
+
+    // 멤버 헤더 로그아웃 버튼
+    document.getElementById('member-header-logout').addEventListener('click', function() {
+      Auth.logout();
+    });
+
+    // 앱 시작 (Auth가 제어)
+    document.addEventListener('DOMContentLoaded', function() {
+      Auth.init();
+    });
+
+    // Service Worker 등록
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js').then(function(reg) {
+        reg.addEventListener('updatefound', function() {
+          var newSW = reg.installing;
+          newSW.addEventListener('statechange', function() {
+            if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+              location.reload();
+            }
+          });
+        });
+      });
+    }
+  </script>
+</body>
+</html>
