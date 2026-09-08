@@ -1,5 +1,18 @@
 // calendar.js - 월별 캘린더 + 일정 관리
 const Calendar = {
+  // 버튼 로딩 상태 토글 헬퍼
+  _btnLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+      btn._origText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = '<svg class="animate-spin inline-block w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn._origText || '';
+    }
+  },
+
   _currentMonth: null, // Date 객체 (해당 월 1일)
   _selectedDate: null, // 'YYYY-MM-DD'
   _container: null,
@@ -346,9 +359,9 @@ const Calendar = {
         var id = this.dataset.id;
         var memberName = App.getMemberName();
         if (!memberName) return;
-        btn.disabled = true;
+        self._btnLoading(btn, true);
         var result = await Storage.toggleAttendance(id, memberName);
-        btn.disabled = false;
+        self._btnLoading(btn, false);
         if (result === 'full') {
           alert('참석 인원이 마감되었습니다.');
           return;
@@ -379,9 +392,9 @@ const Calendar = {
         var id = this.dataset.id;
         var memberName = App.getMemberName();
         if (!memberName) return;
-        btn.disabled = true;
+        self._btnLoading(btn, true);
         await Storage.toggleWaitlist(id, memberName);
-        btn.disabled = false;
+        self._btnLoading(btn, false);
         self.render(self._container);
       };
     });
@@ -701,6 +714,8 @@ const Calendar = {
     document.getElementById('cal-cancel-overlay').addEventListener('click', closeModal);
     document.getElementById('cal-cancel-no').addEventListener('click', closeModal);
     document.getElementById('cal-cancel-yes').addEventListener('click', async function() {
+      var btn = this;
+      self._btnLoading(btn, true);
       await Storage.toggleAttendance(eventId, memberName);
       closeModal();
       self.render(self._container);
