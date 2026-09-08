@@ -167,10 +167,10 @@ const App = {
       membersBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
     }
 
-    // 설정 메뉴: 관리자만 표시
+    // 설정 메뉴: 관리자 + 권한 부여 멤버 표시
     var settingsBtn = document.getElementById('menu-settings');
     if (settingsBtn) {
-      settingsBtn.classList.toggle('hidden', !RolesConfig.isAdmin());
+      settingsBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
     }
 
     // 가계부 보기 버튼: 관리자/멤버만 표시
@@ -417,15 +417,17 @@ const App = {
             '<p class="text-gray-400 text-center py-4 text-sm">불러오는 중...</p>' +
           '</div>' +
         '</div>' : '') +
-        /* [역할 관리 - 비활성화] 필요 시 주석 해제하여 사용
+        // 역할 관리 (관리자만 표시)
+        (RolesConfig.isAdmin() ?
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
           '<div class="px-4 py-3 border-b border-gray-100">' +
             '<h3 class="font-semibold text-gray-700 text-sm mb-2">역할 관리</h3>' +
+            '<p class="text-xs text-gray-400 mb-2">멤버 계정의 아이디를 등록하면 멤버 권한이 부여됩니다.</p>' +
             '<div class="flex gap-2">' +
               '<input type="email" id="role-email-input" class="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-base" placeholder="아이디 입력" maxlength="50">' +
               '<select id="role-type-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
-                '<option value="admin">관리자</option>' +
                 '<option value="member">멤버</option>' +
+                '<option value="admin">관리자</option>' +
               '</select>' +
               '<button id="add-role-btn" class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-sm shadow-blue-200/50">추가</button>' +
             '</div>' +
@@ -433,41 +435,42 @@ const App = {
           '<div id="role-list" class="divide-y divide-gray-50">' +
             '<p class="text-gray-400 text-center py-4 text-sm">불러오는 중...</p>' +
           '</div>' +
-        '</div>' +
-        */
+        '</div>' : '') +
       '</div>');
 
-    /* [역할 관리 - 비활성화] 필요 시 주석 해제하여 사용
-    // 역할 목록 로드
-    self._loadRoleList();
+    // 역할 관리 (admin만)
+    if (RolesConfig.isAdmin()) {
+      self._loadRoleList();
 
-    // 역할 추가
-    var roleEmailInput = document.getElementById('role-email-input');
-    var roleTypeSelect = document.getElementById('role-type-select');
-    var addRoleBtn = document.getElementById('add-role-btn');
+      var roleEmailInput = document.getElementById('role-email-input');
+      var roleTypeSelect = document.getElementById('role-type-select');
+      var addRoleBtn = document.getElementById('add-role-btn');
 
-    var addRole = async function() {
-      var email = roleEmailInput.value.trim().toLowerCase();
-      if (!email) return;
-      var role = roleTypeSelect.value;
-      addRoleBtn.disabled = true;
-      addRoleBtn.textContent = '처리 중...';
-      var ok = await RolesConfig.setRole(email, role);
-      if (ok) {
-        roleEmailInput.value = '';
-        self._loadRoleList();
-      } else {
-        alert('역할 설정에 실패했습니다.');
+      if (roleEmailInput && addRoleBtn) {
+        var addRole = async function() {
+          var email = roleEmailInput.value.trim().toLowerCase();
+          if (!email) return;
+          var role = roleTypeSelect.value;
+          addRoleBtn.disabled = true;
+          addRoleBtn.textContent = '처리 중...';
+          var ok = await RolesConfig.setRole(email, role);
+          if (ok) {
+            roleEmailInput.value = '';
+            self._loadRoleList();
+            if (typeof showToast === 'function') showToast('역할이 등록되었습니다.', 'success');
+          } else {
+            alert('역할 설정에 실패했습니다.');
+          }
+          addRoleBtn.disabled = false;
+          addRoleBtn.textContent = '추가';
+        };
+
+        addRoleBtn.onclick = addRole;
+        roleEmailInput.onkeydown = function(e) {
+          if (e.key === 'Enter') addRole();
+        };
       }
-      addRoleBtn.disabled = false;
-      addRoleBtn.textContent = '추가';
-    };
-
-    addRoleBtn.onclick = addRole;
-    roleEmailInput.onkeydown = function(e) {
-      if (e.key === 'Enter') addRole();
-    };
-    */
+    }
 
     // 관리자 권한 부여 목록 로드 (admin만)
     if (RolesConfig.isAdmin()) {

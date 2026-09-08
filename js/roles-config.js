@@ -54,15 +54,16 @@ const RolesConfig = {
   getVisibleTabs() {
     if (this.isMember()) {
       if (this.hasAdminAccess()) {
-        // 권한 부여 멤버: 일정 보기 + 일정 관리 + 진행 중 + 통계
-        return ['calendar', 'schedule', 'active', 'stats'];
+        // 권한 부여 멤버: 관리자와 동일
+        return ['players', 'create', 'schedule', 'calendar', 'active', 'stats'];
       }
-      return ['calendar', 'active'];
+      // 일반 멤버: 일정 보기 + 대진표 + 통계
+      return ['calendar', 'active', 'stats'];
     }
     if (this.isAdmin()) {
-      return ['players', 'create', 'schedule', 'active', 'stats'];
+      return ['players', 'create', 'schedule', 'calendar', 'active', 'stats'];
     }
-    // other: 통계 제외
+    // other: 개인 데이터용 (통계 제외)
     return ['players', 'create', 'schedule', 'active'];
   },
 
