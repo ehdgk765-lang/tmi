@@ -997,10 +997,6 @@ const Calendar = {
         // 옵션
         '<div class="flex items-center justify-end gap-4">' +
           '<label class="flex items-center gap-1.5 cursor-pointer">' +
-            '<input type="checkbox" id="bm-xd" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300">' +
-            '<span id="bm-xd-label" class="text-xs text-gray-500">혼복</span>' +
-          '</label>' +
-          '<label class="flex items-center gap-1.5 cursor-pointer">' +
             '<input type="checkbox" id="bm-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300">' +
             '<span id="bm-mixed-label" class="text-xs text-gray-500">섞어복식 허용</span>' +
           '</label>' +
@@ -1041,7 +1037,6 @@ const Calendar = {
     modal.querySelectorAll('input[name="bm-match-type"]').forEach(function(r) {
       r.onchange = function() {
         var s = r.value === 'singles';
-        modal.querySelector('#bm-xd-label').textContent = s ? '혼단' : '혼복';
         modal.querySelector('#bm-mixed-label').textContent = s ? '섞어단식 허용' : '섞어복식 허용';
       };
     });
@@ -1064,7 +1059,6 @@ const Calendar = {
       var endTime = modal.querySelector('#bm-end').value;
       var courts = parseInt(modal.querySelector('input[name="bm-courts"]:checked').value);
       var isSingles = modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles';
-      var allowXD = modal.querySelector('#bm-xd').checked;
       var allowMixed = modal.querySelector('#bm-mixed').checked;
 
       if (startTime >= endTime) {
@@ -1078,7 +1072,7 @@ const Calendar = {
         return;
       }
 
-      var possibleTypes = Schedule.getPossibleTypes(males, females, allowMixed, isSingles, allowXD);
+      var possibleTypes = Schedule.getPossibleTypes(males, females, allowMixed, isSingles);
       if (possibleTypes.length === 0) {
         if (isSingles) {
           alert('참석자 성별 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
@@ -1088,7 +1082,7 @@ const Calendar = {
         return;
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, allowXD);
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles);
       if (timeSlots.length === 0) {
         alert('시간이 부족합니다. 최소 30분 이상 설정해주세요.');
         return;

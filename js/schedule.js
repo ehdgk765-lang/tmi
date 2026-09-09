@@ -480,20 +480,27 @@ const Schedule = {
           winners.forEach(p => { if (stats[p]) stats[p].wins++; });
           losers.forEach(p => { if (stats[p]) stats[p].losses++; });
         }
+        // 포인트: 득실차 (내 점수 - 상대 점수)
+        if (m.scores && m.scores.length > 0) {
+          let t1Pts = 0, t2Pts = 0;
+          m.scores.forEach(([s1, s2]) => { t1Pts += s1; t2Pts += s2; });
+          const diff = t1Pts - t2Pts;
+          t1.forEach(p => { if (stats[p]) stats[p].scorePoints += diff; });
+          t2.forEach(p => { if (stats[p]) stats[p].scorePoints -= diff; });
+        }
       }
     }
 
-    // 포인트 계산: 승점=승×3+무×1, 포인트=승-패
+    // 승점 계산: 승=3, 무=1, 패=0
     Object.values(stats).forEach(s => {
       s.matchPoints = s.wins * 3 + s.draws * 1;
-      s.scorePoints = s.wins - s.losses;
     });
 
     // 현재 멤버 목록에 있는 선수만 표시
     const currentNames = new Set(Storage.getPlayers().map(p => p.name));
     const filtered = Object.values(stats).filter(s => currentNames.has(s.name));
 
-    return filtered.sort((a, b) => b.scorePoints - a.scorePoints || b.matchPoints - a.matchPoints || a.games - b.games);
+    return filtered.sort((a, b) => b.scorePoints - a.scorePoints || b.matchPoints - a.matchPoints || b.wins - a.wins || b.games - a.games);
   },
 
   // 팀별 통계 계산
@@ -530,16 +537,21 @@ const Schedule = {
           if (loseTeam && stats[loseTeam]) stats[loseTeam].losses++;
         }
 
+        if (m.scores && m.scores.length > 0) {
+          let t1Pts = 0, t2Pts = 0;
+          m.scores.forEach(([s1, s2]) => { t1Pts += s1; t2Pts += s2; });
+          const diff = t1Pts - t2Pts;
+          if (team1 && stats[team1]) stats[team1].scorePoints += diff;
+          if (team2 && stats[team2]) stats[team2].scorePoints -= diff;
+        }
       }
     }
 
-    // 포인트 계산: 승점=승×3+무×1, 포인트=승-패
     Object.values(stats).forEach(s => {
       s.matchPoints = s.wins * 3 + s.draws * 1;
-      s.scorePoints = s.wins - s.losses;
     });
 
-    return Object.values(stats).sort((a, b) => b.scorePoints - a.scorePoints || b.matchPoints - a.matchPoints || a.games - b.games);
+    return Object.values(stats).sort((a, b) => b.scorePoints - a.scorePoints || b.matchPoints - a.matchPoints || b.wins - a.wins || b.games - a.games);
   },
 
   // 대진표 렌더링
@@ -611,7 +623,7 @@ const Schedule = {
             <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200 rounded-2xl p-4 mb-6 text-center">
               <div class="text-yellow-600 text-sm font-medium mb-1">우승 팀</div>
               <div class="text-2xl font-bold text-yellow-800">${Results.escapeHtml(teamStats[0].name)}</div>
-              <div class="text-sm text-yellow-700 mt-1">승점 ${teamStats[0].matchPoints} · 포인트 ${teamStats[0].scorePoints}</div>
+              <div class="text-sm text-yellow-700 mt-1">승점 ${teamStats[0].matchPoints} · 득실 ${teamStats[0].scorePoints}</div>
             </div>` : '';
         })() : ''}
 
@@ -758,13 +770,13 @@ const Schedule = {
                   <th class="text-center px-2 py-2">승</th>
                   <th class="text-center px-2 py-2">무</th>
                   <th class="text-center px-2 py-2">패</th>
-                  <th class="text-center px-2 py-2">포인트</th>
+                  <th class="text-center px-2 py-2">득실</th>
                   <th class="text-center px-2 py-2">승점</th>
                 </tr>
               </thead>
               <tbody>
                 ${teamStats.map((s, idx) => {
-                  const rank = teamStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints && p.games === s.games);
+                  const rank = teamStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                   const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(css/medal.png) no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
                   return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? ' bg-gradient-to-r' + (rank === 0 ? ' from-yellow-50/60' : rank === 1 ? ' from-gray-50/60' : ' from-orange-50/60') + ' to-transparent' : '') + '"' + (idx >= 10 ? ' data-expandable="sch-team" style="display:none"' : '') + '>' +
                     '<td class="px-4 py-2 font-medium text-gray-800">' + medalHtml + Results.escapeHtml(s.name) + '</td>' +
@@ -795,7 +807,7 @@ const Schedule = {
                   <th class="text-center px-2 py-2">승</th>
                   <th class="text-center px-2 py-2">무</th>
                   <th class="text-center px-2 py-2">패</th>
-                  <th class="text-center px-2 py-2">포인트</th>
+                  <th class="text-center px-2 py-2">득실</th>
                   <th class="text-center px-2 py-2">승점</th>
                 </tr>
               </thead>
@@ -803,8 +815,8 @@ const Schedule = {
                 ${(() => { const allPlayersData = Storage.getPlayers(); const medalPos = ['0%', '50%', '100%']; return playerStats.map((s, idx) => {
                   const pd = allPlayersData.find(pl => pl.name === s.name);
                   const gender = pd?.gender;
-                  const teamName = (() => { const teams = Storage.getTeams(); for (const t of teams) { if ((t.members || []).includes(s.name)) return t.name; } return ''; })();
-                  const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints && p.games === s.games);
+                  const teamName = buildTeamMap()[s.name] || '';
+                  const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                   const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(\'css/medal.png\') no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
                   const rowBg = isComplete && rank < 3 ? (rank === 0 ? ' from-yellow-50/60' : rank === 1 ? ' from-gray-50/60' : ' from-orange-50/60') : '';
                   return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (rowBg ? ' bg-gradient-to-r' + rowBg + ' to-transparent' : '') + '"' + (idx >= 10 ? ' data-expandable="sch-member-team" style="display:none"' : '') + '>' +
@@ -842,7 +854,7 @@ const Schedule = {
                 <th class="text-center px-2 py-2">승</th>
                 <th class="text-center px-2 py-2">무</th>
                 <th class="text-center px-2 py-2">패</th>
-                <th class="text-center px-2 py-2">포인트</th>
+                <th class="text-center px-2 py-2">득실</th>
                 <th class="text-center px-2 py-2">승점</th>
               </tr>
             </thead>
@@ -852,7 +864,7 @@ const Schedule = {
                 const gender = pd?.gender;
                 const ntrp = pd?.ntrp || 2.5;
                 const medalPos = ['0%', '50%', '100%'];
-                const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints && p.games === s.games);
+                const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                 const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(\'css/medal.png\') no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
                 return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? ' bg-gradient-to-r' + (rank === 0 ? ' from-yellow-50/60' : rank === 1 ? ' from-gray-50/60' : ' from-orange-50/60') + ' to-transparent' : '') + '"' + (idx >= 10 ? ' data-expandable="sch-member" style="display:none"' : '') + '>' +
                   '<td class="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white/95 dark:bg-slate-800/95 z-[1]">' +
@@ -1035,7 +1047,7 @@ const Schedule = {
       if (!RolesConfig.hasAdminAccess()) { el.style.cursor = 'default'; return; }
       el.onclick = (e) => {
         e.stopPropagation(); // 카드 클릭(스코어) 방지
-
+        try {
         const data = {
           slotIdx: +el.dataset.slotIdx, matchIdx: +el.dataset.matchIdx,
           team: +el.dataset.team, pos: +el.dataset.pos, name: el.dataset.name
@@ -1074,8 +1086,18 @@ const Schedule = {
         } else {
           // 두 번째 멤버 탭 → 교환
           const src = selectedPlayer, tgt = data;
-          const srcMatch = tournament.timeSlots[src.slotIdx].matches[src.matchIdx];
-          const tgtMatch = tournament.timeSlots[tgt.slotIdx].matches[tgt.matchIdx];
+          const srcSlot = tournament.timeSlots[src.slotIdx];
+          const tgtSlot = tournament.timeSlots[tgt.slotIdx];
+          if (!srcSlot || !tgtSlot || !srcSlot.matches[src.matchIdx] || !tgtSlot.matches[tgt.matchIdx]) {
+            Modal.toast('대진표 데이터가 변경되었습니다. 다시 시도해주세요.', 'error');
+            selectedPlayer.el.classList.remove('bg-green-200', 'ring-2', 'ring-green-500', 'rounded');
+            container.querySelectorAll('.replace-player-btn').forEach(b => b.remove());
+            unhighlightRestingBadges();
+            selectedPlayer = null;
+            return;
+          }
+          const srcMatch = srcSlot.matches[src.matchIdx];
+          const tgtMatch = tgtSlot.matches[tgt.matchIdx];
           const srcKey = src.team === 1 ? 'player1' : 'player2';
           const tgtKey = tgt.team === 1 ? 'player1' : 'player2';
           const sameMatch = src.slotIdx === tgt.slotIdx && src.matchIdx === tgt.matchIdx;
@@ -1083,6 +1105,7 @@ const Schedule = {
           const clearSel = () => {
             selectedPlayer.el.classList.remove('bg-green-200', 'ring-2', 'ring-green-500', 'rounded');
             container.querySelectorAll('.replace-player-btn').forEach(b => b.remove());
+            unhighlightRestingBadges();
             selectedPlayer = null;
           };
 
@@ -1098,7 +1121,7 @@ const Schedule = {
             [t1[src.pos], t2[tgt.pos]] = [t2[tgt.pos], t1[src.pos]];
             const all = [...t1, ...t2];
             if (new Set(all).size !== all.length) {
-              Modal.alert('같은 멤버가 동일 경기에 중복됩니다.');
+              Modal.toast('같은 멤버가 동일 경기에 중복됩니다.', 'error');
               clearSel();
               return;
             }
@@ -1115,7 +1138,7 @@ const Schedule = {
 
             if (new Set([...srcTeam, ...srcOther]).size !== srcTeam.length + srcOther.length
               || new Set([...tgtTeam, ...tgtOther]).size !== tgtTeam.length + tgtOther.length) {
-              Modal.alert('같은 멤버가 동일 경기에 중복됩니다.');
+              Modal.toast('같은 멤버가 동일 경기에 중복됩니다.', 'error');
               clearSel();
               return;
             }
@@ -1135,7 +1158,7 @@ const Schedule = {
               const tgtSlotOthers = getNamesInSlot(tgt.slotIdx, tgt.matchIdx);
               // swap 후: tgt.name → srcSlot, src.name → tgtSlot
               if (srcSlotOthers.has(tgt.name) || tgtSlotOthers.has(src.name)) {
-                Modal.alert('같은 시간대에 동일 멤버가 중복됩니다.');
+                Modal.toast('같은 시간대에 동일 멤버가 중복됩니다.', 'error');
                 clearSel();
                 return;
               }
@@ -1147,6 +1170,16 @@ const Schedule = {
           Storage.saveTournamentDirect(tournament);
           this.render(container, tournament);
         }
+        } catch (err) {
+          console.error('멤버 교환 오류:', err);
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교환 중 오류가 발생했습니다.', 'error');
+          if (selectedPlayer) {
+            selectedPlayer.el.classList.remove('bg-green-200', 'ring-2', 'ring-green-500', 'rounded');
+            container.querySelectorAll('.replace-player-btn').forEach(b => b.remove());
+            unhighlightRestingBadges();
+            selectedPlayer = null;
+          }
+        }
       };
     });
 
@@ -1156,6 +1189,7 @@ const Schedule = {
       badge.onclick = (e) => {
         e.stopPropagation();
         if (!selectedPlayer) return; // 선택된 플레이어 없으면 무시
+        try {
         const restingName = badge.dataset.name;
         const restingSlot = +badge.dataset.slotIdx;
 
@@ -1166,7 +1200,10 @@ const Schedule = {
         const srcKey = src.team === 1 ? 'player1' : 'player2';
 
         // 같은 시간대가 아닌 경우: 쉬는 멤버는 해당 슬롯의 벤치에만 존재
-        if (src.slotIdx !== restingSlot) return;
+        if (src.slotIdx !== restingSlot) {
+          Modal.toast('다른 시간대의 쉬는 멤버와는 교체할 수 없습니다.', 'error');
+          return;
+        }
 
         // 교체 실행: 선택된 플레이어 → 벤치, 쉬는 멤버 → 매치 투입
         const names = srcMatch[srcKey].split(' / ');
@@ -1175,6 +1212,10 @@ const Schedule = {
 
         Storage.saveTournamentDirect(tournament);
         this.render(container, tournament);
+        } catch (err) {
+          console.error('쉬는 멤버 교체 오류:', err);
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교체 중 오류가 발생했습니다.', 'error');
+        }
       };
     });
 
@@ -1270,10 +1311,15 @@ const Schedule = {
         e.preventDefault();
         card.classList.remove('ring-2', 'ring-green-500');
         if (_dragType !== 'card') return;
+        try {
         const [si, mi] = e.dataTransfer.getData('text/plain').split(',').map(Number);
         const tSI = +card.dataset.slotIdx, tMI = +card.dataset.matchIdx;
         if (si === tSI && mi === tMI) return;
         const srcSlot = tournament.timeSlots[si], tgtSlot = tournament.timeSlots[tSI];
+        if (!srcSlot || !tgtSlot || !srcSlot.matches[mi] || !tgtSlot.matches[tMI]) {
+          Modal.toast('대진표 데이터가 변경되었습니다. 다시 시도해주세요.', 'error');
+          return;
+        }
 
         // 다른 시간대 간 교환: 멤버 중복 검사
         if (si !== tSI) {
@@ -1301,7 +1347,7 @@ const Schedule = {
           const dupInSrc = [...tgtMatchNames].filter(n => srcSlotOthers.has(n));
           if (dupInTgt.length > 0 || dupInSrc.length > 0) {
             const dups = [...new Set([...dupInTgt, ...dupInSrc])];
-            Modal.alert(`같은 시간대에 동일 멤버가 중복됩니다:\n${dups.join(', ')}`);
+            Modal.toast(`같은 시간대에 동일 멤버가 중복됩니다: ${dups.join(', ')}`, 'error');
             return;
           }
         }
@@ -1313,6 +1359,10 @@ const Schedule = {
         tgtSlot.matches[tMI].court = tgtCourt;
         Storage.saveTournamentDirect(tournament);
         this.render(container, tournament);
+        } catch (err) {
+          console.error('매치 카드 교환 오류:', err);
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('매치 교환 중 오류가 발생했습니다.', 'error');
+        }
       };
     });
 
@@ -2087,14 +2137,21 @@ const Schedule = {
     picker.querySelectorAll('.amp-option').forEach(opt => {
       opt.onclick = () => {
         if (opt.dataset.disabled === 'true') return;
-        const newName = opt.dataset.name;
-        const names = match[playerKey].split(' / ');
-        names[pos] = newName;
-        match[playerKey] = names.join(' / ');
-        Storage.saveTournamentDirect(tournament);
-        closePicker2();
-        onDone();
-        this.render(container, tournament);
+        try {
+          const newName = opt.dataset.name;
+          const names = match[playerKey].split(' / ');
+          names[pos] = newName;
+          match[playerKey] = names.join(' / ');
+          Storage.saveTournamentDirect(tournament);
+          closePicker2();
+          onDone();
+          this.render(container, tournament);
+        } catch (err) {
+          console.error('멤버 교체 오류:', err);
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교체 중 오류가 발생했습니다.', 'error');
+          closePicker2();
+          onDone();
+        }
       };
     });
   },

@@ -1150,9 +1150,11 @@ const Storage = {
           if (triesLeft > 0) {
             setTimeout(function() { attempt(triesLeft - 1); }, 1000 * (4 - triesLeft));
           } else {
-            if (self._writingT[id] === json) delete self._writingT[id];
+            // 에코 가드 유지 (삭제하지 않음) → 원격 변경이 로컬 데이터를 덮어쓰는 것을 방지
+            // 30초 후 가드 해제 (무한 차단 방지)
+            setTimeout(function() { if (self._writingT[id] === json) delete self._writingT[id]; }, 30000);
             if (typeof Modal !== 'undefined' && Modal.toast) {
-              Modal.toast('저장에 실패했습니다.\n네트워크 연결을 확인한 뒤 화면을 새로고침해 다시 시도해주세요.', 'error');
+              Modal.toast('저장에 실패했습니다. 네트워크 확인 후 다시 시도해주세요.', 'error');
             }
           }
         });
@@ -1427,10 +1429,12 @@ const Storage = {
         var remoteJson = chg.doc.data().json;
         if (remoteJson == null) return;
 
-        // 에코 억제: 내가 방금 쓴 값
-        if (self._writingT[id] === remoteJson) {
-          delete self._writingT[id];
-          self._tJson[id] = remoteJson;
+        // 쓰기 진행 중: 에코이면 확인, 아니면 원격 변경 무시 (로컬 데이터 보호)
+        if (self._writingT[id] != null && self._writingT[id] !== '__deleted__') {
+          if (self._writingT[id] === remoteJson) {
+            delete self._writingT[id];
+            self._tJson[id] = remoteJson;
+          }
           return;
         }
         // 이미 알고 있는 최신값
