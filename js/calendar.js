@@ -1082,9 +1082,9 @@ const Calendar = {
         return;
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles);
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, null, 10, 25);
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 최소 30분 이상 설정해주세요.');
+        alert('시간이 부족합니다. 몸풀기 10분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
@@ -1101,6 +1101,8 @@ const Calendar = {
         startTime: startTime,
         endTime: endTime,
         allowMixed: allowMixed,
+        warmupMinutes: 10,
+        gameMinutes: 25,
         gameDate: gameDate,
         males: males,
         females: females,

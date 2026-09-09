@@ -2,19 +2,28 @@
 // console.log('[Schedule] loaded, forcedPlan 지원 버전');
 
 const Schedule = {
-  // 시간 슬롯 계산 (30분 단위)
-  calculateTimeSlots(startTime, endTime) {
+  // 시간 문자열에 분 더하기 헬퍼
+  _addMinutes(timeStr, minutes) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const total = h * 60 + m + minutes;
+    return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+  },
+
+  // 시간 슬롯 계산 (warmupMinutes 후 gameMinutes 단위)
+  calculateTimeSlots(startTime, endTime, warmupMinutes, gameMinutes) {
+    warmupMinutes = warmupMinutes || 0;
+    gameMinutes = gameMinutes || 30;
     const slots = [];
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    let current = sh * 60 + sm;
+    let current = sh * 60 + sm + warmupMinutes;
     const end = eh * 60 + em;
 
-    while (current + 30 <= end) {
+    while (current + gameMinutes <= end) {
       const h = Math.floor(current / 60);
       const m = current % 60;
       slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      current += 30;
+      current += gameMinutes;
     }
     return slots;
   },
@@ -375,8 +384,8 @@ const Schedule = {
   },
 
   // 대진표 생성 (lateEntries: { playerName: "HH:MM" }, typeDistribution: { MD: 3, XD: 2, WD: 3 } | null)
-  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, typeDistribution) {
-    const slots = this.calculateTimeSlots(startTime, endTime);
+  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, typeDistribution, warmupMinutes, gameMinutes) {
+    const slots = this.calculateTimeSlots(startTime, endTime, warmupMinutes, gameMinutes);
     const gameCounts = {};
     [...males, ...females].forEach(p => { gameCounts[p] = 0; });
     const usedTeams = new Map(); // 팀키 → 횟수
@@ -632,6 +641,8 @@ const Schedule = {
           ${tournament.isCustom ? this._renderCourtLayout(tournament) : (() => {
             const courtCount = tournament.courts;
             const gridCols = courtCount <= 1 ? 'grid-cols-1' : `grid-cols-2${courtCount > 2 ? ` sm:grid-cols-${courtCount}` : ''}`;
+            const _gameMins = tournament.gameMinutes || 0;
+            const _warmupMins = tournament.warmupMinutes || 0;
             return tournament.timeSlots.map((slot, si) => {
               const courtMap = {};
               for (let c = 1; c <= courtCount; c++) courtMap[c] = [];
@@ -639,13 +650,20 @@ const Schedule = {
                 const c = match.court || 1;
                 if (c >= 1 && c <= courtCount) courtMap[c].push({ match, mi });
               });
+              const warmupBanner = (si === 0 && _warmupMins > 0 && tournament.startTime) ? `
+                <div class="flex items-center gap-2 mb-3 px-1">
+                  <span class="text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full">${tournament.startTime} ~ ${Schedule._addMinutes(tournament.startTime, _warmupMins)} 몸풀기</span>
+                  <div class="flex-1 border-t border-orange-200"></div>
+                </div>` : '';
+              const timeLabel = _gameMins > 0 ? `${slot.time} ~ ${Schedule._addMinutes(slot.time, _gameMins)}` : slot.time;
               return `
+              ${warmupBanner}
               <div class="schedule-slot" data-slot="${si}">
                 <div class="flex items-center gap-2 mb-2">
                   <span class="slot-drag-handle cursor-pointer text-gray-300 flex-shrink-0" data-slot-idx="${si}" style="display:none">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h10M7 16h10"/></svg>
                   </span>
-                  <span class="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">${slot.time}</span>
+                  <span class="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">${timeLabel}</span>
                   <div class="flex-1 border-t border-gray-200"></div>
                 </div>
                 <div class="grid gap-3 ${gridCols}">
@@ -915,10 +933,10 @@ const Schedule = {
       pdfBtn.onclick = () => this.exportPDF(container, tournament);
     }
 
-    if (RolesConfig.hasAdminAccess()) {
-      // 쉬는 멤버 표시
-      container.querySelectorAll('.resting-players').forEach(el => el.style.display = '');
+    // 쉬는 멤버 표시 (모든 멤버 공개)
+    container.querySelectorAll('.resting-players').forEach(el => el.style.display = '');
 
+    if (RolesConfig.hasAdminAccess()) {
       // 배정 현황 오버뷰 표시 + 토글
       const overviewEl = container.querySelector('.assignment-overview');
       if (overviewEl) {
@@ -1277,8 +1295,13 @@ const Schedule = {
       };
     });
 
-    // 경기 종류 변경 (뱃지 클릭)
+    // 경기 종류 변경 (뱃지 클릭, 관리자만)
     container.querySelectorAll('.change-gametype-btn').forEach(btn => {
+      if (!RolesConfig.hasAdminAccess()) {
+        btn.style.cursor = 'default';
+        btn.classList.remove('cursor-pointer', 'hover:ring-2', 'hover:ring-offset-1', 'hover:ring-green-400');
+        return;
+      }
       btn.onclick = (e) => {
         e.stopPropagation();
         const match = allMatches.find(m => m.id === btn.dataset.matchId);

@@ -1986,7 +1986,7 @@ const App = {
           if (count > 0) typeDistribution[el.dataset.type] = count;
         });
         const total = Object.values(typeDistribution).reduce((s, v) => s + v, 0);
-        const slotsForValidation = Schedule.calculateTimeSlots(startTime, endTime);
+        const slotsForValidation = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
         const expectedTotal = slotsForValidation.length * courts;
         if (total !== expectedTotal) {
           alert(`게임 종류 합계(${total})가 총 경기수(${expectedTotal})와 일치하지 않습니다.`);
@@ -1996,7 +1996,7 @@ const App = {
 
       // 수동 모드 사전 검증: 배분 가능한지 확인
       if (typeDistribution) {
-        const slotsForTest = Schedule.calculateTimeSlots(startTime, endTime);
+        const slotsForTest = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
         const testResult = Schedule.distributeTypesToSlots(typeDistribution, slotsForTest.length, courts, selectedMales.length, selectedFemales.length);
         if (!testResult) {
           alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.\n\n예) 혼복+여복은 같은 시간에 배치 불가 (여자 6명 필요)');
@@ -2004,10 +2004,10 @@ const App = {
         }
       }
 
-      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution);
+      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, 10, 25);
 
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 최소 30분 이상 설정해주세요.');
+        alert('시간이 부족합니다. 몸풀기 10분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
@@ -2024,6 +2024,8 @@ const App = {
         startTime,
         endTime,
         allowMixed,
+        warmupMinutes: 10,
+        gameMinutes: 25,
         gameDate,
         males: selectedMales,
         females: selectedFemales,
@@ -2060,10 +2062,10 @@ const App = {
       return;
     }
 
-    const slots = Schedule.calculateTimeSlots(startTime, endTime);
+    const slots = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
     const totalGamesMax = slots.length * courts;
 
-    timeInfo.textContent = `${slots.length}개 타임 (30분 × ${slots.length})`;
+    timeInfo.textContent = `몸풀기 10분 + ${slots.length}게임 (25분 × ${slots.length})`;
     timeInfo.className = 'text-xs text-gray-500 mt-1';
 
     const allowMixed = container.querySelector('#allow-mixed')?.checked || false;
