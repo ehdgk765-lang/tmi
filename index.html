@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20260909';
+    var APP_VERSION = '20260909-1';
   </script>
   <script>
     // 페이지 렌더 전 테마 적용 (깜빡임 방지)
@@ -47,7 +47,7 @@
       tmp.innerHTML = html;
       morphdom(container, tmp, { childrenOnly: true });
     }
-    // 무거운 라이브러리 동적 로딩 유틸 (xlsx ~300KB, html2canvas ~40KB, jspdf ~90KB)
+    // 무거운 라이브러리 동적 로딩 유틸 (xlsx ~300KB)
     // 페이지 로드 시에는 불필요 → 사용자 액션 시 최초 1회 로딩
     var _loadedScripts = {};
     function loadScript(url) {
@@ -62,13 +62,6 @@
       return _loadedScripts[url];
     }
     function loadXLSX() { return loadScript('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'); }
-    // [PDF 기능 비활성화]
-    // function loadPdfLibs() {
-    //   return Promise.all([
-    //     loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
-    //     loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js')
-    //   ]);
-    // }
   </script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="css/style.css" id="app-css">
