@@ -424,6 +424,65 @@ const Storage = {
     }
   },
 
+  // 참석 토글 (낙관적 업데이트) — UI 즉시 반영 + 백그라운드 트랜잭션
+  toggleAttendanceOptimistic(eventId, memberName) {
+    var self = this;
+    var parent = this._getParent();
+    if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true).result;
+
+    // 로컬 즉시 적용
+    var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false);
+    if (!localResult.changed) return localResult.result;
+
+    this._json.events = JSON.stringify(this._data.events);
+    this._writing.events = this._json.events;
+
+    // 백그라운드 Firestore 트랜잭션
+    var docRef = parent.collection('data').doc('events');
+    fbDb.runTransaction(function(transaction) {
+      return transaction.get(docRef).then(function(doc) {
+        var events = [];
+        if (doc.exists) {
+          var d = doc.data();
+          events = d.json ? JSON.parse(d.json) : [];
+        }
+        var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false);
+        if (toggleResult.changed) {
+          transaction.set(docRef, { json: JSON.stringify(events) });
+        }
+        return { events: events, serverResult: toggleResult.result };
+      });
+    }).then(function(tx) {
+      var optimisticJson = self._json.events;
+      self._setLocal('events', tx.events);
+      self._writing.events = self._json.events;
+      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      if (self._json.events !== optimisticJson) {
+        // 서버 결과가 낙관적 상태와 다름 → 사용자에게 알림
+        if (tx.serverResult === 'full') {
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 인원이 마감되었습니다.', 'error');
+        } else if (tx.serverResult && tx.serverResult.conflict) {
+          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('같은 시간에 이미 참석 중인 일정이 있습니다.', 'error');
+        }
+        self._onRemoteChange();
+      }
+    }).catch(function(err) {
+      console.error('toggleAttendance optimistic error:', err);
+      self._writing.events = null;
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 변경에 실패했습니다. 다시 시도해주세요.', 'error');
+      docRef.get().then(function(doc) {
+        if (doc.exists) {
+          var json = doc.data().json || '[]';
+          self._json.events = json;
+          self._data.events = JSON.parse(json);
+        }
+        self._onRemoteChange();
+      }).catch(function() { self._onRemoteChange(); });
+    });
+
+    return localResult.result;
+  },
+
   // 참석 토글 핵심 로직 (events 배열을 직접 수정)
   _applyToggleAttendance(events, eventId, memberName, saveLocal) {
     for (var i = 0; i < events.length; i++) {
@@ -506,6 +565,55 @@ const Storage = {
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
       return this._applyToggleWaitlist(this._data.events, eventId, memberName, true);
     }
+  },
+
+  // 대기 토글 (낙관적 업데이트) — UI 즉시 반영 + 백그라운드 트랜잭션
+  toggleWaitlistOptimistic(eventId, memberName) {
+    var self = this;
+    var parent = this._getParent();
+    if (!parent) return this._applyToggleWaitlist(this._data.events, eventId, memberName, true).result;
+
+    var localResult = this._applyToggleWaitlist(this._data.events, eventId, memberName, false);
+    if (!localResult.changed) return localResult.result;
+
+    this._json.events = JSON.stringify(this._data.events);
+    this._writing.events = this._json.events;
+
+    var docRef = parent.collection('data').doc('events');
+    fbDb.runTransaction(function(transaction) {
+      return transaction.get(docRef).then(function(doc) {
+        var events = [];
+        if (doc.exists) {
+          var d = doc.data();
+          events = d.json ? JSON.parse(d.json) : [];
+        }
+        var toggleResult = self._applyToggleWaitlist(events, eventId, memberName, false);
+        if (toggleResult.changed) {
+          transaction.set(docRef, { json: JSON.stringify(events) });
+        }
+        return events;
+      });
+    }).then(function(finalEvents) {
+      var optimisticJson = self._json.events;
+      self._setLocal('events', finalEvents);
+      self._writing.events = self._json.events;
+      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      if (self._json.events !== optimisticJson) self._onRemoteChange();
+    }).catch(function(err) {
+      console.error('toggleWaitlist optimistic error:', err);
+      self._writing.events = null;
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
+      docRef.get().then(function(doc) {
+        if (doc.exists) {
+          var json = doc.data().json || '[]';
+          self._json.events = json;
+          self._data.events = JSON.parse(json);
+        }
+        self._onRemoteChange();
+      }).catch(function() { self._onRemoteChange(); });
+    });
+
+    return localResult.result;
   },
 
   _applyToggleWaitlist(events, eventId, memberName, saveLocal) {
