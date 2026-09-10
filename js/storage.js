@@ -391,7 +391,8 @@ const Storage = {
   async toggleAttendance(eventId, memberName) {
     var self = this;
     var parent = this._getParent();
-    if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true);
+    var attendTime = Date.now();
+    if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true, attendTime);
 
     var docRef = parent.collection('data').doc('events');
     try {
@@ -403,7 +404,7 @@ const Storage = {
             var d = doc.data();
             events = d.json ? JSON.parse(d.json) : [];
           }
-          var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false);
+          var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false, attendTime);
           if (toggleResult.changed) {
             transaction.set(docRef, { json: JSON.stringify(events) });
           }
@@ -430,8 +431,11 @@ const Storage = {
     var parent = this._getParent();
     if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true).result;
 
+    // 참석 시점 타임스탬프 (클라이언트 기준, 트랜잭션에서 순서 보존용)
+    var attendTime = Date.now();
+
     // 로컬 즉시 적용
-    var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false);
+    var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false, attendTime);
     if (!localResult.changed) return localResult.result;
 
     this._json.events = JSON.stringify(this._data.events);
@@ -446,7 +450,7 @@ const Storage = {
           var d = doc.data();
           events = d.json ? JSON.parse(d.json) : [];
         }
-        var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false);
+        var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false, attendTime);
         if (toggleResult.changed) {
           transaction.set(docRef, { json: JSON.stringify(events) });
         }
@@ -484,18 +488,23 @@ const Storage = {
   },
 
   // 참석 토글 핵심 로직 (events 배열을 직접 수정)
-  _applyToggleAttendance(events, eventId, memberName, saveLocal) {
+  // attendTime: 참석 시점 타임스탬프 (밀리초). 동시 참석 시 선착순 정렬에 사용
+  _applyToggleAttendance(events, eventId, memberName, saveLocal, attendTime) {
     for (var i = 0; i < events.length; i++) {
       if (events[i].id === eventId) {
         var ev = events[i];
         if (!ev.participants) ev.participants = [];
         if (!ev.waitlist) ev.waitlist = [];
+        if (!ev.participantTimes) ev.participantTimes = {};
         var idx = ev.participants.indexOf(memberName);
         if (idx >= 0) {
+          // 참석 취소
           ev.participants.splice(idx, 1);
+          delete ev.participantTimes[memberName];
           if (ev.waitlist.length > 0) {
             var promoted = ev.waitlist.shift();
             ev.participants.push(promoted);
+            ev.participantTimes[promoted] = Date.now();
           }
         } else {
           if (ev.maxParticipants > 0 && ev.participants.length >= ev.maxParticipants) {
@@ -516,9 +525,16 @@ const Storage = {
               }
             }
           }
+          // 참석 추가 + 타임스탬프 기록
           ev.participants.push(memberName);
+          ev.participantTimes[memberName] = attendTime || Date.now();
           var wIdx = ev.waitlist.indexOf(memberName);
           if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+
+          // 타임스탬프 기준 정렬 (선착순 보장)
+          ev.participants.sort(function(a, b) {
+            return (ev.participantTimes[a] || 0) - (ev.participantTimes[b] || 0);
+          });
         }
         if (saveLocal) {
           this._setLocal('events', events);
@@ -1384,6 +1400,11 @@ const Storage = {
     var self = this;
     var dataBase = parent.collection('data');
 
+    // 초기 onSnapshot 콜백 억제: loadFromFirestore에서 이미 로드한 데이터와
+    // 동일한 초기 스냅샷이 _onRemoteChange를 불필요하게 호출하는 것을 방지
+    this._initialSyncDone = false;
+    setTimeout(function() { self._initialSyncDone = true; }, 800);
+
     // 페이지 복귀 시 최신 데이터 동기화
     this._setupVisibilityListener();
 
@@ -1460,6 +1481,7 @@ const Storage = {
       if (self[key]) { self[key](); self[key] = null; }
     });
     this._removeVisibilityListener();
+    this._initialSyncDone = true; // 정리 시 플래그 해제
   },
 
   // ─── 네트워크 상태 감지 및 배너 표시 ───
@@ -1482,6 +1504,7 @@ const Storage = {
         self.loadFromFirestore().then(function() {
           self.stopRealtimeSync();
           self.startRealtimeSync();
+          self._initialSyncDone = true; // 페이지 복귀 시에는 즉시 렌더 필요
           self._onRemoteChange();
         }).catch(function() {});
       }
@@ -1503,6 +1526,7 @@ const Storage = {
       self.loadFromFirestore().then(function() {
         self.stopRealtimeSync();
         self.startRealtimeSync();
+        self._initialSyncDone = true; // 페이지 복귀 시에는 즉시 렌더 필요
         self._onRemoteChange();
       }).catch(function(err) {
         console.error('Visibility reload error:', err);
@@ -1520,6 +1544,8 @@ const Storage = {
 
   // 원격 변경 시 UI 갱신 (300ms 디바운싱)
   _onRemoteChange() {
+    // 초기 로드 직후: loadFromFirestore가 이미 최신 데이터를 반영했으므로 리렌더 스킵
+    if (this._initialSyncDone === false) return;
     var self = this;
     if (this._remoteChangeTimer) clearTimeout(this._remoteChangeTimer);
     this._remoteChangeTimer = setTimeout(function() {
