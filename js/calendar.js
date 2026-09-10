@@ -707,13 +707,19 @@ const Calendar = {
 
     function closeModal() { modal.remove(); unlockScroll(); }
 
-    document.getElementById('cal-cancel-overlay').addEventListener('click', closeModal);
-    document.getElementById('cal-cancel-no').addEventListener('click', closeModal);
-    document.getElementById('cal-cancel-yes').addEventListener('click', function() {
-      Storage.toggleAttendanceOptimistic(eventId, memberName);
-      closeModal();
-      self.render(self._container);
-    });
+    // 키보드(Space/Enter) keyup이 모달 요소에 전파되지 않도록 지연 바인딩
+    setTimeout(function() {
+      document.getElementById('cal-cancel-overlay').addEventListener('click', closeModal);
+      document.getElementById('cal-cancel-no').addEventListener('click', closeModal);
+      document.getElementById('cal-cancel-yes').addEventListener('click', function() {
+        Storage.toggleAttendanceOptimistic(eventId, memberName);
+        closeModal();
+        self.render(self._container);
+      });
+      // 모달 열리면 '취소하기' 버튼에 포커스
+      var yesBtn = document.getElementById('cal-cancel-yes');
+      if (yesBtn) yesBtn.focus();
+    }, 50);
   },
 
   _formatTimeRange(ev) {
