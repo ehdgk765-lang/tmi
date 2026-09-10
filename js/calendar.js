@@ -1,5 +1,7 @@
 // calendar.js - 월별 캘린더 + 일정 관리
 const Calendar = {
+  _filterMine: false,
+
   // 버튼 로딩 상태 토글 헬퍼
   _btnLoading(btn, loading) {
     if (!btn) return;
@@ -54,6 +56,13 @@ const Calendar = {
     var calendarGrid = this._buildCalendarGrid(year, month, events);
     // 선택 날짜 일정 목록
     var dayEvents = this._getEventsForDate(events, this._selectedDate);
+    // 내 일정 필터
+    var memberName = typeof App !== 'undefined' ? App.getMemberName() : '';
+    if (this._filterMine && memberName) {
+      dayEvents = dayEvents.filter(function(ev) {
+        return (ev.participants || []).indexOf(memberName) >= 0 || (ev.waitlist || []).indexOf(memberName) >= 0;
+      });
+    }
     var eventsList = this._buildEventsList(dayEvents, isAdmin);
 
     patchDOM(container,
@@ -64,9 +73,12 @@ const Calendar = {
             '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>' +
           '</button>' +
           '<h2 class="text-xl font-bold text-gray-800">' + monthLabel + '</h2>' +
-          '<button id="cal-next" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition text-gray-500">' +
-            '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
-          '</button>' +
+          '<div class="flex items-center gap-1">' +
+            (isClubUser ? '<button id="cal-filter-mine" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition' + (this._filterMine ? ' bg-blue-500 text-white border-blue-500' : ' border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500') + '">내 일정</button>' : '') +
+            '<button id="cal-next" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition text-gray-500">' +
+              '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
+            '</button>' +
+          '</div>' +
         '</div>' +
         // 요일 헤더
         '<div class="calendar-grid mb-1">' +
@@ -79,12 +91,14 @@ const Calendar = {
           '<div class="calendar-weekday text-blue-400">토</div>' +
         '</div>' +
         // 날짜 그리드
-        '<div class="calendar-grid mb-6">' + calendarGrid + '</div>' +
+        '<div class="calendar-grid calendar-dates mb-6">' + calendarGrid + '</div>' +
         // 선택 날짜 일정
         '<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">' +
           '<div class="flex items-center justify-between mb-3">' +
             '<h3 class="font-bold text-gray-800">' + this._formatDisplayDate(this._selectedDate) + '</h3>' +
-            (isClubUser ? '<button id="cal-add-event" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition">+ 일정 추가</button>' : '') +
+            '<div class="flex items-center gap-1.5">' +
+              (isClubUser ? '<button id="cal-add-event" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition">+ 일정 추가</button>' : '') +
+            '</div>' +
           '</div>' +
           '<div id="cal-events-list">' + eventsList + '</div>' +
         '</div>' +
@@ -98,6 +112,8 @@ const Calendar = {
     var daysInMonth = new Date(year, month + 1, 0).getDate();
     var today = this._formatDate(new Date());
     var html = '';
+    var filterMine = this._filterMine;
+    var memberName = filterMine ? (typeof App !== 'undefined' ? App.getMemberName() : '') : '';
 
     // 빈 칸 (이전 월)
     for (var i = 0; i < firstDay; i++) {
@@ -112,27 +128,37 @@ const Calendar = {
       var isSelected = dateStr === this._selectedDate;
       var dayEvents = this._getEventsForDate(events, dateStr);
 
+      // 내 일정 필터: 캘린더 그리드 라벨에도 적용
+      if (filterMine && memberName) {
+        dayEvents = dayEvents.filter(function(ev) {
+          return (ev.participants || []).indexOf(memberName) >= 0 || (ev.waitlist || []).indexOf(memberName) >= 0;
+        });
+      }
+
       var classes = 'calendar-day';
       if (isToday) classes += ' today';
       if (isSelected) classes += ' selected';
       if (dayOfWeek === 0) classes += ' sunday';
       if (dayOfWeek === 6) classes += ' saturday';
 
-      // 이벤트 도트
-      var dots = '';
+      // 이벤트 라벨 (제목 표시)
+      var labels = '';
       if (dayEvents.length > 0) {
-        dots = '<div class="calendar-dots">';
-        var maxDots = Math.min(dayEvents.length, 3);
-        for (var j = 0; j < maxDots; j++) {
+        labels = '<div class="calendar-labels">';
+        var maxLabels = Math.min(dayEvents.length, 3);
+        for (var j = 0; j < maxLabels; j++) {
           var color = this._getColor(dayEvents[j].color);
-          dots += '<span class="calendar-dot ' + color.dot + '"></span>';
+          labels += '<div class="calendar-label ' + color.dot + '">' + this._escapeHtml(dayEvents[j].title) + '</div>';
         }
-        dots += '</div>';
+        if (dayEvents.length > 3) {
+          labels += '<div class="calendar-label-more">+' + (dayEvents.length - 3) + '</div>';
+        }
+        labels += '</div>';
       }
 
       html += '<div class="' + classes + '" data-date="' + dateStr + '">' +
                 '<span class="day-number">' + d + '</span>' +
-                dots +
+                labels +
               '</div>';
     }
 
@@ -270,7 +296,7 @@ const Calendar = {
         if (isAttending) {
           attendBtn = '<button class="cal-cancel-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-500 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">참석 취소</button>';
         } else if (isWaiting) {
-          attendBtn = '<button class="cal-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-yellow-300 text-yellow-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">대기 취소</button>';
+          attendBtn = '<button class="cal-cancel-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-yellow-300 text-yellow-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">대기 취소</button>';
         } else if (!isFull && !isGenderFull) {
           attendBtn = '<button class="cal-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" data-id="' + ev.id + '">참석</button>';
         } else {
@@ -286,11 +312,23 @@ const Calendar = {
           '참석자 관리</button>';
       }
 
-      html += '<div class="p-3 rounded-xl ' + color.bg + ' mb-2">' +
+      // 참석/대기 상태 카드 스타일
+      var cardExtra = '';
+      var statusBadge = '';
+      if (isAttending) {
+        cardExtra = ' ring-2 ring-blue-400 ring-inset';
+        statusBadge = '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500 text-white">참석 중</span>';
+      } else if (isWaiting) {
+        cardExtra = ' ring-2 ring-yellow-400 ring-inset';
+        statusBadge = '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-400 text-yellow-900">대기 중</span>';
+      }
+      var myEventClass = (isAttending || isWaiting) ? ' cal-my-event' : '';
+
+      html += '<div class="p-3 rounded-xl ' + color.bg + cardExtra + myEventClass + ' mb-2">' +
                 '<div class="flex items-start gap-3">' +
                   '<div class="w-1 self-stretch rounded-full ' + color.dot + ' flex-shrink-0 mt-0.5"></div>' +
                   '<div class="flex-1 min-w-0">' +
-                    '<div class="font-semibold text-sm ' + color.text + '">' + this._escapeHtml(ev.title) + '</div>' +
+                    '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1.5">' + this._escapeHtml(ev.title) + ' ' + statusBadge + '</div>' +
                     (this._formatTimeRange(ev) ? '<div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/></svg><span>' + this._formatTimeRange(ev) + '</span></div>' : '') +
                     (ev.description ? '<div class="text-xs text-gray-400 mt-1 italic">' + this._escapeHtml(ev.description) + '</div>' : '') +
                     (ev.createdBy ? '<div class="text-xs text-gray-400 mt-1">' + this._escapeHtml(ev.createdBy) + '등록</div>' : '') +
@@ -356,6 +394,15 @@ const Calendar = {
     if (addBtn) {
       addBtn.onclick = function() {
         self._showEventModal(null);
+      };
+    }
+
+    // 내 일정 필터 토글
+    var filterBtn = document.getElementById('cal-filter-mine');
+    if (filterBtn) {
+      filterBtn.onclick = function() {
+        self._filterMine = !self._filterMine;
+        self.render(self._container);
       };
     }
 
@@ -440,7 +487,7 @@ const Calendar = {
       };
     });
 
-    // 대기 신청/취소 버튼 (낙관적 업데이트)
+    // 대기 신청 버튼 (낙관적 업데이트)
     container.querySelectorAll('.cal-waitlist-btn').forEach(function(btn) {
       btn.onclick = function(e) {
         e.stopPropagation();
@@ -449,6 +496,17 @@ const Calendar = {
         if (!memberName) return;
         Storage.toggleWaitlistOptimistic(id, memberName);
         self.render(self._container);
+      };
+    });
+
+    // 대기 취소 버튼 (확인 모달)
+    container.querySelectorAll('.cal-cancel-waitlist-btn').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var id = this.dataset.id;
+        var memberName = App.getMemberName();
+        if (!memberName) return;
+        self._showCancelWaitlistModal(id, memberName);
       };
     });
   },
@@ -807,6 +865,43 @@ const Calendar = {
         self.render(self._container);
       });
       // 모달 열리면 '취소하기' 버튼에 포커스
+      var yesBtn = document.getElementById('cal-cancel-yes');
+      if (yesBtn) yesBtn.focus();
+    }, 50);
+  },
+
+  _showCancelWaitlistModal(eventId, memberName) {
+    var self = this;
+    var modal = document.createElement('div');
+    modal.id = 'cal-cancel-modal';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center p-4';
+    modal.innerHTML =
+      '<div class="absolute inset-0 bg-black/40" id="cal-cancel-overlay"></div>' +
+      '<div class="relative bg-white rounded-2xl shadow-xl w-full max-w-xs p-5 text-center">' +
+        '<div class="w-12 h-12 mx-auto mb-3 rounded-full bg-yellow-100 flex items-center justify-center">' +
+          '<svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+        '</div>' +
+        '<h3 class="text-lg font-bold text-gray-800 mb-1">대기 취소</h3>' +
+        '<p class="text-sm text-gray-500 mb-4">대기를 취소하시겠습니까?</p>' +
+        '<div class="flex gap-2">' +
+          '<button id="cal-cancel-no" class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-200 transition">아니요</button>' +
+          '<button id="cal-cancel-yes" class="flex-1 px-4 py-2.5 bg-yellow-500 text-white text-sm font-semibold rounded-xl hover:bg-yellow-600 transition">취소하기</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+    lockScroll();
+
+    function closeModal() { modal.remove(); unlockScroll(); }
+
+    setTimeout(function() {
+      document.getElementById('cal-cancel-overlay').addEventListener('click', closeModal);
+      document.getElementById('cal-cancel-no').addEventListener('click', closeModal);
+      document.getElementById('cal-cancel-yes').addEventListener('click', function() {
+        Storage.toggleWaitlistOptimistic(eventId, memberName);
+        closeModal();
+        self.render(self._container);
+      });
       var yesBtn = document.getElementById('cal-cancel-yes');
       if (yesBtn) yesBtn.focus();
     }, 50);

@@ -136,6 +136,9 @@ header {
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
+.calendar-dates {
+  grid-auto-rows: 1fr;
+}
 .calendar-weekday {
   text-align: center;
   font-size: 12px;
@@ -148,11 +151,12 @@ header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 2px 6px;
-  border-radius: 12px;
+  padding: 3px 1px 2px;
+  border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.15s;
-  min-height: 48px;
+  min-height: 56px;
+  overflow: hidden;
 }
 .calendar-day:hover {
   background-color: #f3f4f6;
@@ -164,8 +168,8 @@ header {
   background-color: transparent;
 }
 .calendar-day .day-number {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: #374151;
   line-height: 1;
 }
@@ -181,12 +185,13 @@ header {
 .calendar-day.today .day-number {
   background-color: #2563eb;
   color: white;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 11px;
 }
 .calendar-day.selected {
   background-color: #dbeafe;
@@ -201,6 +206,38 @@ header {
   width: 5px;
   height: 5px;
   border-radius: 50%;
+}
+.calendar-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+  width: 100%;
+  padding: 0 1px;
+}
+.calendar-label {
+  font-size: 7px;
+  line-height: 10px;
+  border-radius: 2px;
+  padding: 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-weight: 600;
+}
+.calendar-label.bg-yellow-500 {
+  color: #713f12;
+}
+.calendar-label.bg-orange-400 {
+  color: #7c2d12;
+}
+.calendar-label-more {
+  font-size: 7px;
+  line-height: 10px;
+  color: #9ca3af;
+  text-align: center;
+  font-weight: 600;
 }
 
 /* 캘린더 모달 */
