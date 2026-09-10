@@ -128,11 +128,10 @@ const Auth = {
       <div class="w-full max-w-sm mx-auto px-6">
         <!-- 로고 영역 -->
         <div id="auth-logo-section" class="text-center mb-8 transition-all duration-200 overflow-hidden">
-          <div class="relative inline-block mb-4">
-            <div class="auth-logo-bg w-28 h-28 rounded-3xl mx-auto" role="img" aria-label="Tennis"></div>
+          <div class="relative inline-block mb-3">
+            <div class="auth-logo-bg w-24 h-24 rounded-3xl mx-auto" role="img" aria-label="Tennis"></div>
           </div>
-          <h1 class="text-2xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">✩ ᴛᴍɪ ᴄʟᴜʙ ✩</h1>
-          <p class="text-sm text-gray-400 mt-1">테니스에 미친 아이들</p>
+          <h1 class="text-sm font-bold tracking-widest bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">테니스에 미친 아이들</h1>
         </div>
 
         <!-- 로그인 카드 -->
