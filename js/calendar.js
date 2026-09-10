@@ -157,13 +157,48 @@ const Calendar = {
       var isAttending = memberName && participants.indexOf(memberName) >= 0;
       var isWaiting = memberName && waitlist.indexOf(memberName) >= 0;
       var isFull = maxP > 0 && participants.length >= maxP;
+      // 성별 정원 체크
+      var maxMale = ev.maxMale || 0;
+      var maxFemale = ev.maxFemale || 0;
+      var isGenderFull = false;
+      if (!isFull && memberName && (maxMale > 0 || maxFemale > 0)) {
+        var _myGender = Storage._getPlayerGender(memberName);
+        if (_myGender === 'M' && maxMale > 0) {
+          var _mc = 0;
+          for (var _mi = 0; _mi < participants.length; _mi++) {
+            if (Storage._getPlayerGender(participants[_mi]) === 'M') _mc++;
+          }
+          if (_mc >= maxMale) isGenderFull = true;
+        } else if (_myGender === 'F' && maxFemale > 0) {
+          var _fc = 0;
+          for (var _fi = 0; _fi < participants.length; _fi++) {
+            if (Storage._getPlayerGender(participants[_fi]) === 'F') _fc++;
+          }
+          if (_fc >= maxFemale) isGenderFull = true;
+        }
+      }
 
-      // 참석 현황 텍스트
+      // 성별 맵 (참석 현황 + 참석자 목록 + 대기자 목록 공용)
+      var _allPlayers = Storage.getPlayers();
+      var _genderMap = {};
+      for (var pi = 0; pi < _allPlayers.length; pi++) { _genderMap[_allPlayers[pi].name] = _allPlayers[pi].gender; }
+
       var attendInfo = '';
       if (maxP > 0 || participants.length > 0) {
+        var genderInfo = '';
+        if (maxMale > 0 || maxFemale > 0) {
+          var curMale = 0, curFemale = 0;
+          for (var gci = 0; gci < participants.length; gci++) {
+            if (_genderMap[participants[gci]] === 'M') curMale++;
+            else if (_genderMap[participants[gci]] === 'F') curFemale++;
+          }
+          genderInfo = ' <span class="text-blue-500">남' + curMale + (maxMale > 0 ? '/' + maxMale : '') + '</span>' +
+                       ' <span class="text-pink-500">여' + curFemale + (maxFemale > 0 ? '/' + maxFemale : '') + '</span>';
+        }
         attendInfo = '<div class="text-xs text-gray-500 mt-1.5 flex items-center gap-1">' +
           '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' +
           '<span>' + participants.length + (maxP > 0 ? '/' + maxP : '') + '명 참석' +
+          genderInfo +
           (waitlist.length > 0 ? ' · 대기 ' + waitlist.length + '명' : '') +
           '</span>' +
         '</div>';
@@ -172,9 +207,6 @@ const Calendar = {
       // 참석자 이름 목록 (남녀 그룹핑)
       var namesList = '';
       if (participants.length > 0) {
-        var _allPlayers = Storage.getPlayers();
-        var _genderMap = {};
-        for (var pi = 0; pi < _allPlayers.length; pi++) { _genderMap[_allPlayers[pi].name] = _allPlayers[pi].gender; }
         var maleNames = [], femaleNames = [];
         for (var j = 0; j < participants.length; j++) {
           if (_genderMap[participants[j]] === 'F') femaleNames.push(participants[j]);
@@ -200,13 +232,34 @@ const Calendar = {
         namesList += '</div>';
       }
 
-      // 대기자 이름 목록
+      // 대기자 이름 목록 (남녀 그룹핑 + 대기 순서번호)
       var waitlistHtml = '';
       if (waitlist.length > 0) {
-        waitlistHtml = '<div class="mt-1.5" style="font-size:0;line-height:0">' +
-          '<span style="font-size:11px;font-weight:600;color:#9ca3af;margin-right:2px;line-height:20px;vertical-align:middle">대기</span>';
-        for (var w = 0; w < waitlist.length; w++) {
-          waitlistHtml += '<span style="display:inline-block;font-size:11px;padding:1px 5px;border-radius:4px;margin:1px;line-height:16px" class="bg-yellow-50 text-yellow-700 border border-yellow-200">' + (w + 1) + '.' + this._escapeHtml(waitlist[w]) + '</span>';
+        // 대기 순서번호 맵 (원래 배열 순서 = 대기 신청 순서)
+        var wOrderMap = {};
+        for (var w = 0; w < waitlist.length; w++) { wOrderMap[waitlist[w]] = w + 1; }
+        var wMaleNames = [], wFemaleNames = [];
+        for (var w2 = 0; w2 < waitlist.length; w2++) {
+          if (_genderMap[waitlist[w2]] === 'F') wFemaleNames.push(waitlist[w2]);
+          else wMaleNames.push(waitlist[w2]);
+        }
+        waitlistHtml = '<div class="mt-1.5" style="display:flex;flex-direction:column;gap:2px">';
+        waitlistHtml += '<span style="font-size:11px;font-weight:600;color:#9ca3af;line-height:20px">대기 ' + waitlist.length + '명</span>';
+        if (wMaleNames.length > 0) {
+          waitlistHtml += '<div style="font-size:0;line-height:0">';
+          waitlistHtml += '<span style="font-size:11px;font-weight:600;color:#3b82f6;margin-right:2px;line-height:20px;vertical-align:middle">남</span>';
+          for (var wmi = 0; wmi < wMaleNames.length; wmi++) {
+            waitlistHtml += '<span style="display:inline-block;font-size:11px;padding:1px 5px;border-radius:4px;margin:1px;line-height:16px" class="bg-yellow-50 text-yellow-700 border border-yellow-200">' + wOrderMap[wMaleNames[wmi]] + '.' + this._escapeHtml(wMaleNames[wmi]) + '</span>';
+          }
+          waitlistHtml += '</div>';
+        }
+        if (wFemaleNames.length > 0) {
+          waitlistHtml += '<div style="font-size:0;line-height:0">';
+          waitlistHtml += '<span style="font-size:11px;font-weight:600;color:#ec4899;margin-right:2px;line-height:20px;vertical-align:middle">여</span>';
+          for (var wfi = 0; wfi < wFemaleNames.length; wfi++) {
+            waitlistHtml += '<span style="display:inline-block;font-size:11px;padding:1px 5px;border-radius:4px;margin:1px;line-height:16px" class="bg-yellow-50 text-yellow-700 border border-yellow-200">' + wOrderMap[wFemaleNames[wfi]] + '.' + this._escapeHtml(wFemaleNames[wfi]) + '</span>';
+          }
+          waitlistHtml += '</div>';
         }
         waitlistHtml += '</div>';
       }
@@ -218,7 +271,7 @@ const Calendar = {
           attendBtn = '<button class="cal-cancel-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-500 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">참석 취소</button>';
         } else if (isWaiting) {
           attendBtn = '<button class="cal-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-yellow-300 text-yellow-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">대기 취소</button>';
-        } else if (!isFull) {
+        } else if (!isFull && !isGenderFull) {
           attendBtn = '<button class="cal-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" data-id="' + ev.id + '">참석</button>';
         } else {
           attendBtn = '<button class="cal-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-yellow-500 text-yellow-900 hover:bg-yellow-600 transition" data-id="' + ev.id + '">대기 신청</button>';
@@ -364,6 +417,10 @@ const Calendar = {
           alert('참석 인원이 마감되었습니다.');
           return;
         }
+        if (result === 'gender_full') {
+          alert('해당 성별 참석 인원이 마감되었습니다.');
+          return;
+        }
         if (result && result.conflict) {
           alert('같은 시간에 이미 참석 중인 일정이 있습니다.\n("' + result.title + '")');
           return;
@@ -453,11 +510,19 @@ const Calendar = {
           : '') +
           '<input type="text" autocomplete="off" id="event-title" class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" placeholder="일정 제목" value="' + this._escapeAttr(ev.title) + '">' +
         '</div>' +
-        // 날짜 + 인원 (한 줄)
+        // 날짜 + 인원
         '<div class="flex gap-1.5 items-center">' +
           '<input type="date" id="event-date" class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" value="' + ev.date + '">' +
           '<span class="text-xs text-gray-400 flex-shrink-0">인원</span>' +
-          '<input type="number" id="event-max" class="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-blue-700 transition" min="0" value="' + (ev.maxParticipants || 0) + '">' +
+          '<input type="number" id="event-max" class="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-blue-700 transition" min="0" value="' + (ev.maxParticipants || 0) + '"' + (((ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0) ? ' readonly style="background:#f3f4f6"' : '') + '>' +
+        '</div>' +
+        // 남/여 인원 (성별 제한)
+        '<div class="flex gap-1.5 items-center">' +
+          '<span class="text-xs text-blue-500 flex-shrink-0 font-semibold">남</span>' +
+          '<input type="number" id="event-max-male" class="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-blue-700 transition" min="0" value="' + (ev.maxMale || 0) + '">' +
+          '<span class="text-xs text-pink-500 flex-shrink-0 font-semibold">여</span>' +
+          '<input type="number" id="event-max-female" class="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-blue-700 transition" min="0" value="' + (ev.maxFemale || 0) + '">' +
+          '<span class="text-xs text-gray-300 flex-shrink-0">남+여=인원</span>' +
         '</div>' +
         // 시간 범위
         '<div>' +
@@ -545,6 +610,25 @@ const Calendar = {
       });
     }
 
+    // 남/여 인원 자동 합산 로직
+    var maxInput = document.getElementById('event-max');
+    var maxMaleInput = document.getElementById('event-max-male');
+    var maxFemaleInput = document.getElementById('event-max-female');
+    function updateGenderSum() {
+      var m = parseInt(maxMaleInput.value) || 0;
+      var f = parseInt(maxFemaleInput.value) || 0;
+      if (m > 0 || f > 0) {
+        maxInput.value = m + f;
+        maxInput.readOnly = true;
+        maxInput.style.background = '#f3f4f6';
+      } else {
+        maxInput.readOnly = false;
+        maxInput.style.background = '';
+      }
+    }
+    maxMaleInput.addEventListener('input', updateGenderSum);
+    maxFemaleInput.addEventListener('input', updateGenderSum);
+
     // 분 하이라이트 갱신 헬퍼
     var activeMinCls = ['border-blue-700', 'bg-blue-50', 'text-blue-700'];
     function refreshMinBtns() {
@@ -630,6 +714,8 @@ const Calendar = {
       var endTime = eh ? (eh + ':' + em) : '';
       var desc = document.getElementById('event-desc').value.trim();
       var maxP = parseInt(document.getElementById('event-max').value) || 0;
+      var maxMale = parseInt(document.getElementById('event-max-male').value) || 0;
+      var maxFemale = parseInt(document.getElementById('event-max-female').value) || 0;
       var colorRadio = document.querySelector('input[name="event-color"]:checked');
       var color = colorRadio ? colorRadio.value : 'green';
 
@@ -655,7 +741,9 @@ const Calendar = {
           endTime: endTime,
           description: desc,
           color: color,
-          maxParticipants: maxP
+          maxParticipants: maxP,
+          maxMale: maxMale,
+          maxFemale: maxFemale
         };
         await Storage.editEvent(existingEvent.id, updatedFields);
       } else {
@@ -670,6 +758,8 @@ const Calendar = {
           description: desc,
           color: color,
           maxParticipants: maxP,
+          maxMale: maxMale,
+          maxFemale: maxFemale,
           participants: [],
           waitlist: [],
           createdBy: creatorName
@@ -1007,6 +1097,8 @@ const Calendar = {
             '<span id="bm-mixed-label" class="text-xs text-gray-500">섞어복식 허용</span>' +
           '</label>' +
         '</div>' +
+        // 게임 종류 설정 (자동/수동)
+        '<div id="bm-type-section"></div>' +
         // 버튼
         '<div class="flex gap-2">' +
           '<button type="button" class="bm-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">취소</button>' +
@@ -1039,13 +1131,160 @@ const Calendar = {
     modal.querySelector('#bm-start').value = defaultStart;
     modal.querySelector('#bm-end').value = defaultEnd;
 
-    // 단식/복식 전환 시 라벨 변경
+    // 단식/복식 전환 시 라벨 변경 + 게임 종류 갱신
     modal.querySelectorAll('input[name="bm-match-type"]').forEach(function(r) {
       r.onchange = function() {
         var s = r.value === 'singles';
         modal.querySelector('#bm-mixed-label').textContent = s ? '섞어단식 허용' : '섞어복식 허용';
+        renderTypeSection();
       };
     });
+
+    // 코트 수, 시간, 섞어 옵션 변경 시 게임 종류 갱신
+    modal.querySelectorAll('input[name="bm-courts"]').forEach(function(r) {
+      r.onchange = function() { renderTypeSection(); };
+    });
+    modal.querySelector('#bm-start').onchange = function() { renderTypeSection(); };
+    modal.querySelector('#bm-end').onchange = function() { renderTypeSection(); };
+    modal.querySelector('#bm-mixed').onchange = function() { renderTypeSection(); };
+
+    // 게임 종류 자동/수동 설정 렌더링
+    function renderTypeSection() {
+      var section = modal.querySelector('#bm-type-section');
+      var isSingles = modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles';
+      var allowMixed = modal.querySelector('#bm-mixed').checked;
+      var courts = parseInt(modal.querySelector('input[name="bm-courts"]:checked').value);
+      var st = modal.querySelector('#bm-start').value;
+      var et = modal.querySelector('#bm-end').value;
+
+      var maleCount = males.length;
+      var femaleCount = females.length;
+
+      // 가능한 게임 종류
+      var codes = [];
+      if (isSingles) {
+        if (maleCount >= 2) codes.push('MS');
+        if (femaleCount >= 2) codes.push('WS');
+        if (allowMixed && (maleCount + femaleCount) >= 2) codes.push('FS');
+      } else {
+        if (maleCount >= 2 && femaleCount >= 2) codes.push('XD');
+        if (maleCount >= 4) codes.push('MD');
+        if (femaleCount >= 4) codes.push('WD');
+        if (allowMixed && (maleCount + femaleCount) >= 4) codes.push('FD');
+      }
+
+      if (codes.length === 0) { section.innerHTML = ''; return; }
+
+      var slots = Schedule.calculateTimeSlots(st, et, 10, 25);
+      var totalGamesMax = slots.length * courts;
+      if (totalGamesMax <= 0) { section.innerHTML = ''; return; }
+
+      // 이전 수동 설정 보존
+      var prevManual = section.querySelector('#bm-type-mode-manual');
+      var wasManual = prevManual ? prevManual.checked : false;
+      var prevCounts = {};
+      section.querySelectorAll('.bm-type-count').forEach(function(el) {
+        prevCounts[el.dataset.type] = parseInt(el.textContent) || 0;
+      });
+
+      var typeLabels = { XD: '혼합복식', MD: '남자복식', WD: '여자복식', FD: '섞어복식', MS: '남자단식', WS: '여자단식', FS: '섞어단식' };
+      var typeBadge = { XD: 'bg-purple-100 text-purple-700', MD: 'bg-blue-100 text-blue-700', WD: 'bg-pink-100 text-pink-700', FD: 'bg-orange-100 text-orange-700', MS: 'bg-blue-100 text-blue-700', WS: 'bg-pink-100 text-pink-700', FS: 'bg-orange-100 text-orange-700' };
+      var typeIcons = { XD: '👫', MD: '👬', WD: '👭', FD: '🔀', MS: '🏃‍♂️', WS: '🏃‍♀️', FS: '🔀' };
+
+      var rowsHtml = '';
+      for (var ci = 0; ci < codes.length; ci++) {
+        var code = codes[ci];
+        var val = prevCounts[code] || 0;
+        rowsHtml += '<div class="flex items-center justify-between py-1">' +
+          '<span class="text-sm flex items-center gap-1.5">' +
+            '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs ' + typeBadge[code] + '">' + typeIcons[code] + '</span>' +
+            '<span>' + typeLabels[code] + '</span>' +
+          '</span>' +
+          '<div class="flex items-center gap-1.5">' +
+            '<button type="button" class="bm-type-minus w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center text-base font-bold" data-type="' + code + '">-</button>' +
+            '<span class="bm-type-count w-8 text-center text-sm font-semibold tabular-nums" data-type="' + code + '">' + val + '</span>' +
+            '<button type="button" class="bm-type-plus w-7 h-7 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center text-base font-bold" data-type="' + code + '">+</button>' +
+          '</div>' +
+        '</div>';
+      }
+
+      section.innerHTML =
+        '<div class="border-t border-gray-200 pt-3">' +
+          '<div class="text-xs text-gray-500 mb-2">총 경기: <b>' + totalGamesMax + '</b>경기 (' + slots.length + '타임 × ' + courts + '코트)</div>' +
+          '<div class="flex gap-3 mb-2">' +
+            '<label class="flex items-center gap-1.5 cursor-pointer text-sm">' +
+              '<input type="radio" name="bm-type-mode" value="auto" id="bm-type-mode-auto"' + (!wasManual ? ' checked' : '') + ' class="accent-blue-600">' +
+              '<span class="text-gray-700 font-medium">자동 배분</span>' +
+            '</label>' +
+            '<label class="flex items-center gap-1.5 cursor-pointer text-sm">' +
+              '<input type="radio" name="bm-type-mode" value="manual" id="bm-type-mode-manual"' + (wasManual ? ' checked' : '') + ' class="accent-blue-600">' +
+              '<span class="text-gray-700 font-medium">수동 설정</span>' +
+            '</label>' +
+          '</div>' +
+          '<div id="bm-manual-panel" class="' + (wasManual ? '' : 'hidden') + ' space-y-1 bg-gray-50 rounded-xl p-3">' +
+            rowsHtml +
+            '<div class="pt-2 border-t border-gray-200 flex justify-between items-center">' +
+              '<span class="text-sm font-medium text-gray-500">합계</span>' +
+              '<span id="bm-type-total" class="text-sm font-bold"></span>' +
+            '</div>' +
+            '<p id="bm-type-msg" class="text-xs hidden mt-1"></p>' +
+          '</div>' +
+        '</div>';
+
+      // 자동/수동 토글
+      var autoR = section.querySelector('#bm-type-mode-auto');
+      var manualR = section.querySelector('#bm-type-mode-manual');
+      var panel = section.querySelector('#bm-manual-panel');
+      autoR.onchange = function() { panel.classList.toggle('hidden', autoR.checked); };
+      manualR.onchange = function() { panel.classList.toggle('hidden', autoR.checked); };
+
+      // 합계 업데이트
+      function updateTypeTotal() {
+        var sum = 0;
+        section.querySelectorAll('.bm-type-count').forEach(function(el) {
+          sum += parseInt(el.textContent) || 0;
+        });
+        var totalEl = section.querySelector('#bm-type-total');
+        var msgEl = section.querySelector('#bm-type-msg');
+        totalEl.textContent = sum + ' / ' + totalGamesMax;
+        if (sum === totalGamesMax) {
+          totalEl.className = 'text-sm font-bold text-green-600';
+          msgEl.className = 'text-xs hidden mt-1';
+        } else if (sum > totalGamesMax) {
+          totalEl.className = 'text-sm font-bold text-red-500';
+          msgEl.textContent = '총 경기수(' + totalGamesMax + ')를 초과했습니다.';
+          msgEl.className = 'text-xs text-red-500 mt-1';
+        } else {
+          totalEl.className = 'text-sm font-bold text-orange-500';
+          msgEl.textContent = (totalGamesMax - sum) + '경기를 더 설정해주세요.';
+          msgEl.className = 'text-xs text-orange-500 mt-1';
+        }
+      }
+
+      // +/- 버튼
+      section.querySelectorAll('.bm-type-plus').forEach(function(btn) {
+        btn.onclick = function(e) {
+          e.preventDefault();
+          var display = section.querySelector('.bm-type-count[data-type="' + btn.dataset.type + '"]');
+          display.textContent = (parseInt(display.textContent) || 0) + 1;
+          updateTypeTotal();
+        };
+      });
+      section.querySelectorAll('.bm-type-minus').forEach(function(btn) {
+        btn.onclick = function(e) {
+          e.preventDefault();
+          var display = section.querySelector('.bm-type-count[data-type="' + btn.dataset.type + '"]');
+          var cur = parseInt(display.textContent) || 0;
+          if (cur > 0) display.textContent = cur - 1;
+          updateTypeTotal();
+        };
+      });
+
+      updateTypeTotal();
+    }
+
+    // 초기 렌더링
+    renderTypeSection();
 
     // 닫기
     var closeModal = function() {
@@ -1088,7 +1327,32 @@ const Calendar = {
         return;
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, null, 10, 25);
+      // 수동 게임 종류 설정 수집
+      var typeDistribution = null;
+      var isManualMode = modal.querySelector('#bm-type-mode-manual');
+      if (isManualMode && isManualMode.checked) {
+        typeDistribution = {};
+        modal.querySelectorAll('.bm-type-count').forEach(function(el) {
+          var count = parseInt(el.textContent) || 0;
+          if (count > 0) typeDistribution[el.dataset.type] = count;
+        });
+        var total = 0;
+        for (var k in typeDistribution) { if (typeDistribution.hasOwnProperty(k)) total += typeDistribution[k]; }
+        var slotsForVal = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
+        var expectedTotal = slotsForVal.length * courts;
+        if (total !== expectedTotal) {
+          alert('게임 종류 합계(' + total + ')가 총 경기수(' + expectedTotal + ')와 일치하지 않습니다.');
+          return;
+        }
+        // 배분 가능성 검증
+        var testResult = Schedule.distributeTypesToSlots(typeDistribution, slotsForVal.length, courts, males.length, females.length);
+        if (!testResult) {
+          alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.');
+          return;
+        }
+      }
+
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, 10, 25);
       if (timeSlots.length === 0) {
         alert('시간이 부족합니다. 몸풀기 10분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;

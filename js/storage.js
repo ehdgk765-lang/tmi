@@ -42,6 +42,15 @@ const Storage = {
     return parent.child('attendance/' + eventId);
   },
 
+  // 멤버 이름으로 성별 조회 → 'M'/'F'/null
+  _getPlayerGender(memberName) {
+    var players = this._data.players || [];
+    for (var i = 0; i < players.length; i++) {
+      if (players[i].name === memberName) return players[i].gender || null;
+    }
+    return null;
+  },
+
   // RTDB 배열 정규화: RTDB는 배열을 {0:"a",1:"b"} 객체로 반환할 수 있음
   _rtdbToArray(val) {
     if (Array.isArray(val)) return val;
@@ -271,7 +280,7 @@ const Storage = {
       // RTDB 참석 노드 생성
       var rtdbRef = self._getAttendanceRef(newEvent.id);
       if (rtdbRef) {
-        rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0 })
+        rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0, maxMale: newEvent.maxMale || 0, maxFemale: newEvent.maxFemale || 0 })
           .catch(function(e) { console.error('addEvent RTDB node create error:', e); });
       }
       return true;
@@ -330,12 +339,74 @@ const Storage = {
         self._writing.events = self._json.events;
         setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
       }
-      // RTDB maxParticipants 동기화
-      if (updatedFields.maxParticipants !== undefined) {
+      // RTDB 인원 제한 동기화 + 대기자 자동 승격
+      var hasLimitChange = updatedFields.maxParticipants !== undefined ||
+                           updatedFields.maxMale !== undefined ||
+                           updatedFields.maxFemale !== undefined;
+      if (hasLimitChange) {
         var rtdbRef = self._getAttendanceRef(eventId);
         if (rtdbRef) {
-          rtdbRef.child('maxParticipants').set(updatedFields.maxParticipants || 0)
-            .catch(function(e) { console.error('editEvent RTDB sync error:', e); });
+          rtdbRef.transaction(function(current) {
+            if (!current) return current;
+            var att = {
+              participants: self._rtdbToArray(current.participants),
+              waitlist: self._rtdbToArray(current.waitlist),
+              participantTimes: current.participantTimes || {},
+              maxParticipants: updatedFields.maxParticipants !== undefined ? (updatedFields.maxParticipants || 0) : (current.maxParticipants || 0),
+              maxMale: updatedFields.maxMale !== undefined ? (updatedFields.maxMale || 0) : (current.maxMale || 0),
+              maxFemale: updatedFields.maxFemale !== undefined ? (updatedFields.maxFemale || 0) : (current.maxFemale || 0)
+            };
+            // 대기자 자동 승격: 빈 자리가 생겼으면 대기자를 참석으로 이동
+            var promoted = true;
+            while (promoted && att.waitlist.length > 0) {
+              promoted = false;
+              // 전체 정원 체크
+              if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) break;
+              // 대기자 중 참석 가능한 사람 찾기
+              for (var wi = 0; wi < att.waitlist.length; wi++) {
+                var wName = att.waitlist[wi];
+                var wGender = self._getPlayerGender(wName);
+                var canPromote = true;
+                if (wGender === 'M' && att.maxMale > 0) {
+                  var mc = 0;
+                  for (var mi = 0; mi < att.participants.length; mi++) {
+                    if (self._getPlayerGender(att.participants[mi]) === 'M') mc++;
+                  }
+                  if (mc >= att.maxMale) canPromote = false;
+                }
+                if (wGender === 'F' && att.maxFemale > 0) {
+                  var fc = 0;
+                  for (var fi = 0; fi < att.participants.length; fi++) {
+                    if (self._getPlayerGender(att.participants[fi]) === 'F') fc++;
+                  }
+                  if (fc >= att.maxFemale) canPromote = false;
+                }
+                if (canPromote) {
+                  att.waitlist.splice(wi, 1);
+                  att.participants.push(wName);
+                  att.participantTimes[wName] = Date.now();
+                  promoted = true;
+                  break; // 한 명 승격 후 다시 순회 (정원 재체크)
+                }
+              }
+            }
+            return att;
+          }).then(function(result) {
+            if (result.committed && result.snapshot) {
+              var serverAtt = result.snapshot.val();
+              var currentEv = self._data.events.find(function(e) { return e.id === eventId; });
+              if (serverAtt && currentEv) {
+                currentEv.participants = self._rtdbToArray(serverAtt.participants);
+                currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
+                currentEv.participantTimes = serverAtt.participantTimes || {};
+              }
+              self._setLocal('events', self._data.events);
+              self._writing.events = self._json.events;
+              self._syncToFirestore('events');
+              setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+              self._onRemoteChange();
+            }
+          }).catch(function(e) { console.error('editEvent RTDB sync error:', e); });
         }
       }
       return true;
@@ -441,6 +512,8 @@ const Storage = {
     var action = localResult.action; // 트랜잭션 재시도에도 동일 동작 보장
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0; // primitive 스냅샷
+    var maxM = ev ? ev.maxMale || 0 : 0;
+    var maxF = ev ? ev.maxFemale || 0 : 0;
 
     try {
       var txResult = await rtdbRef.transaction(function(current) {
@@ -449,9 +522,12 @@ const Storage = {
           participants: self._rtdbToArray(current.participants),
           waitlist: self._rtdbToArray(current.waitlist),
           participantTimes: current.participantTimes || {},
-          maxParticipants: current.maxParticipants || 0
+          maxParticipants: current.maxParticipants || 0,
+          maxMale: current.maxMale || 0,
+          maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP
+          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+          maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
         return att;
@@ -500,14 +576,19 @@ const Storage = {
     // 2. RTDB 트랜잭션 (명시적 action — 재시도에도 동일 동작)
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0;
+    var maxM = ev ? ev.maxMale || 0 : 0;
+    var maxF = ev ? ev.maxFemale || 0 : 0;
     rtdbRef.transaction(function(current) {
       var att = current ? {
         participants: self._rtdbToArray(current.participants),
         waitlist: self._rtdbToArray(current.waitlist),
         participantTimes: current.participantTimes || {},
-        maxParticipants: current.maxParticipants || 0
+        maxParticipants: current.maxParticipants || 0,
+        maxMale: current.maxMale || 0,
+        maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP
+        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+        maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
       return att;
@@ -553,8 +634,17 @@ const Storage = {
           action = 'remove';
           ev.participants.splice(idx, 1);
           delete ev.participantTimes[memberName];
+          // 대기자 승격: 성별 제한이 있으면 같은 성별 대기자 우선
           if (ev.waitlist.length > 0) {
-            var promoted = ev.waitlist.shift();
+            var removedGender = this._getPlayerGender(memberName);
+            var promotedIdx = -1;
+            if (removedGender && ((ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0)) {
+              for (var wi = 0; wi < ev.waitlist.length; wi++) {
+                if (this._getPlayerGender(ev.waitlist[wi]) === removedGender) { promotedIdx = wi; break; }
+              }
+            }
+            if (promotedIdx < 0) promotedIdx = 0;
+            var promoted = ev.waitlist.splice(promotedIdx, 1)[0];
             ev.participants.push(promoted);
             ev.participantTimes[promoted] = Date.now();
           }
@@ -562,6 +652,22 @@ const Storage = {
           action = 'add';
           if (ev.maxParticipants > 0 && ev.participants.length >= ev.maxParticipants) {
             return { changed: false, result: 'full' };
+          }
+          // 성별 정원 체크
+          var gender = this._getPlayerGender(memberName);
+          if (gender === 'M' && (ev.maxMale || 0) > 0) {
+            var mc = 0;
+            for (var mci = 0; mci < ev.participants.length; mci++) {
+              if (this._getPlayerGender(ev.participants[mci]) === 'M') mc++;
+            }
+            if (mc >= ev.maxMale) return { changed: false, result: 'gender_full' };
+          }
+          if (gender === 'F' && (ev.maxFemale || 0) > 0) {
+            var fc = 0;
+            for (var fci = 0; fci < ev.participants.length; fci++) {
+              if (this._getPlayerGender(ev.participants[fci]) === 'F') fc++;
+            }
+            if (fc >= ev.maxFemale) return { changed: false, result: 'gender_full' };
           }
           // 같은 시간대 중복 참석 방지
           var evStart = ev.startTime || ev.time || '';
@@ -606,8 +712,18 @@ const Storage = {
       if (idx >= 0) {
         att.participants.splice(idx, 1);
         delete att.participantTimes[memberName];
+        // 대기자 승격: 성별 제한이 있으면 같은 성별 대기자 우선
         if (att.waitlist.length > 0) {
-          var promoted = att.waitlist.shift();
+          var removedGender = this._getPlayerGender(memberName);
+          var promotedIdx = -1;
+          if (removedGender && ((att.maxMale || 0) > 0 || (att.maxFemale || 0) > 0)) {
+            // 같은 성별 대기자 먼저 찾기
+            for (var wi = 0; wi < att.waitlist.length; wi++) {
+              if (this._getPlayerGender(att.waitlist[wi]) === removedGender) { promotedIdx = wi; break; }
+            }
+          }
+          if (promotedIdx < 0) promotedIdx = 0; // 성별 무관 또는 같은 성별 없으면 첫 번째
+          var promoted = att.waitlist.splice(promotedIdx, 1)[0];
           att.participants.push(promoted);
           att.participantTimes[promoted] = Date.now();
         }
@@ -618,6 +734,22 @@ const Storage = {
       // action === 'add'
       if (att.participants.indexOf(memberName) >= 0) return 'already'; // 이미 있으면 무시 (멱등)
       if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) return 'full';
+      // 성별 정원 체크
+      var gender = this._getPlayerGender(memberName);
+      if (gender === 'M' && (att.maxMale || 0) > 0) {
+        var maleCount = 0;
+        for (var gi = 0; gi < att.participants.length; gi++) {
+          if (this._getPlayerGender(att.participants[gi]) === 'M') maleCount++;
+        }
+        if (maleCount >= att.maxMale) return 'gender_full';
+      }
+      if (gender === 'F' && (att.maxFemale || 0) > 0) {
+        var femaleCount = 0;
+        for (var gi2 = 0; gi2 < att.participants.length; gi2++) {
+          if (this._getPlayerGender(att.participants[gi2]) === 'F') femaleCount++;
+        }
+        if (femaleCount >= att.maxFemale) return 'gender_full';
+      }
       att.participants.push(memberName);
       att.participantTimes[memberName] = attendTime || Date.now();
       var wIdx = att.waitlist.indexOf(memberName);
@@ -648,6 +780,8 @@ const Storage = {
     var action = localResult.action;
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0;
+    var maxM = ev ? ev.maxMale || 0 : 0;
+    var maxF = ev ? ev.maxFemale || 0 : 0;
 
     try {
       var txResult = await rtdbRef.transaction(function(current) {
@@ -655,9 +789,12 @@ const Storage = {
           participants: self._rtdbToArray(current.participants),
           waitlist: self._rtdbToArray(current.waitlist),
           participantTimes: current.participantTimes || {},
-          maxParticipants: current.maxParticipants || 0
+          maxParticipants: current.maxParticipants || 0,
+          maxMale: current.maxMale || 0,
+          maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP
+          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+          maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleWaitlistSingle(att, memberName, action);
         return att;
@@ -699,14 +836,19 @@ const Storage = {
 
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0;
+    var maxM = ev ? ev.maxMale || 0 : 0;
+    var maxF = ev ? ev.maxFemale || 0 : 0;
     rtdbRef.transaction(function(current) {
       var att = current ? {
         participants: self._rtdbToArray(current.participants),
         waitlist: self._rtdbToArray(current.waitlist),
         participantTimes: current.participantTimes || {},
-        maxParticipants: current.maxParticipants || 0
+        maxParticipants: current.maxParticipants || 0,
+        maxMale: current.maxMale || 0,
+        maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP
+        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+        maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleWaitlistSingle(att, memberName, action);
       return att;
@@ -1470,7 +1612,9 @@ const Storage = {
           participants: ev.participants || [],
           waitlist: ev.waitlist || [],
           participantTimes: ev.participantTimes || {},
-          maxParticipants: ev.maxParticipants || 0
+          maxParticipants: ev.maxParticipants || 0,
+          maxMale: ev.maxMale || 0,
+          maxFemale: ev.maxFemale || 0
         };
         if (hasData) count++;
       }
@@ -1502,6 +1646,8 @@ const Storage = {
           ev.participants = self._rtdbToArray(att.participants);
           ev.waitlist = self._rtdbToArray(att.waitlist);
           ev.participantTimes = att.participantTimes || {};
+          if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
+          if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         }
       }
     } catch (err) {
@@ -1735,6 +1881,8 @@ const Storage = {
         ev.participants = self._rtdbToArray(att.participants);
         ev.waitlist = self._rtdbToArray(att.waitlist);
         ev.participantTimes = att.participantTimes || {};
+        if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
+        if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         self._json.events = JSON.stringify(self._data.events);
         self._onRemoteChange();
       };

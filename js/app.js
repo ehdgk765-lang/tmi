@@ -841,6 +841,8 @@ const App = {
             description: '',
             color: tmpl.color,
             maxParticipants: 0,
+            maxMale: 0,
+            maxFemale: 0,
             participants: [],
             waitlist: []
           });
