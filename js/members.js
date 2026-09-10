@@ -547,16 +547,7 @@ const Members = {
     var groups = Storage.getGroups();
     var players = Storage.getPlayers();
 
-    // 기본 조가 없으면 자동 생성
-    if (groups.length === 0) {
-      groups = [
-        { id: Storage.generateId(), name: '토요일 A조', day: 6 },
-        { id: Storage.generateId(), name: '토요일 B조', day: 6 },
-        { id: Storage.generateId(), name: '일요일 A조', day: 0 },
-        { id: Storage.generateId(), name: '일요일 B조', day: 0 }
-      ];
-      Storage.saveGroups(groups);
-    }
+    // (조가 비어있어도 자동 생성하지 않음 — 사용자가 직접 추가)
 
     var dayLabels = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
 
