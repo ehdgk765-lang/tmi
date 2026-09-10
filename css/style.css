@@ -328,6 +328,14 @@ header {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes event-highlight-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+.cal-event-highlight {
+  animation: event-highlight-pulse 1s ease-in-out 3;
+}
 
 #main-content > * {
   animation: fadeIn 0.2s ease-out;
@@ -468,6 +476,27 @@ header {
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
+}
+
+/* PWA 설치 유도 배너 */
+.pwa-install-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #eff6ff, #eef2ff);
+  border-bottom: 1px solid #bfdbfe;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.pwa-install-banner.pwa-banner-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.pwa-install-banner.pwa-banner-hiding {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* ─── Dark Mode ─── */
@@ -1376,3 +1405,12 @@ html.dark #auth-theme-toggle {
 html.dark #auth-theme-toggle:hover {
   background-color: rgba(71, 85, 105, 0.6) !important;
 }
+
+/* PWA 배너 다크모드 */
+html.dark .pwa-install-banner {
+  background: linear-gradient(135deg, #1e293b, #1e1b4b);
+  border-bottom-color: #334155;
+}
+html.dark .pwa-install-banner .text-gray-800 { color: #e2e8f0 !important; }
+html.dark .pwa-install-banner .text-gray-500 { color: #94a3b8 !important; }
+html.dark .pwa-install-banner .bg-blue-100 { background-color: rgba(59, 130, 246, 0.15) !important; }

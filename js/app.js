@@ -15,6 +15,161 @@ const App = {
     this.applyRoleUI();
     this.bindTabs();
     this.navigate(RolesConfig.getDefaultTab());
+    // PWA 설치 유도 배너
+    this._pwaInstallReady = true;
+    this._checkPwaInstall();
+    // 딥링크 처리
+    this._handleDeepLink();
+  },
+
+  // PWA 설치 유도
+  _checkPwaInstall() {
+    if (localStorage.getItem('pwa_install_dismissed')) return;
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) return;
+    // 모바일이 아니면 표시하지 않음
+    var isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (!isMobile) return;
+
+    // Android: deferred prompt 존재 시 (HTTPS 환경)
+    if (typeof _deferredInstallPrompt !== 'undefined' && _deferredInstallPrompt) {
+      this.showPwaInstallBanner('android');
+      return;
+    }
+    // iOS Safari 감지
+    var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var isSafari = /safari/i.test(navigator.userAgent) && !/crios|fxios|chrome/i.test(navigator.userAgent);
+    if (isIos && isSafari) {
+      this.showPwaInstallBanner('ios');
+      return;
+    }
+    // Android: deferred prompt 없는 경우 (HTTP 등) 수동 안내
+    var isAndroid = /android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      this.showPwaInstallBanner('android-manual');
+    }
+  },
+
+  showPwaInstallBanner(platform) {
+    var existing = document.getElementById('pwa-install-banner');
+    if (existing) existing.remove();
+
+    var banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.className = 'pwa-install-banner';
+
+    if (platform === 'ios') {
+      banner.innerHTML =
+        '<div class="flex items-center gap-3 flex-1 min-w-0">' +
+          '<div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">' +
+            '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>' +
+          '</div>' +
+          '<div class="min-w-0">' +
+            '<div class="text-sm font-semibold text-gray-800">홈 화면에 추가</div>' +
+            '<div class="text-xs text-gray-500">하단 공유 버튼을 눌러 "홈 화면에 추가"를 선택하세요</div>' +
+          '</div>' +
+        '</div>' +
+        '<button id="pwa-install-dismiss" class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">' +
+          '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>';
+    } else if (platform === 'android-manual') {
+      banner.innerHTML =
+        '<div class="flex items-center gap-3 flex-1 min-w-0">' +
+          '<div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">' +
+            '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>' +
+          '</div>' +
+          '<div class="min-w-0">' +
+            '<div class="text-sm font-semibold text-gray-800">홈 화면에 추가</div>' +
+            '<div class="text-xs text-gray-500">메뉴(⋮)를 눌러 "홈 화면에 추가"를 선택하세요</div>' +
+          '</div>' +
+        '</div>' +
+        '<button id="pwa-install-dismiss" class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">' +
+          '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>';
+    } else {
+      // android with install prompt (HTTPS)
+      banner.innerHTML =
+        '<div class="flex items-center gap-3 flex-1 min-w-0">' +
+          '<div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">' +
+            '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>' +
+          '</div>' +
+          '<div class="text-sm font-semibold text-gray-800">홈 화면에 앱 설치</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-2 flex-shrink-0">' +
+          '<button id="pwa-install-action" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition">설치</button>' +
+          '<button id="pwa-install-dismiss" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">' +
+            '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+          '</button>' +
+        '</div>';
+    }
+
+    var mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.parentNode.insertBefore(banner, mainContent);
+    }
+
+    // 닫기
+    document.getElementById('pwa-install-dismiss').onclick = function() {
+      localStorage.setItem('pwa_install_dismissed', '1');
+      banner.classList.add('pwa-banner-hiding');
+      setTimeout(function() { banner.remove(); }, 300);
+    };
+
+    // Android 설치 버튼
+    var installBtn = document.getElementById('pwa-install-action');
+    if (installBtn) {
+      installBtn.onclick = function() {
+        if (typeof _deferredInstallPrompt !== 'undefined' && _deferredInstallPrompt) {
+          _deferredInstallPrompt.prompt();
+          _deferredInstallPrompt.userChoice.then(function(choice) {
+            if (choice.outcome === 'accepted') {
+              localStorage.setItem('pwa_install_dismissed', '1');
+            }
+            _deferredInstallPrompt = null;
+            banner.remove();
+          });
+        }
+      };
+    }
+
+    // 등장 애니메이션
+    requestAnimationFrame(function() {
+      banner.classList.add('pwa-banner-visible');
+    });
+  },
+
+  // 딥링크 처리
+  _handleDeepLink() {
+    var eventId = (typeof _pendingEventId !== 'undefined' && _pendingEventId) ||
+                  sessionStorage.getItem('pending_event_id');
+    if (!eventId) return;
+    sessionStorage.removeItem('pending_event_id');
+    if (typeof _pendingEventId !== 'undefined') _pendingEventId = null;
+    this.navigateToEvent(eventId);
+  },
+
+  navigateToEvent(eventId) {
+    var events = Storage.getEvents();
+    var ev = events.find(function(e) { return e.id === eventId; });
+    if (!ev) {
+      if (typeof Modal !== 'undefined') Modal.toast('일정을 찾을 수 없습니다.', 'error');
+      return;
+    }
+    // 캘린더 탭 접근 가능 여부 확인
+    var visibleTabs = RolesConfig.getVisibleTabs();
+    if (visibleTabs.indexOf('calendar') < 0) {
+      if (typeof Modal !== 'undefined') Modal.toast('이 일정에 접근할 수 없습니다.', 'error');
+      return;
+    }
+    // Calendar 날짜/월 설정 후 이동
+    var parts = ev.date.split('-');
+    Calendar._currentMonth = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+    Calendar._selectedDate = ev.date;
+    this.navigate('calendar');
+    // 렌더 후 하이라이트
+    var self = this;
+    setTimeout(function() {
+      Calendar._highlightEvent(eventId);
+    }, 300);
   },
 
   // 멤버 이름 관련

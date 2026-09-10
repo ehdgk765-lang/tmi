@@ -64,6 +64,7 @@ const Calendar = {
       });
     }
     var eventsList = this._buildEventsList(dayEvents, isAdmin);
+    var upcomingHtml = this._buildUpcomingSection(events, isAdmin);
 
     patchDOM(container,
       '<div class="max-w-lg mx-auto">' +
@@ -92,6 +93,8 @@ const Calendar = {
         '</div>' +
         // 날짜 그리드
         '<div class="calendar-grid calendar-dates mb-6">' + calendarGrid + '</div>' +
+        // 다가오는 일정
+        upcomingHtml +
         // 선택 날짜 일정
         '<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">' +
           '<div class="flex items-center justify-between mb-3">' +
@@ -324,7 +327,7 @@ const Calendar = {
       }
       var myEventClass = (isAttending || isWaiting) ? ' cal-my-event' : '';
 
-      html += '<div class="p-3 rounded-xl ' + color.bg + cardExtra + myEventClass + ' mb-2">' +
+      html += '<div class="p-3 rounded-xl ' + color.bg + cardExtra + myEventClass + ' mb-2" data-event-id="' + ev.id + '">' +
                 '<div class="flex items-start gap-3">' +
                   '<div class="w-1 self-stretch rounded-full ' + color.dot + ' flex-shrink-0 mt-0.5"></div>' +
                   '<div class="flex-1 min-w-0">' +
@@ -340,8 +343,13 @@ const Calendar = {
                     var canEditThis = isAdmin || (isCreator && !isRegular);
                     var canDeleteThis = isAdmin || (isCreator && !isRegular);
                     var canBracket = (isAdmin || isCreator) && participants.length >= 2;
-                    if (!canEditThis && !canDeleteThis && !canBracket) return '';
+                    var showShare = isClub;
+                    if (!canEditThis && !canDeleteThis && !canBracket && !showShare) return '';
                     return '<div class="flex gap-1 flex-shrink-0">' +
+                      (showShare ?
+                        '<button class="cal-share-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/60 transition text-gray-400 hover:text-blue-500" data-id="' + ev.id + '" title="공유">' +
+                          '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>' +
+                        '</button>' : '') +
                       (canBracket ?
                         '<button class="cal-bracket-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-100 transition text-gray-400 hover:text-blue-600" data-id="' + ev.id + '" title="대진표 생성">' +
                           '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 6v12M16 6v12"/></svg>' +
@@ -405,6 +413,16 @@ const Calendar = {
         self.render(self._container);
       };
     }
+
+    // 다가오는 일정 날짜 헤더 클릭 → 해당 날짜로 이동
+    container.querySelectorAll('[data-upcoming-date]').forEach(function(el) {
+      el.onclick = function() {
+        self._selectedDate = this.dataset.upcomingDate;
+        var parts = self._selectedDate.split('-');
+        self._currentMonth = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+        self.render(self._container);
+      };
+    });
 
     // 수정 버튼
     container.querySelectorAll('.cal-edit-btn').forEach(function(btn) {
@@ -507,6 +525,17 @@ const Calendar = {
         var memberName = App.getMemberName();
         if (!memberName) return;
         self._showCancelWaitlistModal(id, memberName);
+      };
+    });
+
+    // 공유 버튼
+    container.querySelectorAll('.cal-share-btn').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var id = this.dataset.id;
+        var events = Storage.getEvents();
+        var ev = events.find(function(e) { return e.id === id; });
+        if (ev) self._shareEvent(ev);
       };
     });
   },
@@ -907,6 +936,73 @@ const Calendar = {
     }, 50);
   },
 
+  _shareEvent(ev) {
+    var self = this;
+    var participants = ev.participants || [];
+    var maxP = ev.maxParticipants || 0;
+    var countStr = participants.length + (maxP > 0 ? '/' + maxP : '') + '명';
+
+    var baseUrl = window.location.origin + window.location.pathname;
+    var shareUrl = baseUrl + '?event=' + encodeURIComponent(ev.id);
+
+    var displayDate = this._formatDisplayDate(ev.date);
+    var timeRange = this._formatTimeRange(ev);
+
+    var shareText = '[TMI] ' + ev.title + '\n';
+    shareText += displayDate + '\n';
+    if (timeRange) shareText += timeRange + '\n';
+    shareText += '참석: ' + countStr + '\n';
+    shareText += shareUrl;
+
+    if (navigator.share) {
+      navigator.share({
+        title: '[TMI] ' + ev.title,
+        text: shareText
+      }).catch(function(err) {
+        if (err.name !== 'AbortError') {
+          self._copyToClipboard(shareText);
+        }
+      });
+    } else {
+      this._copyToClipboard(shareText);
+    }
+  },
+
+  _copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        if (typeof Modal !== 'undefined') Modal.toast('공유 내용이 복사되었습니다.', 'success');
+      }).catch(function() {
+        Calendar._fallbackCopy(text);
+      });
+    } else {
+      this._fallbackCopy(text);
+    }
+  },
+
+  _fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      if (typeof Modal !== 'undefined') Modal.toast('공유 내용이 복사되었습니다.', 'success');
+    } catch (e) {
+      if (typeof Modal !== 'undefined') Modal.toast('복사에 실패했습니다.', 'error');
+    }
+    document.body.removeChild(ta);
+  },
+
+  _highlightEvent(eventId) {
+    var card = document.querySelector('[data-event-id="' + eventId + '"]');
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('cal-event-highlight');
+    setTimeout(function() { card.classList.remove('cal-event-highlight'); }, 3000);
+  },
+
   _formatTimeRange(ev) {
     var start = ev.startTime || ev.time || '';
     var end = ev.endTime || '';
@@ -918,6 +1014,62 @@ const Calendar = {
   // 유틸리티
   _getEventsForDate(events, dateStr) {
     return events.filter(function(e) { return e.date === dateStr; });
+  },
+
+  _getUpcomingEvents(events, days) {
+    var today = this._formatDate(new Date());
+    var end = new Date();
+    end.setDate(end.getDate() + (days || 7));
+    var endStr = this._formatDate(end);
+    var filterMine = this._filterMine;
+    var memberName = filterMine ? (typeof App !== 'undefined' ? App.getMemberName() : '') : '';
+
+    var upcoming = events.filter(function(e) {
+      return e.date >= today && e.date <= endStr;
+    });
+
+    if (filterMine && memberName) {
+      upcoming = upcoming.filter(function(ev) {
+        return (ev.participants || []).indexOf(memberName) >= 0 || (ev.waitlist || []).indexOf(memberName) >= 0;
+      });
+    }
+
+    upcoming.sort(function(a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+    return upcoming;
+  },
+
+  _buildUpcomingSection(events, isAdmin) {
+    var upcoming = this._getUpcomingEvents(events, 7);
+    if (upcoming.length === 0) return '';
+
+    var today = this._formatDate(new Date());
+    // 날짜별 그룹핑
+    var dateGroups = {};
+    for (var i = 0; i < upcoming.length; i++) {
+      var d = upcoming[i].date;
+      if (!dateGroups[d]) dateGroups[d] = [];
+      dateGroups[d].push(upcoming[i]);
+    }
+    var dates = Object.keys(dateGroups).sort();
+
+    var html = '<div class="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 mb-4">' +
+      '<h3 class="font-bold text-gray-800 flex items-center gap-1.5 mb-3">' +
+        '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' +
+        '다가오는 일정</h3>';
+
+    for (var di = 0; di < dates.length; di++) {
+      var dateStr = dates[di];
+      var dayLabel = dateStr === today ? '오늘' : this._formatDisplayDate(dateStr);
+      html += '<div class="text-xs font-semibold text-gray-500 cursor-pointer hover:text-blue-600 transition' +
+        (di > 0 ? ' mt-3' : '') + ' mb-1.5" data-upcoming-date="' + dateStr + '">' + dayLabel + '</div>';
+      html += this._buildEventsList(dateGroups[dateStr], isAdmin);
+    }
+
+    html += '</div>';
+    return html;
   },
 
   _formatDate(d) {
