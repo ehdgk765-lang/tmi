@@ -26,6 +26,29 @@ const Storage = {
     return fbDb.collection('users').doc(user.uid);
   },
 
+  // ─── RTDB 경로 분기 (참석 실시간 동기화용) ───
+  _getRtdbParent() {
+    var user = fbAuth.currentUser;
+    if (!user || typeof fbRtdb === 'undefined') return null;
+    if (typeof RolesConfig !== 'undefined' && RolesConfig.isClubUser()) {
+      return fbRtdb.ref('club/shared');
+    }
+    return fbRtdb.ref('users/' + user.uid);
+  },
+
+  _getAttendanceRef(eventId) {
+    var parent = this._getRtdbParent();
+    if (!parent) return null;
+    return parent.child('attendance/' + eventId);
+  },
+
+  // RTDB 배열 정규화: RTDB는 배열을 {0:"a",1:"b"} 객체로 반환할 수 있음
+  _rtdbToArray(val) {
+    if (Array.isArray(val)) return val;
+    if (!val) return [];
+    return Object.keys(val).sort(function(a, b) { return parseInt(a) - parseInt(b); }).map(function(k) { return val[k]; });
+  },
+
   clearData() {
     this._data = { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [] };
     this._json = { players: '[]', teams: '[]', events: '[]', courts: '[]', groups: '[]' };
@@ -245,6 +268,11 @@ const Storage = {
         self._writing.events = self._json.events;
         setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
       }
+      // RTDB 참석 노드 생성
+      var rtdbRef = self._getAttendanceRef(newEvent.id);
+      if (rtdbRef) {
+        rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0 });
+      }
       return true;
     } catch (err) {
       console.error('addEvent transaction error:', err);
@@ -300,6 +328,13 @@ const Storage = {
         self._setLocal('events', finalEvents);
         self._writing.events = self._json.events;
         setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      }
+      // RTDB maxParticipants 동기화
+      if (updatedFields.maxParticipants !== undefined) {
+        var rtdbRef = self._getAttendanceRef(eventId);
+        if (rtdbRef) {
+          rtdbRef.child('maxParticipants').set(updatedFields.maxParticipants || 0);
+        }
       }
       return true;
     } catch (err) {
@@ -365,6 +400,11 @@ const Storage = {
         self._writing.events = self._json.events;
         setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
       }
+      // RTDB 참석 노드 삭제
+      var rtdbRef = self._getAttendanceRef(eventId);
+      if (rtdbRef) {
+        rtdbRef.remove();
+      }
       return true;
     } catch (err) {
       console.error('removeEvent transaction error:', err);
@@ -387,101 +427,115 @@ const Storage = {
     return true;
   },
 
-  // 참석 토글 (Firestore Transaction) — 멤버도 호출 가능
+  // 참석 토글 (RTDB Transaction) — 멤버도 호출 가능
   async toggleAttendance(eventId, memberName) {
     var self = this;
-    var parent = this._getParent();
+    var rtdbRef = this._getAttendanceRef(eventId);
     var attendTime = Date.now();
-    if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true, attendTime);
+    if (!rtdbRef) return this._applyToggleAttendance(this._data.events, eventId, memberName, true, attendTime);
 
-    var docRef = parent.collection('data').doc('events');
+    // 로컬 적용
+    var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false, attendTime);
+
     try {
-      var finalEvents = null;
-      var result = await fbDb.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(doc) {
-          var events = [];
-          if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
-          }
-          var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false, attendTime);
-          if (toggleResult.changed) {
-            transaction.set(docRef, { json: JSON.stringify(events) });
-          }
-          finalEvents = events;
-          return toggleResult.result;
-        });
+      // RTDB 트랜잭션 (빠른 전파)
+      var ev = this._data.events.find(function(e) { return e.id === eventId; });
+      var txResult = await rtdbRef.transaction(function(current) {
+        if (current === null) {
+          return {
+            participants: ev ? ev.participants || [] : [],
+            waitlist: ev ? ev.waitlist || [] : [],
+            participantTimes: ev ? ev.participantTimes || {} : {},
+            maxParticipants: ev ? ev.maxParticipants || 0 : 0
+          };
+        }
+        var att = {
+          participants: self._rtdbToArray(current.participants),
+          waitlist: self._rtdbToArray(current.waitlist),
+          participantTimes: current.participantTimes || {},
+          maxParticipants: current.maxParticipants || 0
+        };
+        self._applyToggleAttendanceSingle(att, memberName, attendTime);
+        return att;
       });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      // RTDB 서버 결과로 로컬 상태 갱신 (서버 직렬화 순서 반영)
+      if (txResult.committed && txResult.snapshot) {
+        var serverAtt = txResult.snapshot.val();
+        var currentEv = self._data.events.find(function(e) { return e.id === eventId; });
+        if (serverAtt && currentEv) {
+          currentEv.participants = self._rtdbToArray(serverAtt.participants);
+          currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
+          currentEv.participantTimes = serverAtt.participantTimes || {};
+        }
       }
-      return result;
+      // Firestore 백그라운드 동기화
+      self._setLocal('events', self._data.events);
+      self._writing.events = self._json.events;
+      self._syncToFirestore('events');
+      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      return localResult.result;
     } catch (err) {
-      console.error('toggleAttendance transaction error:', err);
+      console.error('toggleAttendance RTDB error:', err);
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 변경에 실패했습니다. 다시 시도해주세요.', 'error');
-      return this._applyToggleAttendance(this._data.events, eventId, memberName, true);
+      return localResult.result;
     }
   },
 
-  // 참석 토글 (낙관적 업데이트) — UI 즉시 반영 + 백그라운드 트랜잭션
+  // 참석 토글 (낙관적 업데이트) — UI 즉시 반영 + RTDB 백그라운드 트랜잭션
   toggleAttendanceOptimistic(eventId, memberName) {
     var self = this;
-    var parent = this._getParent();
-    if (!parent) return this._applyToggleAttendance(this._data.events, eventId, memberName, true).result;
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return this._applyToggleAttendance(this._data.events, eventId, memberName, true).result;
 
-    // 참석 시점 타임스탬프 (클라이언트 기준, 트랜잭션에서 순서 보존용)
     var attendTime = Date.now();
 
-    // 로컬 즉시 적용
+    // 1. 로컬 즉시 적용
     var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false, attendTime);
     if (!localResult.changed) return localResult.result;
 
     this._json.events = JSON.stringify(this._data.events);
     this._writing.events = this._json.events;
 
-    // 백그라운드 Firestore 트랜잭션
-    var docRef = parent.collection('data').doc('events');
-    fbDb.runTransaction(function(transaction) {
-      return transaction.get(docRef).then(function(doc) {
-        var events = [];
-        if (doc.exists) {
-          var d = doc.data();
-          events = d.json ? JSON.parse(d.json) : [];
-        }
-        var toggleResult = self._applyToggleAttendance(events, eventId, memberName, false, attendTime);
-        if (toggleResult.changed) {
-          transaction.set(docRef, { json: JSON.stringify(events) });
-        }
-        return { events: events, serverResult: toggleResult.result };
-      });
-    }).then(function(tx) {
-      var optimisticJson = self._json.events;
-      self._setLocal('events', tx.events);
-      self._writing.events = self._json.events;
-      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
-      if (self._json.events !== optimisticJson) {
-        // 서버 결과가 낙관적 상태와 다름 → 사용자에게 알림
-        if (tx.serverResult === 'full') {
-          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 인원이 마감되었습니다.', 'error');
-        } else if (tx.serverResult && tx.serverResult.conflict) {
-          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('같은 시간에 이미 참석 중인 일정이 있습니다.', 'error');
-        }
-        self._onRemoteChange();
+    // 2. RTDB 트랜잭션 (빠른 전파)
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    rtdbRef.transaction(function(current) {
+      if (current === null) {
+        return {
+          participants: ev ? ev.participants || [] : [],
+          waitlist: ev ? ev.waitlist || [] : [],
+          participantTimes: ev ? ev.participantTimes || {} : {},
+          maxParticipants: ev ? ev.maxParticipants || 0 : 0
+        };
       }
+      var att = {
+        participants: self._rtdbToArray(current.participants),
+        waitlist: self._rtdbToArray(current.waitlist),
+        participantTimes: current.participantTimes || {},
+        maxParticipants: current.maxParticipants || 0
+      };
+      self._applyToggleAttendanceSingle(att, memberName, attendTime);
+      return att;
+    }).then(function(result) {
+      if (result.committed && result.snapshot) {
+        var serverAtt = result.snapshot.val();
+        // _data.events가 교체되었을 수 있으므로 현재 배열에서 재검색
+        var currentEv = self._data.events.find(function(e) { return e.id === eventId; });
+        if (serverAtt && currentEv) {
+          currentEv.participants = self._rtdbToArray(serverAtt.participants);
+          currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
+          currentEv.participantTimes = serverAtt.participantTimes || {};
+        }
+      }
+      // 3. Firestore 백그라운드 동기화
+      self._json.events = JSON.stringify(self._data.events);
+      self._writing.events = self._json.events;
+      self._syncToFirestore('events');
+      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
     }).catch(function(err) {
-      console.error('toggleAttendance optimistic error:', err);
+      console.error('toggleAttendance RTDB optimistic error:', err);
       self._writing.events = null;
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 변경에 실패했습니다. 다시 시도해주세요.', 'error');
-      docRef.get().then(function(doc) {
-        if (doc.exists) {
-          var json = doc.data().json || '[]';
-          self._json.events = json;
-          self._data.events = JSON.parse(json);
-        }
-        self._onRemoteChange();
-      }).catch(function() { self._onRemoteChange(); });
+      self._loadAttendanceFromRtdb().then(function() { self._onRemoteChange(); });
     });
 
     return localResult.result;
@@ -530,11 +584,7 @@ const Storage = {
           ev.participantTimes[memberName] = attendTime || Date.now();
           var wIdx = ev.waitlist.indexOf(memberName);
           if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
-
-          // 타임스탬프 기준 정렬 (선착순 보장)
-          ev.participants.sort(function(a, b) {
-            return (ev.participantTimes[a] || 0) - (ev.participantTimes[b] || 0);
-          });
+          // 정렬하지 않음: RTDB 트랜잭션 직렬화 순서로 선착순 보장
         }
         if (saveLocal) {
           this._setLocal('events', events);
@@ -546,48 +596,103 @@ const Storage = {
     return { changed: false, result: false };
   },
 
-  // 대기 토글 (Firestore Transaction) — 멤버도 호출 가능
-  async toggleWaitlist(eventId, memberName) {
-    var self = this;
-    var parent = this._getParent();
-    if (!parent) return this._applyToggleWaitlist(this._data.events, eventId, memberName, true);
+  // RTDB 트랜잭션 내부용: 단일 이벤트 참석 토글
+  _applyToggleAttendanceSingle(att, memberName, attendTime) {
+    if (!att.participants) att.participants = [];
+    if (!att.waitlist) att.waitlist = [];
+    if (!att.participantTimes) att.participantTimes = {};
 
-    var docRef = parent.collection('data').doc('events');
-    try {
-      var finalEvents = null;
-      var result = await fbDb.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(doc) {
-          var events = [];
-          if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
-          }
-          var toggleResult = self._applyToggleWaitlist(events, eventId, memberName, false);
-          if (toggleResult.changed) {
-            transaction.set(docRef, { json: JSON.stringify(events) });
-          }
-          finalEvents = events;
-          return toggleResult.result;
-        });
-      });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+    var idx = att.participants.indexOf(memberName);
+    if (idx >= 0) {
+      // 참석 취소
+      att.participants.splice(idx, 1);
+      delete att.participantTimes[memberName];
+      if (att.waitlist.length > 0) {
+        var promoted = att.waitlist.shift();
+        att.participants.push(promoted);
+        att.participantTimes[promoted] = Date.now();
       }
-      return result;
-    } catch (err) {
-      console.error('toggleWaitlist transaction error:', err);
-      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
-      return this._applyToggleWaitlist(this._data.events, eventId, memberName, true);
+      return 'removed';
+    } else {
+      // maxParticipants 체크
+      if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) {
+        return 'full';
+      }
+      att.participants.push(memberName);
+      att.participantTimes[memberName] = attendTime || Date.now();
+      var wIdx = att.waitlist.indexOf(memberName);
+      if (wIdx >= 0) att.waitlist.splice(wIdx, 1);
+      // 정렬하지 않음: RTDB 트랜잭션 직렬화 순서가 곧 선착순
+      return 'added';
     }
   },
 
-  // 대기 토글 (낙관적 업데이트) — UI 즉시 반영 + 백그라운드 트랜잭션
+  // RTDB 트랜잭션 내부용: 단일 이벤트 대기 토글
+  _applyToggleWaitlistSingle(att, memberName) {
+    if (!att.waitlist) att.waitlist = [];
+    var idx = att.waitlist.indexOf(memberName);
+    if (idx >= 0) {
+      att.waitlist.splice(idx, 1);
+    } else {
+      att.waitlist.push(memberName);
+    }
+  },
+
+  // 대기 토글 (RTDB Transaction) — 멤버도 호출 가능
+  async toggleWaitlist(eventId, memberName) {
+    var self = this;
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return this._applyToggleWaitlist(this._data.events, eventId, memberName, true);
+
+    var localResult = this._applyToggleWaitlist(this._data.events, eventId, memberName, false);
+
+    try {
+      var ev = this._data.events.find(function(e) { return e.id === eventId; });
+      var txResult = await rtdbRef.transaction(function(current) {
+        if (current === null) {
+          return {
+            participants: ev ? ev.participants || [] : [],
+            waitlist: ev ? ev.waitlist || [] : [],
+            participantTimes: ev ? ev.participantTimes || {} : {},
+            maxParticipants: ev ? ev.maxParticipants || 0 : 0
+          };
+        }
+        var att = {
+          participants: self._rtdbToArray(current.participants),
+          waitlist: self._rtdbToArray(current.waitlist),
+          participantTimes: current.participantTimes || {},
+          maxParticipants: current.maxParticipants || 0
+        };
+        self._applyToggleWaitlistSingle(att, memberName);
+        return att;
+      });
+      // RTDB 서버 결과로 로컬 상태 갱신
+      if (txResult.committed && txResult.snapshot) {
+        var serverAtt = txResult.snapshot.val();
+        var currentEv = self._data.events.find(function(e) { return e.id === eventId; });
+        if (serverAtt && currentEv) {
+          currentEv.participants = self._rtdbToArray(serverAtt.participants);
+          currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
+          currentEv.participantTimes = serverAtt.participantTimes || {};
+        }
+      }
+      self._setLocal('events', self._data.events);
+      self._writing.events = self._json.events;
+      self._syncToFirestore('events');
+      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      return localResult.result;
+    } catch (err) {
+      console.error('toggleWaitlist RTDB error:', err);
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
+      return localResult.result;
+    }
+  },
+
+  // 대기 토글 (낙관적 업데이트) — UI 즉시 반영 + RTDB 백그라운드 트랜잭션
   toggleWaitlistOptimistic(eventId, memberName) {
     var self = this;
-    var parent = this._getParent();
-    if (!parent) return this._applyToggleWaitlist(this._data.events, eventId, memberName, true).result;
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return this._applyToggleWaitlist(this._data.events, eventId, memberName, true).result;
 
     var localResult = this._applyToggleWaitlist(this._data.events, eventId, memberName, false);
     if (!localResult.changed) return localResult.result;
@@ -595,38 +700,43 @@ const Storage = {
     this._json.events = JSON.stringify(this._data.events);
     this._writing.events = this._json.events;
 
-    var docRef = parent.collection('data').doc('events');
-    fbDb.runTransaction(function(transaction) {
-      return transaction.get(docRef).then(function(doc) {
-        var events = [];
-        if (doc.exists) {
-          var d = doc.data();
-          events = d.json ? JSON.parse(d.json) : [];
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    rtdbRef.transaction(function(current) {
+      if (current === null) {
+        return {
+          participants: ev ? ev.participants || [] : [],
+          waitlist: ev ? ev.waitlist || [] : [],
+          participantTimes: ev ? ev.participantTimes || {} : {},
+          maxParticipants: ev ? ev.maxParticipants || 0 : 0
+        };
+      }
+      var att = {
+        participants: self._rtdbToArray(current.participants),
+        waitlist: self._rtdbToArray(current.waitlist),
+        participantTimes: current.participantTimes || {},
+        maxParticipants: current.maxParticipants || 0
+      };
+      self._applyToggleWaitlistSingle(att, memberName);
+      return att;
+    }).then(function(result) {
+      if (result.committed && result.snapshot) {
+        var serverAtt = result.snapshot.val();
+        var currentEv = self._data.events.find(function(e) { return e.id === eventId; });
+        if (serverAtt && currentEv) {
+          currentEv.participants = self._rtdbToArray(serverAtt.participants);
+          currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
+          currentEv.participantTimes = serverAtt.participantTimes || {};
         }
-        var toggleResult = self._applyToggleWaitlist(events, eventId, memberName, false);
-        if (toggleResult.changed) {
-          transaction.set(docRef, { json: JSON.stringify(events) });
-        }
-        return events;
-      });
-    }).then(function(finalEvents) {
-      var optimisticJson = self._json.events;
-      self._setLocal('events', finalEvents);
+      }
+      self._json.events = JSON.stringify(self._data.events);
       self._writing.events = self._json.events;
+      self._syncToFirestore('events');
       setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
-      if (self._json.events !== optimisticJson) self._onRemoteChange();
     }).catch(function(err) {
-      console.error('toggleWaitlist optimistic error:', err);
+      console.error('toggleWaitlist RTDB optimistic error:', err);
       self._writing.events = null;
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
-      docRef.get().then(function(doc) {
-        if (doc.exists) {
-          var json = doc.data().json || '[]';
-          self._json.events = json;
-          self._data.events = JSON.parse(json);
-        }
-        self._onRemoteChange();
-      }).catch(function() { self._onRemoteChange(); });
+      self._loadAttendanceFromRtdb().then(function() { self._onRemoteChange(); });
     });
 
     return localResult.result;
@@ -705,6 +815,28 @@ const Storage = {
         if (self._writing.players === self._json.players) self._writing.players = null;
         if (self._writing.events === self._json.events) self._writing.events = null;
       }, 2000);
+      // RTDB 참석 데이터에서 멤버 제거
+      if (result.events) {
+        result.events.forEach(function(ev) {
+          var rtdbRef = self._getAttendanceRef(ev.id);
+          if (rtdbRef) {
+            rtdbRef.transaction(function(current) {
+              if (!current) return current;
+              var participants = self._rtdbToArray(current.participants);
+              var waitlist = self._rtdbToArray(current.waitlist);
+              var times = current.participantTimes || {};
+              var pIdx = participants.indexOf(memberName);
+              if (pIdx >= 0) { participants.splice(pIdx, 1); delete times[memberName]; }
+              var wIdx = waitlist.indexOf(memberName);
+              if (wIdx >= 0) waitlist.splice(wIdx, 1);
+              current.participants = participants;
+              current.waitlist = waitlist;
+              current.participantTimes = times;
+              return current;
+            });
+          }
+        });
+      }
       return true;
     } catch (err) {
       console.error('deleteMember transaction error:', err);
@@ -788,6 +920,27 @@ const Storage = {
         if (self._writing.players === self._json.players) self._writing.players = null;
         if (self._writing.events === self._json.events) self._writing.events = null;
       }, 2000);
+      // RTDB 참석 데이터에서 멤버들 제거
+      if (result.events) {
+        result.events.forEach(function(ev) {
+          var rtdbRef = self._getAttendanceRef(ev.id);
+          if (rtdbRef) {
+            rtdbRef.transaction(function(current) {
+              if (!current) return current;
+              var participants = self._rtdbToArray(current.participants);
+              var waitlist = self._rtdbToArray(current.waitlist);
+              var times = current.participantTimes || {};
+              participants = participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
+              waitlist = waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
+              memberNames.forEach(function(n) { delete times[n]; });
+              current.participants = participants;
+              current.waitlist = waitlist;
+              current.participantTimes = times;
+              return current;
+            });
+          }
+        });
+      }
       return true;
     } catch (err) {
       console.error('deleteMembers transaction error:', err);
@@ -1257,6 +1410,10 @@ const Storage = {
       this._loadDoc('groups', results[4]);
 
       await this._loadTournamentsFromCollection(parent);
+
+      // RTDB 참석 마이그레이션 + 로드
+      await this._migrateAttendanceToRtdb(parent);
+      await this._loadAttendanceFromRtdb();
     } catch (err) {
       console.error('Firestore load error:', err);
     }
@@ -1293,6 +1450,67 @@ const Storage = {
         self._data.tournaments.push(t);
       });
       console.warn('[전환] 대회 컬렉션이 비어 레거시 문서로 폴백 로드.');
+    }
+  },
+
+  // ─── RTDB 참석 마이그레이션: Firestore events → RTDB attendance ───
+  async _migrateAttendanceToRtdb(parent) {
+    var metaRef = parent.collection('data').doc('_meta');
+    try {
+      var meta = await metaRef.get();
+      if (meta.exists && meta.data().rtdbAttendanceMigrated) return;
+
+      var events = this._data.events;
+      var rtdbParent = this._getRtdbParent();
+      if (!rtdbParent) return;
+
+      var updates = {};
+      var count = 0;
+      for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (!ev.id) continue;
+        var hasData = (ev.participants && ev.participants.length > 0) ||
+                      (ev.waitlist && ev.waitlist.length > 0);
+        updates['attendance/' + ev.id] = {
+          participants: ev.participants || [],
+          waitlist: ev.waitlist || [],
+          participantTimes: ev.participantTimes || {},
+          maxParticipants: ev.maxParticipants || 0
+        };
+        if (hasData) count++;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await rtdbParent.update(updates);
+      }
+      await metaRef.set({ rtdbAttendanceMigrated: true }, { merge: true });
+      if (count > 0) console.log('[RTDB 마이그레이션] 참석 데이터 ' + count + '건 이관 완료');
+    } catch (err) {
+      console.error('[RTDB 마이그레이션] 실패:', err);
+    }
+  },
+
+  // RTDB에서 참석 데이터 로드 → 메모리 이벤트에 병합
+  async _loadAttendanceFromRtdb() {
+    var rtdbParent = this._getRtdbParent();
+    if (!rtdbParent) return;
+    var self = this;
+    try {
+      var snap = await rtdbParent.child('attendance').once('value');
+      var allAttendance = snap.val();
+      if (!allAttendance) return;
+
+      for (var i = 0; i < self._data.events.length; i++) {
+        var ev = self._data.events[i];
+        var att = allAttendance[ev.id];
+        if (att) {
+          ev.participants = self._rtdbToArray(att.participants);
+          ev.waitlist = self._rtdbToArray(att.waitlist);
+          ev.participantTimes = att.participantTimes || {};
+        }
+      }
+    } catch (err) {
+      console.error('RTDB attendance load error:', err);
     }
   },
 
@@ -1428,7 +1646,34 @@ const Storage = {
 
     this._unsubPlayers = listenDoc('players');
     this._unsubTeams = listenDoc('teams');
-    this._unsubEvents = listenDoc('events');
+    // events: RTDB가 관리하는 참석 필드(participants/waitlist/participantTimes)를 보존
+    this._unsubEvents = dataBase.doc('events').onSnapshot(function(doc) {
+      if (doc.metadata.hasPendingWrites) return;
+      if (!doc.exists) return;
+      var remoteJson = doc.data().json || '[]';
+      if (self._writing.events !== null) {
+        if (remoteJson === self._writing.events) self._writing.events = null;
+        return;
+      }
+      if (remoteJson === self._json.events) return;
+      var remoteEvents = JSON.parse(remoteJson);
+      // RTDB 참석 데이터 보존: 로컬 이벤트의 참석 필드를 원격 이벤트에 병합
+      var localMap = {};
+      (self._data.events || []).forEach(function(ev) {
+        if (ev.id) localMap[ev.id] = ev;
+      });
+      for (var i = 0; i < remoteEvents.length; i++) {
+        var local = localMap[remoteEvents[i].id];
+        if (local) {
+          remoteEvents[i].participants = local.participants || [];
+          remoteEvents[i].waitlist = local.waitlist || [];
+          remoteEvents[i].participantTimes = local.participantTimes || {};
+        }
+      }
+      self._json.events = remoteJson;
+      self._data.events = remoteEvents;
+      self._onRemoteChange();
+    }, function(err) { console.error('events realtime sync error:', err); });
     this._unsubCourts = listenDoc('courts');
     this._unsubGroups = listenDoc('groups');
 
@@ -1472,6 +1717,32 @@ const Storage = {
       });
       if (changed) self._onRemoteChange();
     }, function(err) { console.error('tournaments realtime sync error:', err); });
+
+    // ─── RTDB 참석 리스너 (빠른 실시간 동기화) ───
+    var rtdbParent = this._getRtdbParent();
+    if (rtdbParent) {
+      this._rtdbAttendanceRef = rtdbParent.child('attendance');
+      this._rtdbAttendanceRef.on('child_changed', function(snap) {
+        var eventId = snap.key;
+        var att = snap.val();
+        if (!att) return;
+        var ev = self._data.events.find(function(e) { return e.id === eventId; });
+        if (!ev) return;
+
+        // 에코 억제: 로컬 데이터와 동일하면 스킵
+        var newP = JSON.stringify(self._rtdbToArray(att.participants));
+        var oldP = JSON.stringify(ev.participants || []);
+        var newW = JSON.stringify(self._rtdbToArray(att.waitlist));
+        var oldW = JSON.stringify(ev.waitlist || []);
+        if (newP === oldP && newW === oldW) return;
+
+        ev.participants = self._rtdbToArray(att.participants);
+        ev.waitlist = self._rtdbToArray(att.waitlist);
+        ev.participantTimes = att.participantTimes || {};
+        self._json.events = JSON.stringify(self._data.events);
+        self._onRemoteChange();
+      });
+    }
   },
 
   stopRealtimeSync() {
@@ -1480,6 +1751,11 @@ const Storage = {
     names.forEach(function(key) {
       if (self[key]) { self[key](); self[key] = null; }
     });
+    // RTDB 참석 리스너 해제
+    if (this._rtdbAttendanceRef) {
+      this._rtdbAttendanceRef.off();
+      this._rtdbAttendanceRef = null;
+    }
     this._removeVisibilityListener();
     this._initialSyncDone = true; // 정리 시 플래그 해제
   },
@@ -1569,6 +1845,6 @@ const Storage = {
           App.navigate(App.currentTab);
         }
       }
-    }, 300);
+    }, 100);
   },
 };

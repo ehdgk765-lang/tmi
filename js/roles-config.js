@@ -21,6 +21,10 @@ const RolesConfig = {
       console.error('역할 조회 실패:', e);
       this._currentRole = 'other';
     }
+    // RTDB 보안 규칙용 역할 미러링
+    if (typeof fbRtdb !== 'undefined' && user) {
+      try { fbRtdb.ref('rtdb_roles/' + user.uid).set({ role: this._currentRole || 'other' }); } catch (_) {}
+    }
   },
 
   isAdmin() {

@@ -1,5 +1,5 @@
 // service-worker.js - PWA 오프라인 캐시 + 앱 쉘 관리
-const CACHE_VERSION = '1.3.7';
+const CACHE_VERSION = '1.3.9';
 const CACHE_NAME = 'tmi-' + CACHE_VERSION;
 
 // 앱 쉘: 로컬 파일만 프리캐시 (CDN은 런타임 캐시)
@@ -35,7 +35,8 @@ const NETWORK_ONLY_HOSTS = [
   'firestore.googleapis.com',
   'identitytoolkit.googleapis.com',
   'securetoken.googleapis.com',
-  'www.googleapis.com'
+  'www.googleapis.com',
+  'tmi-tennis-default-rtdb.asia-southeast1.firebasedatabase.app'
 ];
 
 // Install: 앱 쉘 프리캐시
