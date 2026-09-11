@@ -323,6 +323,122 @@ header {
   background-color: #eff6ff;
 }
 
+/* ─── 커스텀 모달 (Modal.alert / Modal.confirm) ─── */
+.custom-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.custom-modal-overlay.modal-active {
+  opacity: 1;
+}
+.custom-modal-overlay.modal-closing {
+  opacity: 0;
+}
+.custom-modal-box {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(8px) scale(0.97);
+  transition: transform 0.2s ease;
+}
+.modal-active .custom-modal-box {
+  transform: translateY(0) scale(1);
+}
+.modal-closing .custom-modal-box {
+  transform: translateY(8px) scale(0.97);
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 4px 0 8px;
+}
+.modal-message {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.5;
+  white-space: pre-line;
+  word-break: keep-all;
+}
+.modal-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.1s;
+}
+.modal-btn:active {
+  transform: scale(0.97);
+}
+.modal-btn-cancel {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+.modal-btn-cancel:hover {
+  background-color: #e5e7eb;
+}
+.modal-btn-primary {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+.modal-btn-primary:hover {
+  background-color: #1d4ed8;
+}
+
+/* 커스텀 모달 다크모드 */
+html.dark .custom-modal-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+html.dark .custom-modal-box {
+  background-color: #1e293b;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+html.dark .modal-title {
+  color: #e2e8f0;
+}
+html.dark .modal-message {
+  color: #94a3b8;
+}
+html.dark .modal-btn-cancel {
+  background-color: #334155;
+  color: #94a3b8;
+}
+html.dark .modal-btn-cancel:hover {
+  background-color: #475569;
+}
+html.dark .modal-btn-primary {
+  background-color: #2563eb;
+}
+html.dark .modal-btn-primary:hover {
+  background-color: #3b82f6;
+}
+html.dark .custom-modal-box .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+html.dark .custom-modal-box .text-amber-500 {
+  color: #fbbf24 !important;
+}
+html.dark .custom-modal-box .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .custom-modal-box .text-blue-500 {
+  color: #60a5fa !important;
+}
+
 /* 애니메이션 */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

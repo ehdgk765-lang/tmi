@@ -318,7 +318,7 @@ const CustomBracket = {
 
     const allPlayers = Storage.getPlayers().sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     const placedNames = this.getPlacedNames();
-    const teamMap = buildTeamMap();
+    const teamMap = this._state.isTeamMode ? buildTeamMap() : {};
 
     const picker = document.createElement('div');
     picker.className = 'cb-player-picker fixed inset-0 z-50 flex items-end sm:items-center justify-center';
@@ -339,8 +339,8 @@ const CustomBracket = {
 
         ${allPlayers.length > 0 ? `
           <div class="text-xs text-gray-400 mb-2">등록된 멤버 목록</div>
-          <div class="overflow-y-auto flex-1 divide-y divide-gray-50">
-            ${allPlayers.map(p => {
+          <div class="overflow-y-auto flex-1">
+            ${buildGroupedPlayerListHtml(allPlayers, teamMap, p => {
               const isPlaced = placedNames.has(p.name);
               const tn = teamMap[p.name];
               return `
@@ -352,7 +352,7 @@ const CustomBracket = {
                   ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                   ${isPlaced ? '<span class="ml-auto text-xs text-gray-400">배치됨</span>' : ''}
                 </div>`;
-            }).join('')}
+            })}
           </div>
         ` : '<p class="text-sm text-gray-400 text-center py-4">등록된 멤버가 없습니다.</p>'}
 
@@ -368,10 +368,7 @@ const CustomBracket = {
     searchInput.focus();
 
     searchInput.oninput = () => {
-      const q = searchInput.value.trim();
-      picker.querySelectorAll('.cb-pick-option').forEach(opt => {
-        opt.style.display = (!q || matchesKoreanSearch(opt.dataset.name, q)) ? '' : 'none';
-      });
+      filterGroupedPicker(picker, searchInput.value, '.cb-pick-option');
     };
 
     const addCustom = () => {
@@ -396,7 +393,7 @@ const CustomBracket = {
     if (existing) existing.remove();
 
     const allPlayers = Storage.getPlayers().sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-    const teamMap = buildTeamMap();
+    const teamMap = this._state.isTeamMode ? buildTeamMap() : {};
     const usedNames = this._getPlacedPlayerNames();
     // 기존 배치에서 현재 슬롯 멤버는 제외 (재선택 가능)
     const currentVal = this._state.placements[slotIndex];
@@ -448,8 +445,8 @@ const CustomBracket = {
 
           ${allPlayers.length > 0 ? `
             <div class="text-xs text-gray-400 mb-2">등록된 멤버 목록</div>
-            <div class="overflow-y-auto flex-1 divide-y divide-gray-50">
-              ${allPlayers.map(p => {
+            <div class="overflow-y-auto flex-1">
+              ${buildGroupedPlayerListHtml(allPlayers, teamMap, p => {
                 const isUsed = allUsed.has(p.name);
                 const tn = teamMap[p.name];
                 return `
@@ -461,7 +458,7 @@ const CustomBracket = {
                     ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                     ${isUsed ? '<span class="ml-auto text-xs text-gray-400">선택됨</span>' : ''}
                   </div>`;
-              }).join('')}
+              })}
             </div>
           ` : '<p class="text-sm text-gray-400 text-center py-4">등록된 멤버가 없습니다.</p>'}
 
@@ -491,10 +488,7 @@ const CustomBracket = {
       if (searchInput) searchInput.focus();
 
       searchInput.oninput = () => {
-        const q = searchInput.value.trim();
-        picker.querySelectorAll('.cb-pick-option').forEach(opt => {
-          opt.style.display = (!q || matchesKoreanSearch(opt.dataset.name, q)) ? '' : 'none';
-        });
+        filterGroupedPicker(picker, searchInput.value, '.cb-pick-option');
       };
 
       picker.querySelector('#cb-doubles-custom-add').onclick = () => {

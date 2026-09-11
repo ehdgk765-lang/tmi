@@ -1255,8 +1255,21 @@ const Calendar = {
         if (names.length === 0) return;
         submitBtn.disabled = true;
         submitBtn.textContent = '추가 중...';
+        var addedCount = 0, waitlistedCount = 0;
         for (var i = 0; i < names.length; i++) {
-          await Storage.toggleAttendance(ev.id, names[i]);
+          var result = await Storage.toggleAttendance(ev.id, names[i]);
+          if (result === 'full' || result === 'gender_full') {
+            await Storage.toggleWaitlist(ev.id, names[i]);
+            waitlistedCount++;
+          } else {
+            addedCount++;
+          }
+        }
+        if (waitlistedCount > 0 && typeof Modal !== 'undefined' && Modal.toast) {
+          var msg = addedCount > 0
+            ? addedCount + '명 참석, ' + waitlistedCount + '명 대기 추가'
+            : waitlistedCount + '명 대기 추가 (정원 초과)';
+          Modal.toast(msg, 'info');
         }
         refreshModal();
       };

@@ -47,6 +47,61 @@ function buildTeamMap() {
   return map;
 }
 
+// ── 팀별 그룹화 플레이어 목록 HTML 빌더 ──
+function buildGroupedPlayerListHtml(players, teamMap, renderOptionFn) {
+  const hasTeams = Object.keys(teamMap).length > 0;
+  if (!hasTeams) {
+    return `<div class="divide-y divide-gray-50">${players.map(renderOptionFn).join('')}</div>`;
+  }
+  const groups = {};
+  const unassigned = [];
+  players.forEach(p => {
+    const tn = teamMap[p.name];
+    if (tn) {
+      if (!groups[tn]) groups[tn] = [];
+      groups[tn].push(p);
+    } else {
+      unassigned.push(p);
+    }
+  });
+  const sortedTeams = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'ko'));
+  let html = '';
+  sortedTeams.forEach(teamName => {
+    const esc = typeof Results !== 'undefined' ? Results.escapeHtml(teamName) : teamName;
+    html += `<div class="picker-team-group divide-y divide-gray-50" data-team="${esc}">
+      <div class="picker-team-header sticky top-0 z-10 px-3 py-1.5 bg-green-50 border-b border-green-200 text-xs font-semibold text-green-700 flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>
+        ${esc}
+        <span class="text-green-400 font-normal">(${groups[teamName].length})</span>
+      </div>
+      ${groups[teamName].map(renderOptionFn).join('')}
+    </div>`;
+  });
+  if (unassigned.length > 0) {
+    html += `<div class="picker-team-group divide-y divide-gray-50" data-team="__unassigned__">
+      <div class="picker-team-header sticky top-0 z-10 px-3 py-1.5 bg-gray-100 border-b border-gray-200 text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0"></span>
+        미배정
+        <span class="text-gray-400 font-normal">(${unassigned.length})</span>
+      </div>
+      ${unassigned.map(renderOptionFn).join('')}
+    </div>`;
+  }
+  return html;
+}
+
+// ── 그룹화 피커 검색 필터 ──
+function filterGroupedPicker(container, query, optionSelector) {
+  const q = (query || '').trim();
+  container.querySelectorAll(optionSelector).forEach(opt => {
+    opt.style.display = (!q || matchesKoreanSearch(opt.dataset.name, q)) ? '' : 'none';
+  });
+  container.querySelectorAll('.picker-team-group').forEach(group => {
+    const hasVisible = group.querySelector(`${optionSelector}:not([style*="display: none"])`);
+    group.style.display = hasVisible ? '' : 'none';
+  });
+}
+
 // ── 모달 배경 스크롤 잠금 ──
 let _scrollLockCount = 0;
 let _savedScrollY = 0;

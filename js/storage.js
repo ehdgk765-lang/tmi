@@ -634,19 +634,36 @@ const Storage = {
           action = 'remove';
           ev.participants.splice(idx, 1);
           delete ev.participantTimes[memberName];
-          // 대기자 승격: 성별 제한이 있으면 같은 성별 대기자 우선
+          // 대기자 승격: 성별 정원을 지키는 첫 번째 대기자 찾기
           if (ev.waitlist.length > 0) {
-            var removedGender = this._getPlayerGender(memberName);
+            var hasGenderLimit = (ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0;
             var promotedIdx = -1;
-            if (removedGender && ((ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0)) {
-              for (var wi = 0; wi < ev.waitlist.length; wi++) {
-                if (this._getPlayerGender(ev.waitlist[wi]) === removedGender) { promotedIdx = wi; break; }
+            for (var wi = 0; wi < ev.waitlist.length; wi++) {
+              var canPromote = true;
+              if (hasGenderLimit) {
+                var wGender = this._getPlayerGender(ev.waitlist[wi]);
+                if (wGender === 'M' && (ev.maxMale || 0) > 0) {
+                  var mc = 0;
+                  for (var mi = 0; mi < ev.participants.length; mi++) {
+                    if (this._getPlayerGender(ev.participants[mi]) === 'M') mc++;
+                  }
+                  if (mc >= ev.maxMale) canPromote = false;
+                }
+                if (wGender === 'F' && (ev.maxFemale || 0) > 0) {
+                  var fc = 0;
+                  for (var fi = 0; fi < ev.participants.length; fi++) {
+                    if (this._getPlayerGender(ev.participants[fi]) === 'F') fc++;
+                  }
+                  if (fc >= ev.maxFemale) canPromote = false;
+                }
               }
+              if (canPromote) { promotedIdx = wi; break; }
             }
-            if (promotedIdx < 0) promotedIdx = 0;
-            var promoted = ev.waitlist.splice(promotedIdx, 1)[0];
-            ev.participants.push(promoted);
-            ev.participantTimes[promoted] = Date.now();
+            if (promotedIdx >= 0) {
+              var promoted = ev.waitlist.splice(promotedIdx, 1)[0];
+              ev.participants.push(promoted);
+              ev.participantTimes[promoted] = Date.now();
+            }
           }
         } else {
           action = 'add';
@@ -712,20 +729,36 @@ const Storage = {
       if (idx >= 0) {
         att.participants.splice(idx, 1);
         delete att.participantTimes[memberName];
-        // 대기자 승격: 성별 제한이 있으면 같은 성별 대기자 우선
+        // 대기자 승격: 성별 정원을 지키는 첫 번째 대기자 찾기
         if (att.waitlist.length > 0) {
-          var removedGender = this._getPlayerGender(memberName);
+          var hasGenderLimit = (att.maxMale || 0) > 0 || (att.maxFemale || 0) > 0;
           var promotedIdx = -1;
-          if (removedGender && ((att.maxMale || 0) > 0 || (att.maxFemale || 0) > 0)) {
-            // 같은 성별 대기자 먼저 찾기
-            for (var wi = 0; wi < att.waitlist.length; wi++) {
-              if (this._getPlayerGender(att.waitlist[wi]) === removedGender) { promotedIdx = wi; break; }
+          for (var wi = 0; wi < att.waitlist.length; wi++) {
+            var canPromote = true;
+            if (hasGenderLimit) {
+              var wGender = this._getPlayerGender(att.waitlist[wi]);
+              if (wGender === 'M' && (att.maxMale || 0) > 0) {
+                var mc = 0;
+                for (var mi = 0; mi < att.participants.length; mi++) {
+                  if (this._getPlayerGender(att.participants[mi]) === 'M') mc++;
+                }
+                if (mc >= att.maxMale) canPromote = false;
+              }
+              if (wGender === 'F' && (att.maxFemale || 0) > 0) {
+                var fc = 0;
+                for (var fi = 0; fi < att.participants.length; fi++) {
+                  if (this._getPlayerGender(att.participants[fi]) === 'F') fc++;
+                }
+                if (fc >= att.maxFemale) canPromote = false;
+              }
             }
+            if (canPromote) { promotedIdx = wi; break; }
           }
-          if (promotedIdx < 0) promotedIdx = 0; // 성별 무관 또는 같은 성별 없으면 첫 번째
-          var promoted = att.waitlist.splice(promotedIdx, 1)[0];
-          att.participants.push(promoted);
-          att.participantTimes[promoted] = Date.now();
+          if (promotedIdx >= 0) {
+            var promoted = att.waitlist.splice(promotedIdx, 1)[0];
+            att.participants.push(promoted);
+            att.participantTimes[promoted] = Date.now();
+          }
         }
       }
       // 이미 없으면 무시 (멱등)
