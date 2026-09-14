@@ -2,16 +2,48 @@
 const NTRP_VALUES = [2.0, 2.5, 3.0, 3.5, 4.0];
 
 const Players = {
+  _subTab: 'list', // 'list' | 'groups'
+
   render(container) {
+    var self = this;
+
+    patchDOM(container, `
+      <div class="max-w-lg mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">회원 관리</h2>
+
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-1 mb-4 flex gap-1">
+          <button id="players-tab-list" class="flex-1 py-2 text-sm font-semibold rounded-lg transition ${this._subTab === 'list' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">멤버 목록</button>
+          <button id="players-tab-groups" class="flex-1 py-2 text-sm font-semibold rounded-lg transition ${this._subTab === 'groups' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">조별 관리</button>
+        </div>
+
+        <div id="players-content"></div>
+      </div>`);
+
+    document.getElementById('players-tab-list').onclick = function() {
+      self._subTab = 'list';
+      self.render(container);
+    };
+    document.getElementById('players-tab-groups').onclick = function() {
+      self._subTab = 'groups';
+      self.render(container);
+    };
+
+    var contentEl = document.getElementById('players-content');
+    if (this._subTab === 'groups') {
+      Members.renderGroupView(contentEl);
+      return;
+    }
+
+    this._renderList(contentEl);
+  },
+
+  _renderList(container) {
     const players = Storage.getPlayers();
     players.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ko'); });
     const males = players.filter(p => p.gender === 'M');
     const females = players.filter(p => p.gender === 'F');
 
-    patchDOM(container, `
-      <div class="max-w-lg mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">멤버 관리</h2>
-
+    container.innerHTML = `
         <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60">
           <!-- 멤버 추가 입력 -->
           <div class="px-4 py-3 border-b border-gray-100">
@@ -89,8 +121,7 @@ const Players = {
             </button>
           </div>
           ` : ''}
-        </div>
-      </div>`);
+        </div>`;
 
     this.bindEvents(container);
   },
@@ -115,7 +146,7 @@ const Players = {
 
       players.push({ id: Storage.generateId(), name, gender, ntrp });
       Storage.savePlayers(players);
-      this.render(container);
+      this._renderList(container);
     };
 
     addBtn.onclick = addPlayer;
@@ -208,7 +239,7 @@ const Players = {
         if (typeof App !== 'undefined' && App.getMemberName() === oldName) {
           App.setMemberName(newName);
         }
-        self.render(container);
+        self._renderList(container);
       };
       input.onblur = commitRename;
       input.onkeydown = function(e) {
@@ -272,7 +303,7 @@ const Players = {
           btn.disabled = true;
           await Storage.deleteMember(deleted.name);
         }
-        this.render(container);
+        this._renderList(container);
       };
     });
 
@@ -325,7 +356,7 @@ const Players = {
         const deletedNames = players.filter(p => checkedIds.includes(p.id)).map(p => p.name);
         deleteSelectedBtn.disabled = true;
         await Storage.deleteMembers(deletedNames);
-        this.render(container);
+        this._renderList(container);
       };
     }
 
@@ -451,7 +482,7 @@ const Players = {
         if (errors.length > 0) msg += `\n\n오류:\n${errors.slice(0, 5).join('\n')}`;
         alert(msg);
 
-        this.render(container);
+        this._renderList(container);
       } catch (err) {
         console.error('엑셀 파싱 오류:', err);
         alert('파일을 읽을 수 없습니다. 엑셀(.xlsx) 또는 CSV 파일인지 확인해주세요.');

@@ -316,16 +316,28 @@ const App = {
       }
     }
 
-    // 회원 관리 메뉴: 관리자 + 권한 부여 멤버 표시
-    var membersBtn = document.getElementById('menu-members');
-    if (membersBtn) {
-      membersBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
+    // 회원 관리 메뉴 (기존 Members.render - 주석 처리)
+    // var membersBtn = document.getElementById('menu-members');
+    // if (membersBtn) {
+    //   membersBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
+    // }
+
+    // 회원 관리 메뉴 (Players.render): 관리자 + 권한 부여 멤버 표시
+    var playersBtn = document.getElementById('menu-players');
+    if (playersBtn) {
+      playersBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
     }
 
     // 설정 메뉴: 관리자 + 권한 부여 멤버 표시
     var settingsBtn = document.getElementById('menu-settings');
     if (settingsBtn) {
       settingsBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
+    }
+
+    // 통계 메뉴: 관리자 + 권한 부여 멤버 표시 (탭에서 사이드 메뉴로 이동)
+    var statsBtn = document.getElementById('menu-stats');
+    if (statsBtn) {
+      statsBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
     }
 
     // 가계부 보기 버튼: 관리자/멤버만 표시
@@ -406,6 +418,32 @@ const App = {
     this._updateMenuActive();
     var content = document.getElementById('main-content');
     Members.render(content);
+  },
+
+  showPlayers() {
+    this._viewMode = 'players';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    Players.render(content);
+  },
+
+  showStats() {
+    this._viewMode = 'stats';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    Stats.render(content);
   },
 
   showSettings() {
@@ -1233,7 +1271,7 @@ const App = {
   _updateMenuActive() {
     var homeBtn = document.getElementById('menu-home');
     var calBtn = document.getElementById('menu-calendar');
-    var membersBtn = document.getElementById('menu-members');
+    var playersBtn = document.getElementById('menu-players');
     var settingsBtn = document.getElementById('menu-settings');
     if (homeBtn) {
       if (this._viewMode === 'home') {
@@ -1249,11 +1287,11 @@ const App = {
         calBtn.classList.remove('active');
       }
     }
-    if (membersBtn) {
-      if (this._viewMode === 'members') {
-        membersBtn.classList.add('active');
+    if (playersBtn) {
+      if (this._viewMode === 'players') {
+        playersBtn.classList.add('active');
       } else {
-        membersBtn.classList.remove('active');
+        playersBtn.classList.remove('active');
       }
     }
     if (settingsBtn) {
@@ -1261,6 +1299,14 @@ const App = {
         settingsBtn.classList.add('active');
       } else {
         settingsBtn.classList.remove('active');
+      }
+    }
+    var statsBtn = document.getElementById('menu-stats');
+    if (statsBtn) {
+      if (this._viewMode === 'stats') {
+        statsBtn.classList.add('active');
+      } else {
+        statsBtn.classList.remove('active');
       }
     }
   },
@@ -1699,7 +1745,7 @@ const App = {
     }
   },
 
-  // ─── 대진표 만들기 (시간/코트 기반) ───
+  // ─── 대진표 작성 (시간/코트 기반) ───
 
   generateTimeOptions(selectedValue) {
     const options = [];
@@ -1718,7 +1764,7 @@ const App = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">대진표 만들기</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">대진표 작성</h2>
         <div class="flex gap-2 mb-6">
           <button data-subtab="time-court"
             class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition

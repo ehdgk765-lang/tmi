@@ -2010,6 +2010,8 @@ const Storage = {
         if (typeof App.applyRoleUI === 'function') App.applyRoleUI();
         if (App._viewMode === 'calendar') {
           App.showCalendar();
+        } else if (App._viewMode === 'players') {
+          App.showPlayers();
         } else if (App._viewMode === 'members') {
           App.showMembers();
         } else if (App._viewMode === 'settings') {

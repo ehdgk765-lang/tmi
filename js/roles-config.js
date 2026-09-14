@@ -58,21 +58,21 @@ const RolesConfig = {
   getVisibleTabs() {
     if (this.isMember()) {
       if (this.hasAdminAccess()) {
-        // 권한 부여 멤버: 관리자와 동일
-        return ['players', 'create', 'schedule', 'calendar', 'active', 'stats'];
+        // 권한 부여 멤버: 관리자와 동일 (회원관리/통계는 사이드 메뉴)
+        return ['create', 'schedule', 'calendar', 'active'];
       }
-      // 일반 멤버: 일정 보기 + 대진표 + 통계
+      // 일반 멤버: 일정 + 대진표 + 통계
       return ['calendar', 'active', 'stats'];
     }
     if (this.isAdmin()) {
-      return ['players', 'create', 'schedule', 'calendar', 'active', 'stats'];
+      return ['create', 'schedule', 'calendar', 'active'];
     }
     // other: 개인 데이터용 (통계 제외)
     return ['players', 'create', 'schedule', 'active'];
   },
 
   getDefaultTab() {
-    if (this.isMember()) {
+    if (this.isMember() || this.isAdmin()) {
       return 'calendar';
     }
     return 'players';
