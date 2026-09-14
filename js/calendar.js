@@ -1181,18 +1181,7 @@ const Calendar = {
     shareText += '참석: ' + countStr + '\n';
     shareText += shareUrl;
 
-    if (navigator.share) {
-      navigator.share({
-        title: '[TMI] ' + ev.title,
-        text: shareText
-      }).catch(function(err) {
-        if (err.name !== 'AbortError') {
-          self._copyToClipboard(shareText);
-        }
-      });
-    } else {
-      this._copyToClipboard(shareText);
-    }
+    this._copyToClipboard(shareText);
   },
 
   _copyToClipboard(text) {
