@@ -114,6 +114,8 @@ function lockScroll() {
     document.body.style.left = '0';
     document.body.style.right = '0';
     document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.body.style.overscrollBehavior = 'none';
   }
   _scrollLockCount++;
 }
@@ -127,6 +129,8 @@ function unlockScroll() {
     document.body.style.left = '';
     document.body.style.right = '';
     document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+    document.body.style.overscrollBehavior = '';
     window.scrollTo(0, _savedScrollY);
   }
 }

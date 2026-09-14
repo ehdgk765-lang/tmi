@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20260914-1';
+    var APP_VERSION = '20260914-2';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -216,6 +216,10 @@
             class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
             멤버 관리
           </button>
+          <button data-tab="calendar"
+            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
+            일정
+          </button>
           <button data-tab="create"
             class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
             대회 만들기
@@ -223,10 +227,6 @@
           <button data-tab="schedule"
             class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
             대진표 작성
-          </button>
-          <button data-tab="calendar"
-            class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">
-            일정
           </button>
           <button data-tab="active"
             class="flex-1 min-w-0 px-1 sm:px-3 py-2.5 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent transition whitespace-nowrap text-gray-400 hover:text-blue-700 active:bg-blue-50/50 rounded-t-lg">

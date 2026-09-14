@@ -225,6 +225,18 @@ header {
   text-overflow: ellipsis;
   color: #fff;
   font-weight: 600;
+  position: relative;
+}
+.cal-stl-dot {
+  position: absolute;
+  right: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.2);
 }
 .calendar-label.bg-yellow-500 {
   color: #713f12;
@@ -232,12 +244,27 @@ header {
 .calendar-label.bg-orange-400 {
   color: #7c2d12;
 }
+.calendar-label.bg-pink-400 {
+  color: #fff;
+}
+.calendar-label.bg-teal-500 {
+  color: #fff;
+}
 .calendar-label-more {
   font-size: 7px;
   line-height: 10px;
   color: #9ca3af;
   text-align: center;
   font-weight: 600;
+}
+
+/* 모달 스크롤 잠금 */
+.fixed.inset-0[class*="bg-black"] > div,
+#cal-modal > .cal-modal-inner,
+#settlement-modal > div {
+  touch-action: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 캘린더 모달 */

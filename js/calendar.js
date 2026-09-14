@@ -28,10 +28,20 @@ const Calendar = {
     { value: 'purple', label: '보라', bg: 'bg-purple-100', dot: 'bg-purple-500', text: 'text-purple-700' },
     { value: 'pink', label: '분홍', bg: 'bg-pink-100', dot: 'bg-pink-400', text: 'text-pink-700' },
     { value: 'orange', label: '주황', bg: 'bg-orange-100', dot: 'bg-orange-400', text: 'text-orange-700' },
+    { value: 'teal', label: '청록', bg: 'bg-teal-100', dot: 'bg-teal-500', text: 'text-teal-700' },
   ],
+
+  // 요일별 기본 색상 (일~토)
+  DAY_COLORS: ['red', 'green', 'blue', 'purple', 'orange', 'teal', 'pink'],
 
   _getColor(value) {
     return this.COLORS.find(function(c) { return c.value === value; }) || this.COLORS[0];
+  },
+
+  _getColorForDate(dateStr) {
+    var d = new Date(dateStr + 'T00:00:00');
+    var day = d.getDay(); // 0=일, 1=월, ..., 6=토
+    return this.DAY_COLORS[day];
   },
 
   render(container) {
@@ -68,6 +78,8 @@ const Calendar = {
 
     patchDOM(container,
       '<div class="max-w-lg mx-auto">' +
+        // 다가오는 일정
+        upcomingHtml +
         // 헤더
         '<div class="flex items-center justify-between mb-4">' +
           '<button id="cal-prev" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition text-gray-500">' +
@@ -93,14 +105,12 @@ const Calendar = {
         '</div>' +
         // 날짜 그리드
         '<div class="calendar-grid calendar-dates mb-6">' + calendarGrid + '</div>' +
-        // 다가오는 일정
-        upcomingHtml +
         // 선택 날짜 일정
         '<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">' +
           '<div class="flex items-center justify-between mb-3">' +
             '<h3 class="font-bold text-gray-800">' + this._formatDisplayDate(this._selectedDate) + '</h3>' +
             '<div class="flex items-center gap-1.5">' +
-              (isClubUser ? '<button id="cal-add-event" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition">+ 일정 추가</button>' : '') +
+              (isAdmin ? '<button id="cal-add-event" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition">+ 일정 추가</button>' : '') +
             '</div>' +
           '</div>' +
           '<div id="cal-events-list">' + eventsList + '</div>' +
@@ -151,7 +161,8 @@ const Calendar = {
         var maxLabels = Math.min(dayEvents.length, 3);
         for (var j = 0; j < maxLabels; j++) {
           var color = this._getColor(dayEvents[j].color);
-          labels += '<div class="calendar-label ' + color.dot + '">' + this._escapeHtml(dayEvents[j].title) + '</div>';
+          var stlMark = dayEvents[j].settlement ? '<span class="cal-stl-dot"></span>' : '';
+          labels += '<div class="calendar-label ' + color.dot + '">' + this._escapeHtml(dayEvents[j].title) + stlMark + '</div>';
         }
         if (dayEvents.length > 3) {
           labels += '<div class="calendar-label-more">+' + (dayEvents.length - 3) + '</div>';
@@ -334,7 +345,9 @@ const Calendar = {
                     '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1.5">' + this._escapeHtml(ev.title) + ' ' + statusBadge + '</div>' +
                     (this._formatTimeRange(ev) ? '<div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/></svg><span>' + this._formatTimeRange(ev) + '</span></div>' : '') +
                     (ev.description ? '<div class="text-xs text-gray-400 mt-1 italic">' + this._escapeHtml(ev.description) + '</div>' : '') +
-                    (ev.createdBy ? '<div class="text-xs text-gray-400 mt-1">' + this._escapeHtml(ev.createdBy) + '등록</div>' : '') +
+                    (ev.courts && ev.courts.length > 0 ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span>' + this._escapeHtml(ev.courts.join(', ')) + '</span></div>' : '') +
+                    (ev.host ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg><span>호스트: ' + this._escapeHtml(ev.host) + '</span></div>' : '') +
+                    (ev.createdBy ? '<div class="text-xs text-gray-400 mt-1">' + this._escapeHtml(ev.createdBy) + ' 등록</div>' : '') +
                     attendInfo +
                   '</div>' +
                   (function() {
@@ -343,8 +356,11 @@ const Calendar = {
                     var canEditThis = isAdmin || (isCreator && !isRegular);
                     var canDeleteThis = isAdmin || (isCreator && !isRegular);
                     var canBracket = (isAdmin || isCreator) && participants.length >= 2;
+                    var isHost = memberName && ev.host === memberName;
+                    var canSettlement = canEditThis || isHost;
+                    var hasSettlement = !!ev.settlement;
                     var showShare = isClub;
-                    if (!canEditThis && !canDeleteThis && !canBracket && !showShare) return '';
+                    if (!canEditThis && !canDeleteThis && !canBracket && !canSettlement && !showShare) return '';
                     return '<div class="flex gap-1 flex-shrink-0">' +
                       (showShare ?
                         '<button class="cal-share-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/60 transition text-gray-400 hover:text-blue-500" data-id="' + ev.id + '" title="공유">' +
@@ -353,6 +369,10 @@ const Calendar = {
                       (canBracket ?
                         '<button class="cal-bracket-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-100 transition text-gray-400 hover:text-blue-600" data-id="' + ev.id + '" title="대진표 생성">' +
                           '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 6v12M16 6v12"/></svg>' +
+                        '</button>' : '') +
+                      (canSettlement ?
+                        '<button class="cal-settlement-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-green-100 transition ' + (hasSettlement ? 'text-green-500' : 'text-gray-400') + ' hover:text-green-600" data-id="' + ev.id + '" title="정산서">' +
+                          '<svg class="w-3.5 h-3.5" fill="' + (hasSettlement ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>' +
                         '</button>' : '') +
                       (canEditThis ?
                         '<button class="cal-edit-btn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/60 transition text-gray-400" data-id="' + ev.id + '" title="수정">' +
@@ -432,6 +452,17 @@ const Calendar = {
         var events = Storage.getEvents();
         var ev = events.find(function(e) { return e.id === id; });
         if (ev) self._showEventModal(ev);
+      };
+    });
+
+    // 정산서 버튼
+    container.querySelectorAll('.cal-settlement-btn').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var id = this.dataset.id;
+        var events = Storage.getEvents();
+        var ev = events.find(function(e) { return e.id === id; });
+        if (ev) self._showSettlementModal(ev);
       };
     });
 
@@ -543,7 +574,8 @@ const Calendar = {
   _showEventModal(existingEvent) {
     var self = this;
     var isEdit = !!existingEvent;
-    var ev = existingEvent || { title: '', date: this._selectedDate, startTime: '', endTime: '', description: '', color: 'green', maxParticipants: 0 };
+    var defaultColor = this._selectedDate ? this._getColorForDate(this._selectedDate) : 'green';
+    var ev = existingEvent || { title: '', date: this._selectedDate, startTime: '', endTime: '', description: '', color: defaultColor, maxParticipants: 0 };
     // 구버전 호환: time 필드만 있는 경우
     if (ev.time && !ev.startTime) { ev.startTime = ev.time; ev.endTime = ''; }
 
@@ -561,13 +593,13 @@ const Calendar = {
       endHOpts += '<option value="' + hv + '"' + (hv === endH ? ' selected' : '') + '>' + hv + '</option>';
     }
 
-    // 코트 옵션 생성
+    // 코트 목록 + 선택된 코트
     var courts = Storage.getCourts();
-    var courtOptions = '<option value="">선택</option>';
-    for (var ci = 0; ci < courts.length; ci++) {
-      var selected = ev.title === courts[ci].name ? ' selected' : '';
-      courtOptions += '<option value="' + this._escapeAttr(courts[ci].name) + '"' + selected + '>' + this._escapeHtml(courts[ci].name) + '</option>';
-    }
+    var selectedCourts = ev.courts || [];
+
+    // 호스트용 멤버 목록
+    var players = Storage.getPlayers();
+    players.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ko'); });
 
     // 색상 옵션 HTML
     var colorOptions = '';
@@ -590,12 +622,27 @@ const Calendar = {
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden"></div>' +
         '<div class="p-4 space-y-2.5">' +
         '<h3 class="text-base font-bold text-gray-800">' + (isEdit ? '일정 수정' : '일정 추가') + '</h3>' +
-        // 제목 + 코트 (한 줄로 합침)
+        // 제목
+        '<input type="text" autocomplete="off" id="event-title" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" placeholder="일정 제목" value="' + this._escapeAttr(ev.title) + '">' +
+        // 코트 (칩 멀티선택) + 호스트 (검색)
         '<div class="flex gap-1.5">' +
           (courts.length > 0 ?
-            '<select id="event-court-select" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition bg-white flex-shrink-0">' + courtOptions + '</select>'
+            '<div class="flex-1 min-w-0">' +
+              '<div id="event-courts-wrap" class="flex flex-wrap gap-1 items-center px-2 py-1 border border-gray-200 rounded-lg min-h-[30px] cursor-pointer" title="코트 선택">' +
+                '<span class="text-xs text-gray-400 pointer-events-none" id="court-placeholder"' + (selectedCourts.length > 0 ? ' style="display:none"' : '') + '>코트 선택</span>' +
+              '</div>' +
+            '</div>'
           : '') +
-          '<input type="text" autocomplete="off" id="event-title" class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" placeholder="일정 제목" value="' + this._escapeAttr(ev.title) + '">' +
+          '<div class="relative flex-1 min-w-0">' +
+            '<input type="text" autocomplete="off" id="event-host-input" class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" placeholder="호스트 검색" value="' + this._escapeAttr(ev.host || '') + '">' +
+            '<input type="hidden" id="event-host-value" value="' + this._escapeAttr(ev.host || '') + '">' +
+            '<div id="event-host-dropdown" class="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-36 overflow-y-auto z-10 hidden"></div>' +
+          '</div>' +
+        '</div>' +
+        // 코트 예약자 (코트 선택 시 동적 표시)
+        '<div id="event-bookers-wrap" class="space-y-1 hidden">' +
+          '<div class="text-xs text-gray-500 font-medium">코트 예약자</div>' +
+          '<div id="event-bookers-list"></div>' +
         '</div>' +
         // 날짜 + 인원
         '<div class="flex gap-1.5 items-center">' +
@@ -632,13 +679,9 @@ const Calendar = {
             '</div>' +
           '</div>' +
           '<div class="flex flex-wrap gap-1 mt-1.5" id="time-presets">' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="06:00" data-end="08:00">06~08</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="08:00" data-end="10:00">08~10</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="10:00" data-end="12:00">10~12</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="12:00" data-end="14:00">12~14</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="14:00" data-end="16:00">14~16</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="16:00" data-end="18:00">16~18</button>' +
-            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="18:00" data-end="20:00">18~20</button>' +
+            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="09:00" data-end="12:00">09~12</button>' +
+            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="18:00" data-end="21:00">18~21</button>' +
+            '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="19:00" data-end="22:00">19~22</button>' +
             '<button type="button" class="time-preset-btn px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50 transition" data-start="20:00" data-end="22:00">20~22</button>' +
           '</div>' +
         '</div>' +
@@ -687,12 +730,188 @@ const Calendar = {
       document.getElementById('event-title').focus();
     }, 100);
 
-    // 코트 선택 → 제목에 반영
-    var courtSelect = document.getElementById('event-court-select');
-    if (courtSelect) {
-      courtSelect.addEventListener('change', function() {
-        if (this.value) {
-          document.getElementById('event-title').value = this.value;
+    // ── 날짜 변경 시 요일별 색상 자동 선택 ──
+    if (!isEdit) {
+      document.getElementById('event-date').addEventListener('change', function() {
+        var dateVal = this.value;
+        if (!dateVal) return;
+        var dayColor = self._getColorForDate(dateVal);
+        var radio = document.querySelector('input[name="event-color"][value="' + dayColor + '"]');
+        if (radio) radio.checked = true;
+      });
+    }
+
+    // ── 코트 멀티 선택 (칩 UI) ──
+    var courtsWrap = document.getElementById('event-courts-wrap');
+    var _selectedCourts = selectedCourts.slice(); // 복사
+    var courtPlaceholder = document.getElementById('court-placeholder');
+
+    function renderCourtChips() {
+      // 기존 칩 + 드롭다운 제거 (placeholder 유지)
+      courtsWrap.querySelectorAll('.court-chip, .court-dd').forEach(function(el) { el.remove(); });
+      if (courtPlaceholder) courtPlaceholder.style.display = _selectedCourts.length > 0 ? 'none' : '';
+      // 선택된 코트 칩
+      for (var ci = 0; ci < _selectedCourts.length; ci++) {
+        var chip = document.createElement('span');
+        chip.className = 'court-chip inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap';
+        chip.innerHTML = self._escapeHtml(_selectedCourts[ci]) + '<button class="court-chip-x ml-0.5 text-blue-400 hover:text-red-500 font-bold leading-none" data-court="' + self._escapeAttr(_selectedCourts[ci]) + '">&times;</button>';
+        courtsWrap.appendChild(chip);
+      }
+      // 미선택 코트가 있으면 + 버튼
+      var remaining = courts.filter(function(c) { return _selectedCourts.indexOf(c.name) < 0; });
+      if (remaining.length > 0) {
+        var addBtn = document.createElement('select');
+        addBtn.className = 'court-dd px-1 py-0.5 text-xs text-gray-400 bg-transparent border-none focus:outline-none cursor-pointer';
+        addBtn.innerHTML = '<option value="">+ 코트</option>' + remaining.map(function(c) {
+          return '<option value="' + self._escapeAttr(c.name) + '">' + self._escapeHtml(c.name) + '</option>';
+        }).join('');
+        courtsWrap.appendChild(addBtn);
+        addBtn.onchange = function() {
+          if (this.value && _selectedCourts.indexOf(this.value) < 0) {
+            _selectedCourts.push(this.value);
+            renderCourtChips();
+            renderCourtBookers();
+          }
+        };
+      }
+      // 칩 삭제 이벤트
+      courtsWrap.querySelectorAll('.court-chip-x').forEach(function(btn) {
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          var name = btn.dataset.court;
+          _selectedCourts = _selectedCourts.filter(function(c) { return c !== name; });
+          renderCourtChips();
+          renderCourtBookers();
+        };
+      });
+    }
+
+    // ── 코트 예약자 (코트별 멤버 검색) ──
+    var bookersWrap = document.getElementById('event-bookers-wrap');
+    var bookersList = document.getElementById('event-bookers-list');
+    var _courtBookers = {}; // { courtName: memberName }
+    // 기존 데이터 로드
+    var existingBookers = ev.courtBookers || {};
+    for (var bk in existingBookers) {
+      if (existingBookers.hasOwnProperty(bk)) _courtBookers[bk] = existingBookers[bk];
+    }
+
+    function renderCourtBookers() {
+      if (!bookersWrap || !bookersList) return;
+      if (_selectedCourts.length === 0) {
+        bookersWrap.classList.add('hidden');
+        return;
+      }
+      bookersWrap.classList.remove('hidden');
+      bookersList.innerHTML = '';
+      for (var bi = 0; bi < _selectedCourts.length; bi++) {
+        var courtName = _selectedCourts[bi];
+        var savedName = _courtBookers[courtName] || '';
+        var row = document.createElement('div');
+        row.className = 'flex items-center gap-1.5 mb-1';
+        row.innerHTML =
+          '<span class="text-xs text-gray-400 w-14 flex-shrink-0 truncate">' + self._escapeHtml(courtName) + '</span>' +
+          '<div class="relative flex-1 min-w-0">' +
+            '<input type="text" autocomplete="off" class="booker-input w-full px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-blue-700 transition" placeholder="예약자 검색" data-court="' + self._escapeAttr(courtName) + '" value="' + self._escapeAttr(savedName) + '">' +
+            '<div class="booker-dropdown absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10 hidden"></div>' +
+          '</div>';
+        bookersList.appendChild(row);
+
+        // 검색 이벤트 바인딩
+        (function(courtKey, inputEl, ddEl) {
+          function renderBookerDD(query) {
+            var q = (query || '').trim();
+            var filtered = players.filter(function(p) {
+              return matchesKoreanSearch(p.name, q);
+            });
+            if (filtered.length === 0) { ddEl.classList.add('hidden'); return; }
+            ddEl.innerHTML = filtered.map(function(p) {
+              return '<div class="booker-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 transition" data-name="' + self._escapeAttr(p.name) + '">' +
+                '<span class="inline-block w-4 text-center mr-1 ' + (p.gender === 'M' ? 'text-blue-500' : 'text-pink-500') + '">' + (p.gender === 'M' ? '\u2642' : '\u2640') + '</span>' +
+                self._escapeHtml(p.name) + '</div>';
+            }).join('');
+            ddEl.classList.remove('hidden');
+            ddEl.querySelectorAll('.booker-opt').forEach(function(opt) {
+              opt.onmousedown = function(e) {
+                e.preventDefault();
+                inputEl.value = opt.dataset.name;
+                _courtBookers[courtKey] = opt.dataset.name;
+                ddEl.classList.add('hidden');
+              };
+            });
+          }
+          inputEl.addEventListener('focus', function() { renderBookerDD(inputEl.value.trim()); });
+          inputEl.addEventListener('input', function() {
+            _courtBookers[courtKey] = '';
+            renderBookerDD(inputEl.value.trim());
+          });
+          inputEl.addEventListener('blur', function() {
+            setTimeout(function() { ddEl.classList.add('hidden'); }, 150);
+            var match = players.find(function(p) { return p.name === inputEl.value.trim(); });
+            if (match) {
+              _courtBookers[courtKey] = match.name;
+            } else {
+              _courtBookers[courtKey] = inputEl.value.trim();
+            }
+          });
+        })(courtName, row.querySelector('.booker-input'), row.querySelector('.booker-dropdown'));
+      }
+      // 삭제된 코트의 예약자 정리
+      for (var oldKey in _courtBookers) {
+        if (_courtBookers.hasOwnProperty(oldKey) && _selectedCourts.indexOf(oldKey) < 0) {
+          delete _courtBookers[oldKey];
+        }
+      }
+    }
+
+    if (courtsWrap) { renderCourtChips(); renderCourtBookers(); }
+
+    // ── 호스트 검색 선택 ──
+    var hostInput = document.getElementById('event-host-input');
+    var hostValue = document.getElementById('event-host-value');
+    var hostDropdown = document.getElementById('event-host-dropdown');
+
+    function renderHostDropdown(query) {
+      var q = (query || '').trim();
+      var filtered = players.filter(function(p) {
+        return matchesKoreanSearch(p.name, q);
+      });
+      if (filtered.length === 0 || (!q && hostValue.value)) {
+        hostDropdown.classList.add('hidden');
+        return;
+      }
+      hostDropdown.innerHTML = filtered.map(function(p) {
+        return '<div class="host-option px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 transition" data-name="' + self._escapeAttr(p.name) + '">' +
+          '<span class="inline-block w-4 text-center mr-1 ' + (p.gender === 'M' ? 'text-blue-500' : 'text-pink-500') + '">' + (p.gender === 'M' ? '♂' : '♀') + '</span>' +
+          self._escapeHtml(p.name) + '</div>';
+      }).join('');
+      hostDropdown.classList.remove('hidden');
+      hostDropdown.querySelectorAll('.host-option').forEach(function(opt) {
+        opt.onmousedown = function(e) {
+          e.preventDefault();
+          hostInput.value = opt.dataset.name;
+          hostValue.value = opt.dataset.name;
+          hostDropdown.classList.add('hidden');
+        };
+      });
+    }
+    if (hostInput) {
+      hostInput.addEventListener('focus', function() {
+        renderHostDropdown(hostInput.value.trim());
+      });
+      hostInput.addEventListener('input', function() {
+        hostValue.value = '';
+        renderHostDropdown(hostInput.value.trim());
+      });
+      hostInput.addEventListener('blur', function() {
+        setTimeout(function() { hostDropdown.classList.add('hidden'); }, 150);
+        // blur 시 입력값이 유효한 멤버가 아니면 클리어
+        var match = players.find(function(p) { return p.name === hostInput.value.trim(); });
+        if (match) {
+          hostValue.value = match.name;
+        } else if (hostInput.value.trim()) {
+          // 매칭되는 멤버 없으면 입력값 유지하되 hidden value 클리어
+          hostValue.value = '';
         }
       });
     }
@@ -805,6 +1024,8 @@ const Calendar = {
       var maxFemale = parseInt(document.getElementById('event-max-female').value) || 0;
       var colorRadio = document.querySelector('input[name="event-color"]:checked');
       var color = colorRadio ? colorRadio.value : 'green';
+      var hostVal = document.getElementById('event-host-value');
+      var host = hostVal ? hostVal.value : '';
 
       if (!title) {
         alert('제목을 입력하세요.');
@@ -830,7 +1051,10 @@ const Calendar = {
           color: color,
           maxParticipants: maxP,
           maxMale: maxMale,
-          maxFemale: maxFemale
+          maxFemale: maxFemale,
+          courts: _selectedCourts,
+          host: host,
+          courtBookers: _courtBookers
         };
         await Storage.editEvent(existingEvent.id, updatedFields);
       } else {
@@ -847,6 +1071,9 @@ const Calendar = {
           maxParticipants: maxP,
           maxMale: maxMale,
           maxFemale: maxFemale,
+          courts: _selectedCourts,
+          host: host,
+          courtBookers: _courtBookers,
           participants: [],
           waitlist: [],
           createdBy: creatorName
@@ -998,7 +1225,10 @@ const Calendar = {
   _highlightEvent(eventId) {
     var card = document.querySelector('[data-event-id="' + eventId + '"]');
     if (!card) return;
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 모바일에서 참석 버튼이 바로 보이도록 카드를 화면 상단에 배치
+    var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+    var cardTop = card.getBoundingClientRect().top + window.scrollY - headerH - 12;
+    window.scrollTo({ top: cardTop, behavior: 'smooth' });
     card.classList.add('cal-event-highlight');
     setTimeout(function() { card.classList.remove('cal-event-highlight'); }, 3000);
   },
@@ -1063,7 +1293,7 @@ const Calendar = {
     for (var di = 0; di < dates.length; di++) {
       var dateStr = dates[di];
       var dayLabel = dateStr === today ? '오늘' : this._formatDisplayDate(dateStr);
-      html += '<div class="text-xs font-semibold text-gray-500 cursor-pointer hover:text-blue-600 transition' +
+      html += '<div class="text-sm font-bold text-gray-700 cursor-pointer hover:text-blue-600 transition' +
         (di > 0 ? ' mt-3' : '') + ' mb-1.5" data-upcoming-date="' + dateStr + '">' + dayLabel + '</div>';
       html += this._buildEventsList(dateGroups[dateStr], isAdmin);
     }
@@ -1299,6 +1529,11 @@ const Calendar = {
     var defaultStart = ev.startTime || '06:00';
     var defaultEnd = ev.endTime || '09:00';
 
+    // 이벤트에서 코트/시간 자동 결정
+    var eventCourtCount = (ev.courts && ev.courts.length > 0) ? ev.courts.length : 0;
+    var hasEventCourts = eventCourtCount > 0;
+    var hasEventTime = !!(ev.startTime && ev.endTime);
+
     var modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
@@ -1313,6 +1548,13 @@ const Calendar = {
           '<span class="text-sm font-medium text-pink-600">여 ' + females.length + '명</span>' +
           '<span class="text-sm text-gray-500">총 ' + participants.length + '명</span>' +
         '</div>' +
+        // 일정 정보 (코트/시간 요약)
+        (hasEventCourts || hasEventTime ?
+          '<div class="bg-gray-50 rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">' +
+            (hasEventCourts ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + eventCourtCount + '</b>코트 (' + ev.courts.map(function(c) { return self._escapeHtml(c); }).join(', ') + ')</span>' : '') +
+            (hasEventTime ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + defaultStart + ' ~ ' + defaultEnd + '</b></span>' : '') +
+          '</div>'
+        : '') +
         // 복식/단식
         '<div>' +
           '<label class="block text-xs font-semibold text-gray-500 mb-1.5">경기 방식</label>' +
@@ -1327,29 +1569,38 @@ const Calendar = {
             '</label>' +
           '</div>' +
         '</div>' +
-        // 코트 수
-        '<div>' +
-          '<label class="block text-xs font-semibold text-gray-500 mb-1.5">코트 수</label>' +
-          '<div class="flex flex-wrap gap-1.5">' +
-            [1,2,3,4,5,6,7,8].map(function(n) {
-              return '<label class="cursor-pointer">' +
-                '<input type="radio" name="bm-courts" value="' + n + '"' + (n === 2 ? ' checked' : '') + ' class="sr-only peer">' +
-                '<div class="w-9 h-9 flex items-center justify-center border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-bold">' + n + '</div>' +
-              '</label>';
-            }).join('') +
-          '</div>' +
-        '</div>' +
-        // 시간
-        '<div class="flex gap-2">' +
-          '<div class="flex-1">' +
-            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">시작</label>' +
-            '<select id="bm-start" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
-          '</div>' +
-          '<div class="flex-1">' +
-            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">종료</label>' +
-            '<select id="bm-end" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
-          '</div>' +
-        '</div>' +
+        // 코트 수 (이벤트에 코트가 없을 때만 표시)
+        (hasEventCourts ?
+          '<input type="hidden" name="bm-courts" value="' + eventCourtCount + '" checked>'
+        :
+          '<div>' +
+            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">코트 수</label>' +
+            '<div class="flex flex-wrap gap-1.5">' +
+              [1,2,3,4,5,6,7,8].map(function(n) {
+                return '<label class="cursor-pointer">' +
+                  '<input type="radio" name="bm-courts" value="' + n + '"' + (n === 2 ? ' checked' : '') + ' class="sr-only peer">' +
+                  '<div class="w-9 h-9 flex items-center justify-center border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-bold">' + n + '</div>' +
+                '</label>';
+              }).join('') +
+            '</div>' +
+          '</div>'
+        ) +
+        // 시간 (이벤트에 시간이 없을 때만 표시)
+        (hasEventTime ?
+          '<input type="hidden" id="bm-start" value="' + defaultStart + '">' +
+          '<input type="hidden" id="bm-end" value="' + defaultEnd + '">'
+        :
+          '<div class="flex gap-2">' +
+            '<div class="flex-1">' +
+              '<label class="block text-xs font-semibold text-gray-500 mb-1.5">시작</label>' +
+              '<select id="bm-start" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
+            '</div>' +
+            '<div class="flex-1">' +
+              '<label class="block text-xs font-semibold text-gray-500 mb-1.5">종료</label>' +
+              '<select id="bm-end" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
+            '</div>' +
+          '</div>'
+        ) +
         // 옵션
         '<div class="flex items-center justify-end gap-4">' +
           '<label class="flex items-center gap-1.5 cursor-pointer">' +
@@ -1400,12 +1651,21 @@ const Calendar = {
       };
     });
 
+    // 코트 수 읽기 헬퍼
+    function getCourtCount() {
+      if (hasEventCourts) return eventCourtCount;
+      var checked = modal.querySelector('input[name="bm-courts"]:checked');
+      return checked ? parseInt(checked.value) : 2;
+    }
+
     // 코트 수, 시간, 섞어 옵션 변경 시 게임 종류 갱신
     modal.querySelectorAll('input[name="bm-courts"]').forEach(function(r) {
       r.onchange = function() { renderTypeSection(); };
     });
-    modal.querySelector('#bm-start').onchange = function() { renderTypeSection(); };
-    modal.querySelector('#bm-end').onchange = function() { renderTypeSection(); };
+    var bmStartEl = modal.querySelector('#bm-start');
+    var bmEndEl = modal.querySelector('#bm-end');
+    if (bmStartEl && bmStartEl.tagName === 'SELECT') bmStartEl.onchange = function() { renderTypeSection(); };
+    if (bmEndEl && bmEndEl.tagName === 'SELECT') bmEndEl.onchange = function() { renderTypeSection(); };
     modal.querySelector('#bm-mixed').onchange = function() { renderTypeSection(); };
 
     // 게임 종류 자동/수동 설정 렌더링
@@ -1413,7 +1673,7 @@ const Calendar = {
       var section = modal.querySelector('#bm-type-section');
       var isSingles = modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles';
       var allowMixed = modal.querySelector('#bm-mixed').checked;
-      var courts = parseInt(modal.querySelector('input[name="bm-courts"]:checked').value);
+      var courts = getCourtCount();
       var st = modal.querySelector('#bm-start').value;
       var et = modal.querySelector('#bm-end').value;
 
@@ -1562,7 +1822,7 @@ const Calendar = {
     modal.querySelector('.bm-submit').onclick = function() {
       var startTime = modal.querySelector('#bm-start').value;
       var endTime = modal.querySelector('#bm-end').value;
-      var courts = parseInt(modal.querySelector('input[name="bm-courts"]:checked').value);
+      var courts = getCourtCount();
       var isSingles = modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles';
       var allowMixed = modal.querySelector('#bm-mixed').checked;
 
@@ -1650,6 +1910,557 @@ const Calendar = {
       closeModal();
       App.navigate('active', tournament.id);
     };
+  },
+
+  _showSettlementModal(ev) {
+    var self = this;
+    var participants = ev.participants || [];
+    var courts = ev.courts || [];
+    var courtCount = courts.length;
+    var saved = ev.settlement || null;
+    var memberName = typeof App !== 'undefined' ? App.getMemberName() : '';
+    var isHost = memberName && ev.host === memberName;
+
+    // 호스트가 아닌 경우: 저장된 정산서 미리보기만 표시
+    if (!isHost) {
+      return self._showSettlementReadonly(ev);
+    }
+
+    // 날짜 파싱 및 요일 계산
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    var dateParts = (ev.date || '').split('-');
+    var month = dateParts.length >= 2 ? parseInt(dateParts[1]) : '';
+    var day = dateParts.length >= 3 ? parseInt(dateParts[2]) : '';
+    var dayOfWeek = '';
+    if (dateParts.length === 3) {
+      var dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+      dayOfWeek = dayNames[dateObj.getDay()];
+    }
+
+    // 시간 포맷
+    var startH = ev.startTime ? parseInt(ev.startTime.split(':')[0]) : '';
+    var endH = ev.endTime ? parseInt(ev.endTime.split(':')[0]) : '';
+    var timeStr = (startH !== '' && endH !== '') ? (startH + '~' + endH + '시') : '';
+
+    // 날짜 표시 문자열
+    var dateDisplay = saved ? saved.date : '';
+    if (!dateDisplay && month && day) {
+      dateDisplay = month + '/' + day + '(' + dayOfWeek + ')';
+      if (timeStr) dateDisplay += ' ' + timeStr;
+    }
+
+    // 코트 표시 문자열
+    var courtDisplay = saved ? saved.courts : (courts.length > 0 ? courts.join(', ') : '');
+
+    // 코트 예약자 입력 행 생성 (정산서 저장값 > 이벤트 courtBookers > 빈값)
+    var bookerCount = Math.max(courtCount, 1);
+    var savedBookers = saved ? (saved.bookers || []) : [];
+    var evBookers = ev.courtBookers || {};
+    var courtBookerRows = '';
+    for (var ci = 0; ci < bookerCount; ci++) {
+      var courtLabel = courts[ci] || ((ci + 1) + '코트');
+      var bookerVal = savedBookers[ci] || (courts[ci] && evBookers[courts[ci]]) || '';
+      courtBookerRows += '<div class="flex items-center gap-1.5 mb-1">' +
+        '<span class="text-xs text-gray-400 flex-shrink-0 truncate" style="max-width:60px">' + self._escapeHtml(courtLabel) + '</span>' +
+        '<input type="text" class="stl-court-booker flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg" placeholder="예약자 이름" data-court-idx="' + ci + '" value="' + self._escapeAttr(bookerVal) + '">' +
+      '</div>';
+    }
+
+    // 시간 기반 코트비 자동 계산 (2시간=18600, 3시간=27400)
+    var autoFee = '';
+    if (startH !== '' && endH !== '') {
+      var hours = endH - startH;
+      if (hours === 2) autoFee = 18600;
+      else if (hours >= 3) autoFee = 27400;
+    }
+
+    // 저장된 값 또는 자동 계산값
+    var feeVal = saved ? (saved.fee || '') : autoFee;
+    var ballType = saved ? (saved.ballType || 'club') : 'club';
+    var ballCount = saved ? (saved.ballCount || 0) : 0;
+    var guestCount = saved ? (saved.guestCount || 0) : 0;
+    var guestFee = saved ? (saved.guestFee || 6000) : 6000;
+    var autoTotal = autoFee ? autoFee * (courtCount || 1) : 0;
+    var autoRequest = autoTotal ? ('코트지원비 : ' + autoTotal.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원 청구 요청') : '';
+    var requestVal = saved ? (saved.request || '') : autoRequest;
+    var peopleVal = saved ? (saved.people || participants.length) : participants.length;
+    var hostVal = saved ? (saved.host || ev.host || '') : (ev.host || '');
+
+    // 저장 메타 정보
+    var savedInfo = '';
+    if (saved && saved.savedBy) {
+      var savedAtStr = '';
+      if (saved.savedAt) {
+        var sd = new Date(saved.savedAt);
+        savedAtStr = ' (' + (sd.getMonth() + 1) + '/' + sd.getDate() + ' ' + String(sd.getHours()).padStart(2, '0') + ':' + String(sd.getMinutes()).padStart(2, '0') + ')';
+      }
+      savedInfo = '<div class="text-xs text-green-600 text-center mt-1">' + self._escapeHtml(saved.savedBy) + '님이 작성' + savedAtStr + '</div>';
+    }
+
+    lockScroll();
+
+    var modal = document.createElement('div');
+    modal.id = 'settlement-modal';
+    modal.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center';
+    modal.innerHTML =
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:90vh">' +
+        '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0"></div>' +
+
+        // 헤더
+        '<div class="px-3 pt-3 pb-2 flex-shrink-0 border-b border-gray-100">' +
+          '<h3 class="text-base font-bold text-gray-800 text-center">' + month + '월 코트 지원비 정산서</h3>' +
+          '<div class="text-xs text-gray-400 text-center mt-0.5">' + self._escapeHtml(ev.title) + '</div>' +
+          savedInfo +
+        '</div>' +
+
+        // 스크롤 영역
+        '<div class="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">' +
+
+          // 자동입력 영역 (읽기전용)
+          '<div class="bg-gray-50 rounded-xl p-2.5 space-y-1.5">' +
+            '<div class="text-xs font-semibold text-gray-500 mb-1">일정 정보</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="text-xs text-gray-400 w-14 flex-shrink-0">날짜</span>' +
+              '<span id="stl-date" class="flex-1 text-xs text-gray-700">' + self._escapeHtml(dateDisplay) + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="text-xs text-gray-400 w-14 flex-shrink-0">코트</span>' +
+              '<span id="stl-courts" class="flex-1 text-xs text-gray-700">' + self._escapeHtml(courtDisplay) + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="text-xs text-gray-400 w-14 flex-shrink-0">인원</span>' +
+              '<span id="stl-people" class="flex-1 text-xs text-gray-700">' + peopleVal + '명</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="text-xs text-gray-400 w-14 flex-shrink-0">호스트</span>' +
+              '<span id="stl-host" class="flex-1 text-xs text-gray-700">' + self._escapeHtml(hostVal) + '</span>' +
+            '</div>' +
+          '</div>' +
+
+          // 코트 예약자
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700">코트 예약자</div>' +
+            '<div id="stl-bookers">' + courtBookerRows + '</div>' +
+          '</div>' +
+
+          // 코트지원비 (읽기전용)
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700">코트지원비 (예약지원금 1,000 포함)</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              '<input type="number" id="stl-fee" class="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg bg-gray-50 text-gray-500" value="' + feeVal + '" readonly>' +
+              '<span class="text-xs text-gray-400 flex-shrink-0">원</span>' +
+            '</div>' +
+            '<div id="stl-fee-calc" class="mt-1 space-y-0.5"></div>' +
+          '</div>' +
+
+          // 캔볼 사용
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700">캔볼 사용</div>' +
+            '<div class="flex items-center gap-3">' +
+              '<label class="flex items-center gap-1 text-xs"><input type="radio" name="stl-ball" value="club"' + (ballType === 'club' ? ' checked' : '') + ' class="w-3.5 h-3.5"> 클럽구</label>' +
+              '<label class="flex items-center gap-1 text-xs"><input type="radio" name="stl-ball" value="personal"' + (ballType === 'personal' ? ' checked' : '') + ' class="w-3.5 h-3.5"> 개인구</label>' +
+              '<div class="flex items-center gap-0.5 ml-auto">' +
+                '<button type="button" class="stl-minus w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 text-sm font-bold" data-target="stl-ball-count">&minus;</button>' +
+                '<span id="stl-ball-count" class="w-8 text-center text-xs font-semibold text-gray-700">' + ballCount + '</span>' +
+                '<button type="button" class="stl-plus w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 text-sm font-bold" data-target="stl-ball-count">&plus;</button>' +
+                '<span class="text-xs text-gray-400 ml-0.5">캔</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // 게스트
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700">게스트</div>' +
+            '<div class="flex items-center gap-2">' +
+              '<span class="text-xs text-gray-500 flex-shrink-0">인원</span>' +
+              '<button type="button" class="stl-minus w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 text-sm font-bold" data-target="stl-guest-count">&minus;</button>' +
+              '<span id="stl-guest-count" class="w-6 text-center text-xs font-semibold text-gray-700">' + guestCount + '</span>' +
+              '<button type="button" class="stl-plus w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 text-sm font-bold" data-target="stl-guest-count">&plus;</button>' +
+              '<span class="text-xs text-gray-400 flex-shrink-0">명</span>' +
+              '<span class="text-xs text-gray-300 flex-shrink-0">|</span>' +
+              '<span class="text-xs text-gray-500 flex-shrink-0">1인</span>' +
+              '<input type="number" id="stl-guest-fee" class="w-16 px-1.5 py-1 text-xs border border-gray-200 rounded-lg text-center bg-gray-50 text-gray-500" value="' + guestFee + '" readonly>' +
+              '<span class="text-xs text-gray-400 flex-shrink-0">원</span>' +
+            '</div>' +
+          '</div>' +
+
+          // 정산 요청 항목
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700">정산 요청 항목</div>' +
+            '<input type="text" id="stl-request" class="w-full px-2 py-1 text-xs border border-gray-200 rounded-lg" placeholder="예: 코트지원비 18,600원 청구 요청" value="' + self._escapeAttr(requestVal) + '">' +
+          '</div>' +
+
+          // 미리보기
+          '<div class="space-y-1">' +
+            '<div class="text-xs font-semibold text-gray-700 flex items-center justify-between">' +
+              '<span>미리보기</span>' +
+              '<button id="stl-toggle-preview" class="text-xs text-blue-500 hover:text-blue-700">펼치기</button>' +
+            '</div>' +
+            '<pre id="stl-preview" class="hidden bg-gray-50 rounded-xl p-3 text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto border border-gray-100" style="font-family:inherit"></pre>' +
+          '</div>' +
+
+        '</div>' +
+
+        // 하단 버튼
+        '<div class="px-3 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
+          '<button class="stl-cancel flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition">닫기</button>' +
+          '<button class="stl-copy py-2 px-3 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition">복사</button>' +
+          '<button class="stl-save flex-1 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition">저장</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    // 숫자 포맷 (천단위 콤마)
+    var formatNum = function(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    };
+
+    // 코트비 계산 업데이트
+    var updateFeeCalc = function() {
+      var fee = parseInt(document.getElementById('stl-fee').value) || 0;
+      var calcEl = document.getElementById('stl-fee-calc');
+      var html = '';
+      var cnt = courtCount || 1;
+      for (var i = 1; i <= cnt; i++) {
+        html += '<div class="text-xs text-gray-600">' +
+          formatNum(fee) + '원 × ' + i + '코트 = <b>' + formatNum(fee * i) + '</b>원' +
+        '</div>';
+      }
+      calcEl.innerHTML = html;
+    };
+
+    // 폼 데이터 수집
+    var collectFormData = function() {
+      var bookers = [];
+      modal.querySelectorAll('.stl-court-booker').forEach(function(input) {
+        bookers.push(input.value.trim());
+      });
+      return {
+        date: document.getElementById('stl-date').textContent.trim(),
+        courts: document.getElementById('stl-courts').textContent.trim(),
+        people: parseInt(document.getElementById('stl-people').textContent) || 0,
+        host: document.getElementById('stl-host').textContent.trim(),
+        bookers: bookers,
+        fee: parseInt(document.getElementById('stl-fee').value) || 0,
+        ballType: modal.querySelector('input[name="stl-ball"]:checked').value,
+        ballCount: parseInt(document.getElementById('stl-ball-count').textContent) || 0,
+        guestCount: parseInt(document.getElementById('stl-guest-count').textContent) || 0,
+        guestFee: parseInt(document.getElementById('stl-guest-fee').value) || 0,
+        request: document.getElementById('stl-request').value.trim(),
+        savedBy: typeof App !== 'undefined' ? App.getMemberName() : '',
+        savedAt: new Date().toISOString()
+      };
+    };
+
+    // 정산서 텍스트 생성
+    var generateText = function() {
+      var d = collectFormData();
+      var cnt = courtCount || 1;
+
+      var text = '';
+      text += '\u27a1\ufe0f ' + month + '월 코트 지원비 정산서\n\n';
+      text += '\u2611\ufe0f 이용 날짜 : ' + d.date + '\n';
+      text += '\u2611\ufe0f 코트명 및 코트 : ' + d.courts + '\n';
+      text += '\u2611\ufe0f 이용 인원 : ' + d.people + '명\n\n';
+      text += '\ud83d\udc65 호스트 : ' + d.host + '\n\n';
+
+      text += '\ud83e\uddfe 코트 예약자 : 입금 완료\n';
+      for (var bi = 0; bi < d.bookers.length; bi++) {
+        text += (bi + 1) + '코트 ' + (d.bookers[bi] || '-');
+        if (bi < d.bookers.length - 1) text += ',';
+        text += '\n';
+      }
+      text += '\n';
+
+      text += '\ud83d\udcb0 코트지원비 : \n';
+      for (var fi = 1; fi <= cnt; fi++) {
+        text += formatNum(d.fee) + '원 \u00d7 ' + fi + '코트 = ' + formatNum(d.fee * fi) + '원\n';
+      }
+      text += '\n';
+
+      text += '\ud83c\udfbe 캔볼 사용 :\n';
+      text += (d.ballType === 'club' ? '클럽구 사용' : '개인구 사용') + '\n';
+      text += d.ballCount + '캔\n\n';
+
+      text += '\ud83d\udc6b 게스트 : \n';
+      if (d.guestCount === 0) {
+        text += '없음\n';
+      } else {
+        var totalGuestFee = d.guestCount * d.guestFee;
+        text += d.guestCount + '명 (' + formatNum(totalGuestFee) + '원 모임통장 입완)\n';
+      }
+      text += '\n';
+
+      text += '\ud83d\udca1 정산 요청 항목\n\n';
+      if (d.request) {
+        text += '< ' + d.request + ' >';
+      } else if (d.fee > 0) {
+        text += '< 코트지원비 : ' + formatNum(d.fee) + '원 청구 요청 >';
+      }
+
+      return text;
+    };
+
+    // 미리보기 업데이트
+    var updatePreview = function() {
+      var previewEl = document.getElementById('stl-preview');
+      if (!previewEl.classList.contains('hidden')) {
+        previewEl.textContent = generateText();
+      }
+    };
+
+    // 이벤트 바인딩
+    document.getElementById('stl-fee').oninput = function() {
+      updateFeeCalc();
+      var reqEl = document.getElementById('stl-request');
+      var fee = parseInt(this.value) || 0;
+      if (!reqEl._userEdited && fee > 0) {
+        var total = fee * (courtCount || 1);
+        reqEl.value = '코트지원비 : ' + formatNum(total) + '원 청구 요청';
+      }
+      updatePreview();
+    };
+
+    document.getElementById('stl-request').oninput = function() {
+      this._userEdited = true;
+      updatePreview();
+    };
+
+    modal.querySelectorAll('input, select').forEach(function(el) {
+      el.addEventListener('input', updatePreview);
+      el.addEventListener('change', updatePreview);
+    });
+
+    // +/- 스테퍼 버튼
+    modal.querySelectorAll('.stl-plus').forEach(function(btn) {
+      btn.onclick = function() {
+        var el = document.getElementById(btn.dataset.target);
+        var cur = parseInt(el.textContent) || 0;
+        el.textContent = cur + 1;
+        updatePreview();
+      };
+    });
+    modal.querySelectorAll('.stl-minus').forEach(function(btn) {
+      btn.onclick = function() {
+        var el = document.getElementById(btn.dataset.target);
+        var cur = parseInt(el.textContent) || 0;
+        if (cur > 0) el.textContent = cur - 1;
+        updatePreview();
+      };
+    });
+
+    // 미리보기 토글
+    document.getElementById('stl-toggle-preview').onclick = function() {
+      var previewEl = document.getElementById('stl-preview');
+      var isHidden = previewEl.classList.contains('hidden');
+      previewEl.classList.toggle('hidden');
+      this.textContent = isHidden ? '접기' : '펼치기';
+      if (isHidden) {
+        previewEl.textContent = generateText();
+      }
+    };
+
+    // 닫기
+    var closeModal = function() {
+      modal.remove();
+      unlockScroll();
+    };
+    modal.querySelector('.stl-cancel').onclick = closeModal;
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+    // 복사
+    modal.querySelector('.stl-copy').onclick = function() {
+      var text = generateText();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          var btn = modal.querySelector('.stl-copy');
+          var orig = btn.textContent;
+          btn.textContent = '완료';
+          btn.classList.replace('bg-gray-200', 'bg-green-100');
+          setTimeout(function() {
+            btn.textContent = orig;
+            btn.classList.replace('bg-green-100', 'bg-gray-200');
+          }, 1500);
+        });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        var btn2 = modal.querySelector('.stl-copy');
+        var orig2 = btn2.textContent;
+        btn2.textContent = '완료';
+        setTimeout(function() { btn2.textContent = orig2; }, 1500);
+      }
+    };
+
+    // 저장
+    modal.querySelector('.stl-save').onclick = async function() {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '저장 중...';
+
+      var data = collectFormData();
+      var ok = await Storage.saveSettlement(ev.id, data);
+
+      if (ok) {
+        btn.textContent = '저장됨!';
+        btn.classList.replace('bg-green-500', 'bg-gray-400');
+        setTimeout(function() {
+          closeModal();
+          self.render(self._container);
+        }, 800);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '저장';
+        alert('저장 권한이 없습니다. 호스트 또는 관리자만 저장할 수 있습니다.');
+      }
+    };
+
+    // 저장된 정산서의 정산 요청 항목은 사용자가 편집한 것으로 간주
+    if (saved && requestVal) {
+      document.getElementById('stl-request')._userEdited = true;
+    }
+
+    // 초기 코트비 계산
+    updateFeeCalc();
+  },
+
+  _showSettlementReadonly(ev) {
+    var self = this;
+    var saved = ev.settlement || null;
+    var courts = ev.courts || [];
+    var courtCount = courts.length || 1;
+
+    var dateParts = (ev.date || '').split('-');
+    var month = dateParts.length >= 2 ? parseInt(dateParts[1]) : '';
+
+    var formatNum = function(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    };
+
+    // 정산서 텍스트 생성
+    var text = '';
+    if (saved) {
+      var d = saved;
+      var cnt = courtCount;
+      text += '\u27a1\ufe0f ' + month + '월 코트 지원비 정산서\n\n';
+      text += '\u2611\ufe0f 이용 날짜 : ' + (d.date || '') + '\n';
+      text += '\u2611\ufe0f 코트명 및 코트 : ' + (d.courts || '') + '\n';
+      text += '\u2611\ufe0f 이용 인원 : ' + (d.people || 0) + '명\n\n';
+      text += '\ud83d\udc65 호스트 : ' + (d.host || '') + '\n\n';
+
+      var bookers = d.bookers || [];
+      text += '\ud83e\uddfe 코트 예약자 : 입금 완료\n';
+      for (var bi = 0; bi < bookers.length; bi++) {
+        text += (bi + 1) + '코트 ' + (bookers[bi] || '-');
+        if (bi < bookers.length - 1) text += ',';
+        text += '\n';
+      }
+      text += '\n';
+
+      var fee = d.fee || 0;
+      text += '\ud83d\udcb0 코트지원비 : \n';
+      for (var fi = 1; fi <= cnt; fi++) {
+        text += formatNum(fee) + '원 \u00d7 ' + fi + '코트 = ' + formatNum(fee * fi) + '원\n';
+      }
+      text += '\n';
+
+      text += '\ud83c\udfbe 캔볼 사용 :\n';
+      text += ((d.ballType || 'club') === 'club' ? '클럽구 사용' : '개인구 사용') + '\n';
+      text += (d.ballCount || 0) + '캔\n\n';
+
+      text += '\ud83d\udc6b 게스트 : \n';
+      if (!d.guestCount) {
+        text += '없음\n';
+      } else {
+        var totalGF = d.guestCount * (d.guestFee || 0);
+        text += d.guestCount + '명 (' + formatNum(totalGF) + '원 모임통장 입완)\n';
+      }
+      text += '\n';
+
+      text += '\ud83d\udca1 정산 요청 항목\n\n';
+      if (d.request) {
+        text += '< ' + d.request + ' >';
+      } else if (fee > 0) {
+        text += '< 코트지원비 : ' + formatNum(fee) + '원 청구 요청 >';
+      }
+    }
+
+    // 저장 메타 정보
+    var savedMeta = '';
+    if (saved && saved.savedBy) {
+      var savedAtStr = '';
+      if (saved.savedAt) {
+        var sd = new Date(saved.savedAt);
+        savedAtStr = ' (' + (sd.getMonth() + 1) + '/' + sd.getDate() + ' ' + String(sd.getHours()).padStart(2, '0') + ':' + String(sd.getMinutes()).padStart(2, '0') + ')';
+      }
+      savedMeta = '<div class="text-xs text-green-600 text-center mt-1">' + self._escapeHtml(saved.savedBy) + '님이 작성' + savedAtStr + '</div>';
+    }
+
+    lockScroll();
+
+    var modal = document.createElement('div');
+    modal.id = 'settlement-modal';
+    modal.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center';
+    modal.innerHTML =
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:90vh">' +
+        '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0"></div>' +
+        '<div class="px-4 pt-3 pb-2 flex-shrink-0 border-b border-gray-100">' +
+          '<h3 class="text-base font-bold text-gray-800 text-center">' + month + '월 코트 지원비 정산서</h3>' +
+          '<div class="text-xs text-gray-400 text-center mt-0.5">' + self._escapeHtml(ev.title) + '</div>' +
+          savedMeta +
+        '</div>' +
+        '<div class="flex-1 overflow-y-auto px-4 py-3 min-h-0">' +
+          (saved
+            ? '<pre class="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100" style="font-family:inherit">' + self._escapeHtml(text) + '</pre>'
+            : '<div class="text-center py-8 text-gray-400 text-sm">아직 작성된 정산서가 없습니다.</div>'
+          ) +
+        '</div>' +
+        '<div class="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
+          '<button class="stl-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition">닫기</button>' +
+          (saved ? '<button class="stl-copy flex-1 py-2.5 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition">복사</button>' : '') +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    var closeModal = function() {
+      modal.remove();
+      unlockScroll();
+    };
+    modal.querySelector('.stl-cancel').onclick = closeModal;
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+    var copyBtn = modal.querySelector('.stl-copy');
+    if (copyBtn) {
+      copyBtn.onclick = function() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function() {
+            copyBtn.textContent = '완료';
+            copyBtn.classList.replace('bg-gray-200', 'bg-green-100');
+            setTimeout(function() {
+              copyBtn.textContent = '복사';
+              copyBtn.classList.replace('bg-green-100', 'bg-gray-200');
+            }, 1500);
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.cssText = 'position:fixed;left:-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          copyBtn.textContent = '완료';
+          setTimeout(function() { copyBtn.textContent = '복사'; }, 1500);
+        }
+      };
+    }
   },
 
   _escapeHtml(text) {

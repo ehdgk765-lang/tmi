@@ -441,6 +441,66 @@ const Storage = {
     return true;
   },
 
+  // 정산서 저장 (호스트 또는 관리자만 가능)
+  async saveSettlement(eventId, settlementData) {
+    var self = this;
+    var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
+    var parent = this._getParent();
+
+    var checkPermission = function(ev) {
+      if (typeof RolesConfig !== 'undefined' && RolesConfig.hasAdminAccess()) return true;
+      if (ev.host && ev.host === myName) return true;
+      return false;
+    };
+
+    if (!parent) {
+      var events = this._data.events;
+      for (var i = 0; i < events.length; i++) {
+        if (events[i].id === eventId) {
+          if (!checkPermission(events[i])) return false;
+          events[i].settlement = settlementData;
+          break;
+        }
+      }
+      this._setLocal('events', events);
+      this._syncToFirestore('events');
+      return true;
+    }
+
+    var docRef = parent.collection('data').doc('events');
+    try {
+      var finalEvents = null;
+      await fbDb.runTransaction(function(transaction) {
+        return transaction.get(docRef).then(function(doc) {
+          var events = [];
+          if (doc.exists) {
+            var d = doc.data();
+            events = d.json ? JSON.parse(d.json) : [];
+          }
+          for (var i = 0; i < events.length; i++) {
+            if (events[i].id === eventId) {
+              if (!checkPermission(events[i])) return;
+              events[i].settlement = settlementData;
+              break;
+            }
+          }
+          transaction.set(docRef, { json: JSON.stringify(events) });
+          finalEvents = events;
+        });
+      });
+      if (finalEvents) {
+        self._setLocal('events', finalEvents);
+        self._writing.events = self._json.events;
+        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      }
+      return true;
+    } catch (err) {
+      console.error('saveSettlement transaction error:', err);
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('정산서 저장에 실패했습니다. 다시 시도해주세요.', 'error');
+      return false;
+    }
+  },
+
   // 단일 이벤트 삭제 (Firestore Transaction)
   async removeEvent(eventId) {
     var self = this;
