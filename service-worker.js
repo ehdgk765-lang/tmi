@@ -1,5 +1,5 @@
 // service-worker.js - PWA 오프라인 캐시 + 앱 쉘 관리
-const CACHE_VERSION = '1.7.7';
+const CACHE_VERSION = '1.7.8';
 const CACHE_NAME = 'tmi-' + CACHE_VERSION;
 
 // 앱 쉘: 로컬 파일만 프리캐시 (CDN은 런타임 캐시)
@@ -25,6 +25,7 @@ const APP_SHELL = [
   'js/custom-bracket.js',
   'js/calendar.js',
   'js/members.js',
+  'js/settlement-list.js',
   'js/stats.js',
   'js/app.js',
   'js/auth.js'

@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20260915';
+    var APP_VERSION = '20260915-1';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -151,6 +151,12 @@
             </svg>
             <span>설정</span>
           </button>
+          <button id="menu-settlement" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition hidden">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+            </svg>
+            <span>정산</span>
+          </button>
           <button id="menu-stats" class="menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-800 transition hidden">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -259,6 +265,7 @@
       'js/schedule.js',
       'js/custom-bracket.js',
       'js/calendar.js',
+      'js/settlement-list.js',
       'js/stats.js',
       'js/members.js',
       'js/app.js',
@@ -343,6 +350,12 @@
       document.getElementById('menu-settings').addEventListener('click', function() {
         closeMenu();
         App.showSettings();
+      });
+
+      // 메뉴: 정산
+      document.getElementById('menu-settlement').addEventListener('click', function() {
+        closeMenu();
+        App.showSettlement();
       });
 
       // 메뉴: 통계

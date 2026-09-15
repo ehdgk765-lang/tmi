@@ -334,6 +334,12 @@ const App = {
       settingsBtn.classList.toggle('hidden', !RolesConfig.hasAdminAccess());
     }
 
+    // 정산 메뉴: 관리자만 표시
+    var settlementBtn = document.getElementById('menu-settlement');
+    if (settlementBtn) {
+      settlementBtn.classList.toggle('hidden', !RolesConfig.isAdmin());
+    }
+
     // 통계 메뉴: 관리자 + 권한 부여 멤버 표시 (탭에서 사이드 메뉴로 이동)
     var statsBtn = document.getElementById('menu-stats');
     if (statsBtn) {
@@ -444,6 +450,19 @@ const App = {
     this._updateMenuActive();
     var content = document.getElementById('main-content');
     Stats.render(content);
+  },
+
+  showSettlement() {
+    this._viewMode = 'settlement';
+    var tabNav = document.querySelector('header nav');
+    if (tabNav) tabNav.style.display = 'none';
+    document.querySelectorAll('[data-tab]').forEach(function(tab) {
+      tab.classList.remove('tab-active');
+      tab.classList.add('text-gray-500');
+    });
+    this._updateMenuActive();
+    var content = document.getElementById('main-content');
+    SettlementList.render(content);
   },
 
   showSettings() {
@@ -1299,6 +1318,14 @@ const App = {
         settingsBtn.classList.add('active');
       } else {
         settingsBtn.classList.remove('active');
+      }
+    }
+    var settlementBtn = document.getElementById('menu-settlement');
+    if (settlementBtn) {
+      if (this._viewMode === 'settlement') {
+        settlementBtn.classList.add('active');
+      } else {
+        settlementBtn.classList.remove('active');
       }
     }
     var statsBtn = document.getElementById('menu-stats');
