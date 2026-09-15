@@ -2564,31 +2564,37 @@ const App = {
           const p = regPlayers.find(rp => rp.name === name);
           if (p) { if (p.gender === 'M') mCount++; else fCount++; }
         });
+        const _gd = t.gameDate ? new Date(t.gameDate + 'T00:00:00') : new Date(t.createdAt);
+        const _dayNames = ['일','월','화','수','목','금','토'];
+        const _dateLabel = `${_gd.getMonth()+1}/${_gd.getDate()}(${_dayNames[_gd.getDay()]})`;
         return `
           <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
                data-id="${t.id}">
             ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}
-            <div class="flex items-center justify-between mb-2 pr-6">
-              <h3 class="font-bold text-gray-800">${Results.escapeHtml(t.name)}</h3>
-              <div class="flex items-center gap-1.5">
+            <div class="flex items-center justify-between mb-2 pr-6 gap-2">
+              <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
                 ${t.status === 'completed'
-                  ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">완료</span>'
-                  : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">진행중</span>'}
-                ${t.isTeamMode ? '<span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">팀전</span>' : ''}
-                <span class="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">대진표</span>
+                  ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
+                  : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
+                ${t.isTeamMode ? '<span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">팀전</span>' : ''}
+                <span class="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">대진표</span>
               </div>
             </div>
-            <div class="flex items-center gap-4 text-sm text-gray-500">
-              <span>남${mCount} · 여${fCount}</span>
-              ${t.isCustom ? `<span>코트 ${t.courts}면</span>` : `<span>${t.startTime}~${t.endTime}</span>`}
-              <span>${completed}/${allMatches.length}경기</span>
+            <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+              <span class="whitespace-nowrap">남${mCount} · 여${fCount}</span>
+              <span class="whitespace-nowrap">${_dateLabel}</span>
+              ${t.isCustom ? `<span class="whitespace-nowrap">코트 ${t.courts}면</span>` : `<span class="whitespace-nowrap">${t.startTime}~${t.endTime}</span>`}
+              <span class="whitespace-nowrap">${completed}/${allMatches.length}경기</span>
             </div>
           </div>`;
       }
 
-      const dateStr = new Date(t.createdAt).toLocaleDateString('ko-KR');
+      const _gd2 = new Date(t.createdAt);
+      const _dayNames2 = ['일','월','화','수','목','금','토'];
+      const dateLabel2 = `${_gd2.getMonth()+1}/${_gd2.getDate()}(${_dayNames2[_gd2.getDay()]})`;
       const gameLabel = t.gameTypeLabel || (t.gameType ? GAME_TYPES[t.gameType]?.label : '');
       const isDoubles = t.gameType ? GAME_TYPES[t.gameType]?.doubles : false;
       const countLabel = isDoubles ? `${t.players.length}팀` : `${t.players.length}명`;
@@ -2598,23 +2604,23 @@ const App = {
           ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>` : ''}
-          <div class="flex items-center justify-between mb-2 pr-6">
-            <h3 class="font-bold text-gray-800">${Results.escapeHtml(t.name)}</h3>
-            <div class="flex items-center gap-1.5">
+          <div class="flex items-center justify-between mb-2 pr-6 gap-2">
+            <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
               ${t.status === 'completed'
-                ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">완료</span>'
-                : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">진행중</span>'}
-              ${gameLabel ? `<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">${gameLabel}</span>` : ''}
-              <span class="text-xs px-2 py-1 rounded-full ${t.format === 'tournament' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
+                : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
+              ${gameLabel ? `<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">${gameLabel}</span>` : ''}
+              <span class="text-xs px-2 py-1 rounded-full whitespace-nowrap ${t.format === 'tournament' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
                 ${t.format === 'tournament' ? '토너먼트' : '리그'}
               </span>
             </div>
           </div>
-          <div class="flex items-center gap-4 text-sm text-gray-500">
-            <span>${countLabel}</span>
-            <span>${dateStr}</span>
+          <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+            <span class="whitespace-nowrap">${countLabel}</span>
+            <span class="whitespace-nowrap">${dateLabel2}</span>
             ${t.status === 'completed' && t.format === 'tournament' ?
-              `<span class="text-yellow-600 font-medium">우승: ${Results.escapeHtml(t.rounds[t.rounds.length - 1][0].winner || '-')}</span>` : ''}
+              `<span class="text-yellow-600 font-medium whitespace-nowrap">우승: ${Results.escapeHtml(t.rounds[t.rounds.length - 1][0].winner || '-')}</span>` : ''}
           </div>
         </div>`;
     };

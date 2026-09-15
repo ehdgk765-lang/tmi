@@ -605,6 +605,15 @@ html.dark .custom-modal-box .text-blue-500 {
   }
 }
 
+/* 탭 네비게이션 스크롤바 숨김 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* 매우 작은 화면 (320px) */
 @media (max-width: 380px) {
   .bracket-round {
@@ -615,9 +624,9 @@ html.dark .custom-modal-box .text-blue-500 {
     font-size: 11px !important;
   }
   [data-tab] {
-    font-size: 12px !important;
-    padding-left: 4px !important;
-    padding-right: 4px !important;
+    font-size: 11px !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
   }
 }
 

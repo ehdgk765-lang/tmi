@@ -342,7 +342,7 @@ const Calendar = {
                 '<div class="flex items-start gap-3">' +
                   '<div class="w-1 self-stretch rounded-full ' + color.dot + ' flex-shrink-0 mt-0.5"></div>' +
                   '<div class="flex-1 min-w-0">' +
-                    '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1.5">' + this._escapeHtml(ev.title) + ' ' + statusBadge + '</div>' +
+                    '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1.5"><span class="min-w-0 truncate">' + this._escapeHtml(ev.title) + '</span>' + (statusBadge ? ' <span class="flex-shrink-0">' + statusBadge + '</span>' : '') + '</div>' +
                     (this._formatTimeRange(ev) ? '<div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/></svg><span>' + this._formatTimeRange(ev) + '</span></div>' : '') +
                     (ev.description ? '<div class="text-xs text-gray-400 mt-1 italic">' + this._escapeHtml(ev.description) + '</div>' : '') +
                     (ev.courts && ev.courts.length > 0 ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span>' + this._escapeHtml(ev.courts.join(', ')) + '</span></div>' : '') +
