@@ -2,18 +2,22 @@
 // 원칙: Firestore(DB)가 정본. 메모리 캐시는 즉시 읽기용. localStorage 사용 안 함.
 //
 // [데이터 모델]
-//  - players/teams/events/courts/groups: 단일 문서  {parent}/data/{docName} = { json: "[...]" }
+//  - players/teams/courts/groups: 단일 문서  {parent}/data/{docName} = { json: "[...]" }
+//  - events: 컬렉션  {parent}/events/{이벤트id} = { json: "{...}" } (메타데이터만, 참석 데이터 제외)
 //  - tournaments: 컬렉션  {parent}/tournaments/{대회id} = { json: "{...}" }
 //    (대회는 1개당 문서 1개. Firestore 1MB 한계 회피 + 대회별 동시편집 충돌 원천 차단)
+//  - 참석 데이터: RTDB  {parent}/attendance/{이벤트id} (실시간 원자적 트랜잭션)
 //  - 경로 분기: 클럽 사용자(admin/member) → club/shared/..., 그 외 → users/{uid}/...
 //  - 마이그레이션 플래그: {parent}/data/_meta = { tsMigrated: true }
 const Storage = {
 
   // ─── 메모리 캐시 ───
   _data: { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [] },
-  _json: { players: '[]', teams: '[]', events: '[]', courts: '[]', groups: '[]' },
+  _json: { players: '[]', teams: '[]', courts: '[]', groups: '[]' },
   _tJson: {},       // 대회 id → 확정 저장된 json (diff/에코 판단용)
   _writingT: {},    // 대회 id → 기록 중 json ('__deleted__'=삭제 중) 에코 억제
+  _eJson: {},       // 이벤트 id → 확정 저장된 json (메타데이터만, 참석 제외)
+  _writingE: {},    // 이벤트 id → 기록 중 json ('__deleted__'=삭제 중) 에코 억제
 
   // ─── Firestore 경로 분기 ───
   // 클럽 사용자(admin/member) → club/shared, 그 외 → users/{uid}
@@ -60,9 +64,11 @@ const Storage = {
 
   clearData() {
     this._data = { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [] };
-    this._json = { players: '[]', teams: '[]', events: '[]', courts: '[]', groups: '[]' };
+    this._json = { players: '[]', teams: '[]', courts: '[]', groups: '[]' };
     this._tJson = {};
     this._writingT = {};
+    this._eJson = {};
+    this._writingE = {};
   },
 
   // ─── 읽기 (메모리에서 즉시 반환) ───
@@ -104,8 +110,49 @@ const Storage = {
       console.warn('관리자 권한이 필요합니다.');
       return false;
     }
-    this._setLocal('events', events);
-    this._syncToFirestore('events');
+    this._data.events = events;
+    var parent = this._getParent();
+    if (!parent) return true;
+    var col = parent.collection('events');
+    var self = this;
+
+    var seen = {};
+    events.forEach(function(ev) {
+      if (!ev || ev.id == null) return;
+      var id = String(ev.id);
+      seen[id] = true;
+      var stripped = self._stripAttendance(ev);
+      var json = JSON.stringify(stripped);
+      if (self._eJson[id] === json) return; // 변경 없음
+      self._writeEventJson(col, id, json);
+    });
+
+    // 이전에 있었으나 이번 배열에서 사라진 이벤트 → 문서 삭제
+    Object.keys(this._eJson).forEach(function(id) {
+      if (seen[id]) return;
+      self._deleteEventDoc(col, id);
+    });
+
+    // 신규 이벤트의 RTDB 참석 노드 생성
+    events.forEach(function(ev) {
+      if (!ev || ev.id == null) return;
+      var rtdbRef = self._getAttendanceRef(ev.id);
+      if (rtdbRef) {
+        rtdbRef.once('value').then(function(snap) {
+          if (!snap.exists()) {
+            rtdbRef.set({
+              participants: ev.participants || [],
+              waitlist: ev.waitlist || [],
+              participantTimes: ev.participantTimes || {},
+              maxParticipants: ev.maxParticipants || 0,
+              maxMale: ev.maxMale || 0,
+              maxFemale: ev.maxFemale || 0
+            });
+          }
+        });
+      }
+    });
+
     return true;
   },
 
@@ -248,96 +295,74 @@ const Storage = {
       console.warn('관리자 권한이 필요합니다.');
       return false;
     }
-    var parent = this._getParent();
-    if (!parent) {
-      this._data.events.push(newEvent);
-      this._sortEvents(this._data.events);
-      this._json.events = JSON.stringify(this._data.events);
-      return true;
-    }
+    // 로컬 즉시 반영
+    this._data.events.push(newEvent);
+    this._sortEvents(this._data.events);
 
-    var docRef = parent.collection('data').doc('events');
-    try {
-      var finalEvents = null;
-      await fbDb.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(doc) {
-          var events = [];
-          if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
-          }
-          events.push(newEvent);
-          self._sortEvents(events);
-          transaction.set(docRef, { json: JSON.stringify(events) });
-          finalEvents = events;
-        });
-      });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
-      }
-      // RTDB 참석 노드 생성
-      var rtdbRef = self._getAttendanceRef(newEvent.id);
-      if (rtdbRef) {
-        rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0, maxMale: newEvent.maxMale || 0, maxFemale: newEvent.maxFemale || 0 })
-          .catch(function(e) { console.error('addEvent RTDB node create error:', e); });
-      }
-      return true;
-    } catch (err) {
-      console.error('addEvent transaction error:', err);
-      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('일정 추가에 실패했습니다. 다시 시도해주세요.', 'error');
-      // 폴백: 메모리 수정 + 재동기화
-      this._data.events.push(newEvent);
-      this._sortEvents(this._data.events);
-      this._setLocal('events', this._data.events);
-      this._syncToFirestore('events');
-      return true;
+    var parent = this._getParent();
+    if (!parent) return true;
+
+    // 개별 문서 쓰기 (참석 데이터 제외)
+    var stripped = this._stripAttendance(newEvent);
+    var json = JSON.stringify(stripped);
+    var col = parent.collection('events');
+    this._writeEventJson(col, String(newEvent.id), json);
+
+    // RTDB 참석 노드 생성
+    var rtdbRef = self._getAttendanceRef(newEvent.id);
+    if (rtdbRef) {
+      rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0, maxMale: newEvent.maxMale || 0, maxFemale: newEvent.maxFemale || 0 })
+        .catch(function(e) { console.error('addEvent RTDB node create error:', e); });
     }
+    return true;
   },
 
-  // 단일 이벤트 수정 (Firestore Transaction)
+  // 단일 이벤트 수정 (개별 문서 Firestore Transaction)
   async editEvent(eventId, updatedFields) {
     var self = this;
     var parent = this._getParent();
     if (!parent) return this._editEventLocal(eventId, updatedFields);
 
-    var docRef = parent.collection('data').doc('events');
+    var docRef = parent.collection('events').doc(String(eventId));
     try {
-      var finalEvents = null;
-      await fbDb.runTransaction(function(transaction) {
+      var newJson = await fbDb.runTransaction(function(transaction) {
         return transaction.get(docRef).then(function(doc) {
-          var events = [];
+          var ev = null;
           if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
+            ev = JSON.parse(doc.data().json || 'null');
           }
-          for (var i = 0; i < events.length; i++) {
-            if (events[i].id === eventId) {
-              // 권한 체크: 관리자/권한부여멤버 또는 호스트
-              if (typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
-                var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
-                var isHost = myName && events[i].host === myName;
-                if (!isHost) return;
-              }
-              for (var key in updatedFields) {
-                if (updatedFields.hasOwnProperty(key)) {
-                  events[i][key] = updatedFields[key];
-                }
-              }
-              if (updatedFields.startTime !== undefined) delete events[i].time;
-              break;
+          if (!ev) return null;
+          // 권한 체크: 관리자/권한부여멤버 또는 호스트
+          if (typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
+            var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
+            var isHost = myName && ev.host === myName;
+            if (!isHost) return null;
+          }
+          for (var key in updatedFields) {
+            if (updatedFields.hasOwnProperty(key)) {
+              ev[key] = updatedFields[key];
             }
           }
-          self._sortEvents(events);
-          transaction.set(docRef, { json: JSON.stringify(events) });
-          finalEvents = events;
+          if (updatedFields.startTime !== undefined) delete ev.time;
+          var json = JSON.stringify(ev);
+          transaction.set(docRef, { json: json });
+          return json;
         });
       });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      if (newJson) {
+        var updatedEv = JSON.parse(newJson);
+        // 로컬 메모리 동기화 (RTDB 참석 데이터 보존)
+        var i = self._data.events.findIndex(function(e) { return e.id === eventId; });
+        if (i !== -1) {
+          updatedEv.participants = self._data.events[i].participants || [];
+          updatedEv.waitlist = self._data.events[i].waitlist || [];
+          updatedEv.participantTimes = self._data.events[i].participantTimes || {};
+          self._data.events[i] = updatedEv;
+        }
+        self._sortEvents(self._data.events);
+        self._eJson[String(eventId)] = newJson;
+        self._writingE[String(eventId)] = newJson;
+        setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
       }
       // RTDB 인원 제한 동기화 + 대기자 자동 승격
       var hasLimitChange = updatedFields.maxParticipants !== undefined ||
@@ -360,9 +385,7 @@ const Storage = {
             var promoted = true;
             while (promoted && att.waitlist.length > 0) {
               promoted = false;
-              // 전체 정원 체크
               if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) break;
-              // 대기자 중 참석 가능한 사람 찾기
               for (var wi = 0; wi < att.waitlist.length; wi++) {
                 var wName = att.waitlist[wi];
                 var wGender = self._getPlayerGender(wName);
@@ -386,7 +409,7 @@ const Storage = {
                   att.participants.push(wName);
                   att.participantTimes[wName] = Date.now();
                   promoted = true;
-                  break; // 한 명 승격 후 다시 순회 (정원 재체크)
+                  break;
                 }
               }
             }
@@ -400,10 +423,6 @@ const Storage = {
                 currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
                 currentEv.participantTimes = serverAtt.participantTimes || {};
               }
-              self._setLocal('events', self._data.events);
-              self._writing.events = self._json.events;
-              self._syncToFirestore('events');
-              setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
               self._onRemoteChange();
             }
           }).catch(function(e) { console.error('editEvent RTDB sync error:', e); });
@@ -437,8 +456,8 @@ const Storage = {
       }
     }
     this._sortEvents(events);
-    this._setLocal('events', events);
-    this._syncToFirestore('events');
+    this._data.events = events;
+    this._syncEventToFirestore(eventId);
     return true;
   },
 
@@ -463,36 +482,38 @@ const Storage = {
           break;
         }
       }
-      this._setLocal('events', events);
-      this._syncToFirestore('events');
+      this._data.events = events;
       return true;
     }
 
-    var docRef = parent.collection('data').doc('events');
+    var docRef = parent.collection('events').doc(String(eventId));
     try {
-      var finalEvents = null;
-      await fbDb.runTransaction(function(transaction) {
+      var newJson = await fbDb.runTransaction(function(transaction) {
         return transaction.get(docRef).then(function(doc) {
-          var events = [];
+          var ev = null;
           if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
+            ev = JSON.parse(doc.data().json || 'null');
           }
-          for (var i = 0; i < events.length; i++) {
-            if (events[i].id === eventId) {
-              if (!checkPermission(events[i])) return;
-              events[i].settlement = settlementData;
-              break;
-            }
-          }
-          transaction.set(docRef, { json: JSON.stringify(events) });
-          finalEvents = events;
+          if (!ev) return null;
+          if (!checkPermission(ev)) return null;
+          ev.settlement = settlementData;
+          var json = JSON.stringify(ev);
+          transaction.set(docRef, { json: json });
+          return json;
         });
       });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
+      if (newJson) {
+        var updatedEv = JSON.parse(newJson);
+        var i = self._data.events.findIndex(function(e) { return e.id === eventId; });
+        if (i !== -1) {
+          updatedEv.participants = self._data.events[i].participants || [];
+          updatedEv.waitlist = self._data.events[i].waitlist || [];
+          updatedEv.participantTimes = self._data.events[i].participantTimes || {};
+          self._data.events[i] = updatedEv;
+        }
+        self._eJson[String(eventId)] = newJson;
+        self._writingE[String(eventId)] = newJson;
+        setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
       }
       return true;
     } catch (err) {
@@ -502,63 +523,36 @@ const Storage = {
     }
   },
 
-  // 단일 이벤트 삭제 (Firestore Transaction)
+  // 단일 이벤트 삭제 (개별 문서)
   async removeEvent(eventId) {
     var self = this;
-    var parent = this._getParent();
-    if (!parent) return this._removeEventLocal(eventId);
-
-    var docRef = parent.collection('data').doc('events');
-    try {
-      var finalEvents = null;
-      await fbDb.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(doc) {
-          var events = [];
-          if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
-          }
-          var target = events.find(function(e) { return e.id === eventId; });
-          if (target && typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
-            if (self.isRegularEvent(target)) { finalEvents = events; return; }
-            var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
-            if (!target.createdBy || target.createdBy !== myName) { finalEvents = events; return; }
-          }
-          events = events.filter(function(e) { return e.id !== eventId; });
-          transaction.set(docRef, { json: JSON.stringify(events) });
-          finalEvents = events;
-        });
-      });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
-      }
-      // RTDB 참석 노드 삭제
-      var rtdbRef = self._getAttendanceRef(eventId);
-      if (rtdbRef) {
-        rtdbRef.remove().catch(function(e) { console.error('removeEvent RTDB node delete error:', e); });
-      }
-      return true;
-    } catch (err) {
-      console.error('removeEvent transaction error:', err);
-      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('일정 삭제에 실패했습니다. 다시 시도해주세요.', 'error');
-      return this._removeEventLocal(eventId);
-    }
-  },
-
-  _removeEventLocal(eventId) {
-    var events = this._data.events;
-    var target = events.find(function(e) { return e.id === eventId; });
+    // 권한 체크
+    var target = this._data.events.find(function(e) { return e.id === eventId; });
     if (target && typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
       if (this.isRegularEvent(target)) return false;
       var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
       if (!target.createdBy || target.createdBy !== myName) return false;
     }
-    this._data.events = events.filter(function(e) { return e.id !== eventId; });
-    this._setLocal('events', this._data.events);
-    this._syncToFirestore('events');
+
+    // 로컬 즉시 반영
+    this._data.events = this._data.events.filter(function(e) { return e.id !== eventId; });
+
+    var parent = this._getParent();
+    if (parent) {
+      var col = parent.collection('events');
+      this._deleteEventDoc(col, String(eventId));
+    }
+
+    // RTDB 참석 노드 삭제
+    var rtdbRef = self._getAttendanceRef(eventId);
+    if (rtdbRef) {
+      rtdbRef.remove().catch(function(e) { console.error('removeEvent RTDB node delete error:', e); });
+    }
     return true;
+  },
+
+  _removeEventLocal(eventId) {
+    return this.removeEvent(eventId);
   },
 
   // 참석 토글 (RTDB Transaction) — 멤버도 호출 가능
@@ -603,11 +597,6 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
         }
       }
-      // Firestore 백그라운드 동기화
-      self._setLocal('events', self._data.events);
-      self._writing.events = self._json.events;
-      self._syncToFirestore('events');
-      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
       return localResult.result;
     } catch (err) {
       console.error('toggleAttendance RTDB error:', err);
@@ -630,9 +619,6 @@ const Storage = {
     var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false, attendTime);
     if (!localResult.changed) return localResult.result;
     var action = localResult.action;
-
-    this._json.events = JSON.stringify(this._data.events);
-    this._writing.events = this._json.events;
 
     // 2. RTDB 트랜잭션 (명시적 action — 재시도에도 동일 동작)
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
@@ -664,14 +650,8 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
         }
       }
-      // 3. Firestore 백그라운드 동기화
-      self._json.events = JSON.stringify(self._data.events);
-      self._writing.events = self._json.events;
-      self._syncToFirestore('events');
-      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
     }).catch(function(err) {
       console.error('toggleAttendance RTDB optimistic error:', err);
-      self._writing.events = null;
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('참석 변경에 실패했습니다. 다시 시도해주세요.', 'error');
       self._loadAttendanceFromRtdb().then(function() { self._onRemoteChange(); });
     });
@@ -767,10 +747,6 @@ const Storage = {
           ev.participantTimes[memberName] = attendTime || Date.now();
           var wIdx = ev.waitlist.indexOf(memberName);
           if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
-        }
-        if (saveLocal) {
-          this._setLocal('events', events);
-          this._syncToFirestore('events');
         }
         return { changed: true, result: true, action: action };
       }
@@ -902,10 +878,6 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
         }
       }
-      self._setLocal('events', self._data.events);
-      self._writing.events = self._json.events;
-      self._syncToFirestore('events');
-      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
       return localResult.result;
     } catch (err) {
       console.error('toggleWaitlist RTDB error:', err);
@@ -924,9 +896,6 @@ const Storage = {
     var localResult = this._applyToggleWaitlist(this._data.events, eventId, memberName, false);
     if (!localResult.changed) return localResult.result;
     var action = localResult.action;
-
-    this._json.events = JSON.stringify(this._data.events);
-    this._writing.events = this._json.events;
 
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0;
@@ -956,13 +925,8 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
         }
       }
-      self._json.events = JSON.stringify(self._data.events);
-      self._writing.events = self._json.events;
-      self._syncToFirestore('events');
-      setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
     }).catch(function(err) {
       console.error('toggleWaitlist RTDB optimistic error:', err);
-      self._writing.events = null;
       if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('대기 변경에 실패했습니다. 다시 시도해주세요.', 'error');
       self._loadAttendanceFromRtdb().then(function() { self._onRemoteChange(); });
     });
@@ -984,10 +948,6 @@ const Storage = {
           action = 'add';
           ev.waitlist.push(memberName);
         }
-        if (saveLocal) {
-          this._setLocal('events', events);
-          this._syncToFirestore('events');
-        }
         return { changed: true, result: true, action: action };
       }
     }
@@ -1002,72 +962,60 @@ const Storage = {
     if (!parent) return this._deleteMemberLocal(memberName);
 
     var playersRef = parent.collection('data').doc('players');
-    var eventsRef = parent.collection('data').doc('events');
 
     try {
-      var result = { players: null, events: null };
+      var resultPlayers = null;
       await fbDb.runTransaction(function(transaction) {
-        return Promise.all([
-          transaction.get(playersRef),
-          transaction.get(eventsRef)
-        ]).then(function(docs) {
-          var parse = function(doc) {
-            if (!doc.exists) return [];
+        return transaction.get(playersRef).then(function(doc) {
+          var players = [];
+          if (doc.exists) {
             var d = doc.data();
-            return d.json ? JSON.parse(d.json) : [];
-          };
-          var players = parse(docs[0]);
-          var events = parse(docs[1]);
-
+            players = d.json ? JSON.parse(d.json) : [];
+          }
           players = players.filter(function(p) { return p.name !== memberName; });
-          events.forEach(function(ev) {
-            if (ev.participants) {
-              var idx = ev.participants.indexOf(memberName);
-              if (idx >= 0) ev.participants.splice(idx, 1);
-            }
-            if (ev.waitlist) {
-              var wIdx = ev.waitlist.indexOf(memberName);
-              if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
-            }
-          });
-
           transaction.set(playersRef, { json: JSON.stringify(players) });
-          transaction.set(eventsRef, { json: JSON.stringify(events) });
-          result.players = players;
-          result.events = events;
+          resultPlayers = players;
         });
       });
 
-      if (result.players) self._setLocal('players', result.players);
-      if (result.events) self._setLocal('events', result.events);
+      if (resultPlayers) self._setLocal('players', resultPlayers);
       self._writing.players = self._json.players;
-      self._writing.events = self._json.events;
       setTimeout(function() {
         if (self._writing.players === self._json.players) self._writing.players = null;
-        if (self._writing.events === self._json.events) self._writing.events = null;
       }, 2000);
+
+      // 로컬 이벤트 메모리에서 멤버 제거 (UI용)
+      self._data.events.forEach(function(ev) {
+        if (ev.participants) {
+          var idx = ev.participants.indexOf(memberName);
+          if (idx >= 0) ev.participants.splice(idx, 1);
+        }
+        if (ev.waitlist) {
+          var wIdx = ev.waitlist.indexOf(memberName);
+          if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+        }
+      });
+
       // RTDB 참석 데이터에서 멤버 제거
-      if (result.events) {
-        result.events.forEach(function(ev) {
-          var rtdbRef = self._getAttendanceRef(ev.id);
-          if (rtdbRef) {
-            rtdbRef.transaction(function(current) {
-              if (!current) return current;
-              var participants = self._rtdbToArray(current.participants);
-              var waitlist = self._rtdbToArray(current.waitlist);
-              var times = current.participantTimes || {};
-              var pIdx = participants.indexOf(memberName);
-              if (pIdx >= 0) { participants.splice(pIdx, 1); delete times[memberName]; }
-              var wIdx = waitlist.indexOf(memberName);
-              if (wIdx >= 0) waitlist.splice(wIdx, 1);
-              current.participants = participants;
-              current.waitlist = waitlist;
-              current.participantTimes = times;
-              return current;
-            }).catch(function(e) { console.error('deleteMember RTDB sync error:', e); });
-          }
-        });
-      }
+      self._data.events.forEach(function(ev) {
+        var rtdbRef = self._getAttendanceRef(ev.id);
+        if (rtdbRef) {
+          rtdbRef.transaction(function(current) {
+            if (!current) return current;
+            var participants = self._rtdbToArray(current.participants);
+            var waitlist = self._rtdbToArray(current.waitlist);
+            var times = current.participantTimes || {};
+            var pIdx = participants.indexOf(memberName);
+            if (pIdx >= 0) { participants.splice(pIdx, 1); delete times[memberName]; }
+            var wIdx = waitlist.indexOf(memberName);
+            if (wIdx >= 0) waitlist.splice(wIdx, 1);
+            current.participants = participants;
+            current.waitlist = waitlist;
+            current.participantTimes = times;
+            return current;
+          }).catch(function(e) { console.error('deleteMember RTDB sync error:', e); });
+        }
+      });
       return true;
     } catch (err) {
       console.error('deleteMember transaction error:', err);
@@ -1080,22 +1028,17 @@ const Storage = {
     var players = this._data.players.filter(function(p) { return p.name !== memberName; });
     this._setLocal('players', players);
     this._syncToFirestore('players');
-    var events = this._data.events;
-    var changed = false;
-    events.forEach(function(ev) {
+    // 로컬 이벤트 메모리에서 멤버 제거 (참석 데이터는 RTDB만 관리)
+    this._data.events.forEach(function(ev) {
       if (ev.participants) {
         var idx = ev.participants.indexOf(memberName);
-        if (idx >= 0) { ev.participants.splice(idx, 1); changed = true; }
+        if (idx >= 0) ev.participants.splice(idx, 1);
       }
       if (ev.waitlist) {
         var wIdx = ev.waitlist.indexOf(memberName);
-        if (wIdx >= 0) { ev.waitlist.splice(wIdx, 1); changed = true; }
+        if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
       }
     });
-    if (changed) {
-      this._setLocal('events', events);
-      this._syncToFirestore('events');
-    }
     return true;
   },
 
@@ -1109,69 +1052,57 @@ const Storage = {
     }
 
     var playersRef = parent.collection('data').doc('players');
-    var eventsRef = parent.collection('data').doc('events');
 
     try {
-      var result = { players: null, events: null };
+      var resultPlayers = null;
       await fbDb.runTransaction(function(transaction) {
-        return Promise.all([
-          transaction.get(playersRef),
-          transaction.get(eventsRef)
-        ]).then(function(docs) {
-          var parse = function(doc) {
-            if (!doc.exists) return [];
+        return transaction.get(playersRef).then(function(doc) {
+          var players = [];
+          if (doc.exists) {
             var d = doc.data();
-            return d.json ? JSON.parse(d.json) : [];
-          };
-          var players = parse(docs[0]);
-          var events = parse(docs[1]);
-
+            players = d.json ? JSON.parse(d.json) : [];
+          }
           players = players.filter(function(p) { return memberNames.indexOf(p.name) < 0; });
-          events.forEach(function(ev) {
-            if (ev.participants) {
-              ev.participants = ev.participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
-            }
-            if (ev.waitlist) {
-              ev.waitlist = ev.waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
-            }
-          });
-
           transaction.set(playersRef, { json: JSON.stringify(players) });
-          transaction.set(eventsRef, { json: JSON.stringify(events) });
-          result.players = players;
-          result.events = events;
+          resultPlayers = players;
         });
       });
 
-      if (result.players) self._setLocal('players', result.players);
-      if (result.events) self._setLocal('events', result.events);
+      if (resultPlayers) self._setLocal('players', resultPlayers);
       self._writing.players = self._json.players;
-      self._writing.events = self._json.events;
       setTimeout(function() {
         if (self._writing.players === self._json.players) self._writing.players = null;
-        if (self._writing.events === self._json.events) self._writing.events = null;
       }, 2000);
+
+      // 로컬 이벤트 메모리에서 멤버들 제거 (UI용)
+      self._data.events.forEach(function(ev) {
+        if (ev.participants) {
+          ev.participants = ev.participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
+        }
+        if (ev.waitlist) {
+          ev.waitlist = ev.waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
+        }
+      });
+
       // RTDB 참석 데이터에서 멤버들 제거
-      if (result.events) {
-        result.events.forEach(function(ev) {
-          var rtdbRef = self._getAttendanceRef(ev.id);
-          if (rtdbRef) {
-            rtdbRef.transaction(function(current) {
-              if (!current) return current;
-              var participants = self._rtdbToArray(current.participants);
-              var waitlist = self._rtdbToArray(current.waitlist);
-              var times = current.participantTimes || {};
-              participants = participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
-              waitlist = waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
-              memberNames.forEach(function(n) { delete times[n]; });
-              current.participants = participants;
-              current.waitlist = waitlist;
-              current.participantTimes = times;
-              return current;
-            }).catch(function(e) { console.error('deleteMembers RTDB sync error:', e); });
-          }
-        });
-      }
+      self._data.events.forEach(function(ev) {
+        var rtdbRef = self._getAttendanceRef(ev.id);
+        if (rtdbRef) {
+          rtdbRef.transaction(function(current) {
+            if (!current) return current;
+            var participants = self._rtdbToArray(current.participants);
+            var waitlist = self._rtdbToArray(current.waitlist);
+            var times = current.participantTimes || {};
+            participants = participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
+            waitlist = waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
+            memberNames.forEach(function(n) { delete times[n]; });
+            current.participants = participants;
+            current.waitlist = waitlist;
+            current.participantTimes = times;
+            return current;
+          }).catch(function(e) { console.error('deleteMembers RTDB sync error:', e); });
+        }
+      });
       return true;
     } catch (err) {
       console.error('deleteMembers transaction error:', err);
@@ -1186,60 +1117,31 @@ const Storage = {
   async renameCourtInEvents(oldName, newName) {
     var self = this;
     var parent = this._getParent();
-    if (!parent) return this._renameCourtInEventsLocal(oldName, newName);
-
-    var docRef = parent.collection('data').doc('events');
-    try {
-      var finalEvents = null;
-      await fbDb.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(doc) {
-          var events = [];
-          if (doc.exists) {
-            var d = doc.data();
-            events = d.json ? JSON.parse(d.json) : [];
-          }
-          var prefix = oldName + ' ';
-          var changed = false;
-          events.forEach(function(ev) {
-            if (ev.title && ev.title.indexOf(prefix) === 0) {
-              ev.title = newName + ev.title.substring(oldName.length);
-              changed = true;
-            }
-          });
-          if (changed) {
-            transaction.set(docRef, { json: JSON.stringify(events) });
-          }
-          finalEvents = events;
-        });
-      });
-      if (finalEvents) {
-        self._setLocal('events', finalEvents);
-        self._writing.events = self._json.events;
-        setTimeout(function() { if (self._writing.events === self._json.events) self._writing.events = null; }, 2000);
-      }
-      return true;
-    } catch (err) {
-      console.error('renameCourtInEvents transaction error:', err);
-      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('코트 이름 변경에 실패했습니다. 다시 시도해주세요.', 'error');
-      return this._renameCourtInEventsLocal(oldName, newName);
-    }
-  },
-
-  _renameCourtInEventsLocal(oldName, newName) {
     var events = this._data.events;
     var prefix = oldName + ' ';
-    var changed = false;
+    var changedIds = [];
     events.forEach(function(ev) {
       if (ev.title && ev.title.indexOf(prefix) === 0) {
         ev.title = newName + ev.title.substring(oldName.length);
-        changed = true;
+        changedIds.push(ev.id);
       }
     });
-    if (changed) {
-      this._setLocal('events', events);
-      this._syncToFirestore('events');
+    if (changedIds.length > 0 && parent) {
+      var col = parent.collection('events');
+      changedIds.forEach(function(id) {
+        var ev = events.find(function(e) { return e.id === id; });
+        if (ev) {
+          var stripped = self._stripAttendance(ev);
+          var json = JSON.stringify(stripped);
+          self._writeEventJson(col, String(id), json);
+        }
+      });
     }
     return true;
+  },
+
+  _renameCourtInEventsLocal(oldName, newName) {
+    return this.renameCourtInEvents(oldName, newName);
   },
 
   // ─── 멤버 이름 변경 ───
@@ -1295,17 +1197,15 @@ const Storage = {
       return this._renameMemberLocal(oldName, newName, replaceInField, renameTournamentData);
     }
 
-    // 1) players + events + teams: Transaction
+    // 1) players + teams: Transaction (events의 참석 데이터는 RTDB가 관리)
     var playersRef = parent.collection('data').doc('players');
-    var eventsRef = parent.collection('data').doc('events');
     var teamsRef = parent.collection('data').doc('teams');
 
     try {
-      var result = { players: null, events: null, teams: null };
+      var result = { players: null, teams: null };
       await fbDb.runTransaction(function(transaction) {
         return Promise.all([
           transaction.get(playersRef),
-          transaction.get(eventsRef),
           transaction.get(teamsRef)
         ]).then(function(docs) {
           var parse = function(doc) {
@@ -1314,27 +1214,9 @@ const Storage = {
             return d.json ? JSON.parse(d.json) : [];
           };
           var players = parse(docs[0]);
-          var events = parse(docs[1]);
-          var teams = parse(docs[2]);
+          var teams = parse(docs[1]);
 
-          // players: name 변경
           players.forEach(function(p) { if (p.name === oldName) p.name = newName; });
-
-          // events: participants, waitlist 변경
-          events.forEach(function(ev) {
-            if (ev.participants) {
-              for (var i = 0; i < ev.participants.length; i++) {
-                if (ev.participants[i] === oldName) ev.participants[i] = newName;
-              }
-            }
-            if (ev.waitlist) {
-              for (var i = 0; i < ev.waitlist.length; i++) {
-                if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
-              }
-            }
-          });
-
-          // teams: members 변경
           teams.forEach(function(team) {
             if (team.members) {
               for (var i = 0; i < team.members.length; i++) {
@@ -1344,23 +1226,18 @@ const Storage = {
           });
 
           transaction.set(playersRef, { json: JSON.stringify(players) });
-          transaction.set(eventsRef, { json: JSON.stringify(events) });
           transaction.set(teamsRef, { json: JSON.stringify(teams) });
           result.players = players;
-          result.events = events;
           result.teams = teams;
         });
       });
 
       if (result.players) self._setLocal('players', result.players);
-      if (result.events) self._setLocal('events', result.events);
       if (result.teams) self._setLocal('teams', result.teams);
       self._writing.players = self._json.players;
-      self._writing.events = self._json.events;
       self._writing.teams = self._json.teams;
       setTimeout(function() {
         if (self._writing.players === self._json.players) self._writing.players = null;
-        if (self._writing.events === self._json.events) self._writing.events = null;
         if (self._writing.teams === self._json.teams) self._writing.teams = null;
       }, 2000);
     } catch (err) {
@@ -1369,7 +1246,51 @@ const Storage = {
       return this._renameMemberLocal(oldName, newName, replaceInField, renameTournamentData);
     }
 
-    // 2) tournaments: 개별 문서 업데이트
+    // 2) 로컬 이벤트 메모리에서 이름 변경 (UI용)
+    self._data.events.forEach(function(ev) {
+      if (ev.participants) {
+        for (var i = 0; i < ev.participants.length; i++) {
+          if (ev.participants[i] === oldName) ev.participants[i] = newName;
+        }
+      }
+      if (ev.waitlist) {
+        for (var i = 0; i < ev.waitlist.length; i++) {
+          if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
+        }
+      }
+    });
+
+    // 3) RTDB 참석 데이터에서 이름 변경
+    self._data.events.forEach(function(ev) {
+      var rtdbRef = self._getAttendanceRef(ev.id);
+      if (rtdbRef) {
+        rtdbRef.transaction(function(current) {
+          if (!current) return current;
+          var participants = self._rtdbToArray(current.participants);
+          var waitlist = self._rtdbToArray(current.waitlist);
+          var times = current.participantTimes || {};
+          var changed = false;
+          for (var i = 0; i < participants.length; i++) {
+            if (participants[i] === oldName) { participants[i] = newName; changed = true; }
+          }
+          for (var i = 0; i < waitlist.length; i++) {
+            if (waitlist[i] === oldName) { waitlist[i] = newName; changed = true; }
+          }
+          if (times[oldName] !== undefined) {
+            times[newName] = times[oldName];
+            delete times[oldName];
+            changed = true;
+          }
+          if (!changed) return undefined; // abort transaction
+          current.participants = participants;
+          current.waitlist = waitlist;
+          current.participantTimes = times;
+          return current;
+        }).catch(function(e) { console.error('renameMember RTDB sync error:', e); });
+      }
+    });
+
+    // 4) tournaments: 개별 문서 업데이트
     var col = parent.collection('tournaments');
     this._data.tournaments.forEach(function(t) {
       if (renameTournamentData(t)) {
@@ -1382,28 +1303,12 @@ const Storage = {
   },
 
   _renameMemberLocal(oldName, newName, replaceInField, renameTournamentData) {
+    var self = this;
     // players
     var players = this._data.players;
     players.forEach(function(p) { if (p.name === oldName) p.name = newName; });
     this._setLocal('players', players);
     this._syncToFirestore('players');
-
-    // events
-    var events = this._data.events;
-    events.forEach(function(ev) {
-      if (ev.participants) {
-        for (var i = 0; i < ev.participants.length; i++) {
-          if (ev.participants[i] === oldName) ev.participants[i] = newName;
-        }
-      }
-      if (ev.waitlist) {
-        for (var i = 0; i < ev.waitlist.length; i++) {
-          if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
-        }
-      }
-    });
-    this._setLocal('events', events);
-    this._syncToFirestore('events');
 
     // teams
     var teams = this._data.teams;
@@ -1417,8 +1322,21 @@ const Storage = {
     this._setLocal('teams', teams);
     this._syncToFirestore('teams');
 
+    // events: 로컬 메모리 + RTDB
+    this._data.events.forEach(function(ev) {
+      if (ev.participants) {
+        for (var i = 0; i < ev.participants.length; i++) {
+          if (ev.participants[i] === oldName) ev.participants[i] = newName;
+        }
+      }
+      if (ev.waitlist) {
+        for (var i = 0; i < ev.waitlist.length; i++) {
+          if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
+        }
+      }
+    });
+
     // tournaments: 개별 문서
-    var self = this;
     var parent = this._getParent();
     var col = parent ? parent.collection('tournaments') : null;
     this._data.tournaments.forEach(function(t) {
@@ -1442,7 +1360,7 @@ const Storage = {
   async restoreBackup(data) {
     // 메모리에 먼저 반영
     if (data.players) this._setLocal('players', data.players);
-    if (data.events) this._setLocal('events', data.events);
+    if (data.events) this._data.events = data.events;
     if (data.teams) this._setLocal('teams', data.teams);
     if (data.courts) this._setLocal('courts', data.courts);
     if (data.groups) this._setLocal('groups', data.groups);
@@ -1451,22 +1369,65 @@ const Storage = {
     var parent = this._getParent();
     if (!parent) return;
 
-    // 쓰기 가드 설정
-    var docNames = ['players', 'events', 'teams', 'courts', 'groups'];
+    // 단일 문서 쓰기 가드 설정
+    var docNames = ['players', 'teams', 'courts', 'groups'];
     var self = this;
     docNames.forEach(function(d) { self._writing[d] = self._json[d]; });
 
     try {
+      // 1) 단일 문서 (players, teams, courts, groups) 배치 쓰기
       var dataBase = parent.collection('data');
       var batch = fbDb.batch();
       if (data.players) batch.set(dataBase.doc('players'), { json: JSON.stringify(data.players) });
-      if (data.events) batch.set(dataBase.doc('events'), { json: JSON.stringify(data.events) });
       if (data.teams) batch.set(dataBase.doc('teams'), { json: JSON.stringify(data.teams) });
       if (data.courts) batch.set(dataBase.doc('courts'), { json: JSON.stringify(data.courts) });
       if (data.groups) batch.set(dataBase.doc('groups'), { json: JSON.stringify(data.groups) });
       await batch.commit();
 
-      // tournaments: diff 기반 저장
+      // 2) events → 개별 문서로 쓰기 (참석 데이터 분리)
+      if (data.events && data.events.length > 0) {
+        var evCol = parent.collection('events');
+        // 기존 이벤트 문서 전부 삭제
+        var existingIds = Object.keys(this._eJson);
+        for (var d = 0; d < existingIds.length; d++) {
+          this._deleteEventDoc(evCol, existingIds[d]);
+        }
+        this._eJson = {};
+        // 새 이벤트 문서 쓰기 + RTDB 참석 노드 생성
+        var evBatch = fbDb.batch();
+        var inBatch = 0;
+        for (var i = 0; i < data.events.length; i++) {
+          var ev = data.events[i];
+          if (!ev || ev.id == null) continue;
+          var id = String(ev.id);
+          var stripped = this._stripAttendance(ev);
+          var json = JSON.stringify(stripped);
+          evBatch.set(evCol.doc(id), { json: json });
+          this._eJson[id] = json;
+          this._writingE[id] = json;
+          inBatch++;
+          if (inBatch >= 400) { await evBatch.commit(); evBatch = fbDb.batch(); inBatch = 0; }
+          // RTDB에 참석 데이터 기록
+          var rtdbRef = this._getAttendanceRef(ev.id);
+          if (rtdbRef) {
+            rtdbRef.set({
+              participants: ev.participants || [],
+              waitlist: ev.waitlist || [],
+              participantTimes: ev.participantTimes || {},
+              maxParticipants: ev.maxParticipants || 0,
+              maxMale: ev.maxMale || 0,
+              maxFemale: ev.maxFemale || 0
+            });
+          }
+        }
+        if (inBatch > 0) await evBatch.commit();
+        // 쓰기 가드 해제 (이벤트)
+        setTimeout(function() {
+          Object.keys(self._writingE).forEach(function(eid) { delete self._writingE[eid]; });
+        }, 2000);
+      }
+
+      // 3) tournaments: diff 기반 저장
       if (data.tournaments) {
         this.saveTournaments(data.tournaments);
       }
@@ -1494,9 +1455,13 @@ const Storage = {
   _unsubEvents: null,
   _unsubCourts: null,
   _unsubGroups: null,
-  _writing: { players: null, teams: null, events: null, courts: null, groups: null },
+  _writing: { players: null, teams: null, courts: null, groups: null },
 
   _syncToFirestore(docName) {
+    if (docName === 'events') {
+      console.warn('[storage] _syncToFirestore("events") 호출은 더 이상 사용하지 않습니다. _syncEventToFirestore(id)를 사용하세요.');
+      return;
+    }
     var parent = this._getParent();
     if (!parent) return;
 
@@ -1579,9 +1544,98 @@ const Storage = {
       });
   },
 
+  // ─── 이벤트 문서 1개 쓰기 (재시도 3회 + 실패 알림) ───
+
+  _stripAttendance(ev) {
+    var copy = {};
+    for (var key in ev) {
+      if (ev.hasOwnProperty(key) && key !== 'participants' && key !== 'waitlist' && key !== 'participantTimes') {
+        copy[key] = ev[key];
+      }
+    }
+    return copy;
+  },
+
+  _writeEventJson(col, id, json) {
+    this._checkEventSize(id, json);
+    this._writingE[id] = json;
+    var docRef = col.doc(id);
+    var self = this;
+    var attempt = function(triesLeft) {
+      if (self._writingE[id] !== json) return;
+      docRef.set({ json: json })
+        .then(function() {
+          self._eJson[id] = json;
+          setTimeout(function() { if (self._writingE[id] === json) delete self._writingE[id]; }, 2000);
+        })
+        .catch(function(err) {
+          console.error('event write error (' + id + '), 남은 재시도 ' + triesLeft, err);
+          if (triesLeft > 0) {
+            setTimeout(function() { attempt(triesLeft - 1); }, 1000 * (4 - triesLeft));
+          } else {
+            setTimeout(function() { if (self._writingE[id] === json) delete self._writingE[id]; }, 30000);
+            if (typeof Modal !== 'undefined' && Modal.toast) {
+              Modal.toast('저장에 실패했습니다. 네트워크 확인 후 다시 시도해주세요.', 'error');
+            }
+          }
+        });
+    };
+    attempt(3);
+  },
+
+  _deleteEventDoc(col, id) {
+    this._writingE[id] = '__deleted__';
+    var self = this;
+    col.doc(id).delete()
+      .then(function() {
+        delete self._eJson[id];
+        setTimeout(function() { if (self._writingE[id] === '__deleted__') delete self._writingE[id]; }, 2000);
+      })
+      .catch(function(err) {
+        console.error('event delete error (' + id + '):', err);
+        if (self._writingE[id] === '__deleted__') delete self._writingE[id];
+        if (typeof Modal !== 'undefined' && Modal.toast) {
+          Modal.toast('삭제에 실패했습니다.\n네트워크 연결을 확인한 뒤 다시 시도해주세요.', 'error');
+        }
+      });
+  },
+
+  _checkEventSize(id, json) {
+    this._warnIfLarge(json, this._eSizeWarnedAt, id, '한 이벤트의 데이터');
+  },
+
+  async _loadEventsFromCollection(parent) {
+    this._data.events = [];
+    this._eJson = {};
+    var self = this;
+    var col = await parent.collection('events').get();
+    if (!col.empty) {
+      col.forEach(function(d) {
+        var json = d.data().json;
+        if (json == null) return;
+        self._eJson[d.id] = json;
+        try { self._data.events.push(JSON.parse(json)); } catch (e) {}
+      });
+      self._sortEvents(self._data.events);
+    }
+  },
+
+  // 이벤트 메타데이터 동기화 (참석 데이터 제외, 개별 문서)
+  _syncEventToFirestore(eventId) {
+    var parent = this._getParent();
+    if (!parent) return;
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (!ev) return;
+    var stripped = this._stripAttendance(ev);
+    var json = JSON.stringify(stripped);
+    var col = parent.collection('events');
+    this._writeEventJson(col, String(eventId), json);
+  },
+
   // ─── 용량 감시: Firestore 1MB 문서 한계 근접 경고 ───
 
-  _sizeWarnedAt: { players: 0, teams: 0, events: 0, courts: 0, groups: 0 },
+  _sizeWarnedAt: { players: 0, teams: 0, courts: 0, groups: 0 },
+  _eSizeWarnedAt: {},
   _tSizeWarnedAt: {},
 
   _checkDocSize(docName, json) {
@@ -1623,7 +1677,6 @@ const Storage = {
       var results = await Promise.all([
         dataBase.doc('players').get(),
         dataBase.doc('teams').get(),
-        dataBase.doc('events').get(),
         dataBase.doc('courts').get(),
         dataBase.doc('groups').get()
       ]);
@@ -1636,10 +1689,10 @@ const Storage = {
 
       this._loadDoc('players', results[0]);
       this._loadDoc('teams', results[1]);
-      this._loadDoc('events', results[2]);
-      this._loadDoc('courts', results[3]);
-      this._loadDoc('groups', results[4]);
+      this._loadDoc('courts', results[2]);
+      this._loadDoc('groups', results[3]);
 
+      await this._loadEventsFromCollection(parent);
       await this._loadTournamentsFromCollection(parent);
 
       // RTDB 참석 마이그레이션 + 로드
@@ -1809,22 +1862,52 @@ const Storage = {
       var dataBase = sharedParent.collection('data');
       await Promise.all([
         dataBase.doc('players').set({ json: JSON.stringify(players) }),
-        dataBase.doc('events').set({ json: JSON.stringify(events) }),
         dataBase.doc('courts').set({ json: JSON.stringify(courts) }),
         dataBase.doc('teams').set({ json: JSON.stringify(teams) })
       ]);
 
       this._setLocal('players', players);
-      this._setLocal('events', events);
       this._setLocal('courts', courts);
       this._setLocal('teams', teams);
+
+      // events → 개별 문서로 마이그레이션 (참석 데이터 분리)
+      var self = this;
+      if (events.length > 0) {
+        this._data.events = events;
+        var evCol = sharedParent.collection('events');
+        var evBatch = fbDb.batch();
+        var evInBatch = 0;
+        for (var e = 0; e < events.length; e++) {
+          var ev = events[e];
+          if (!ev || ev.id == null) continue;
+          var eid = String(ev.id);
+          var stripped = this._stripAttendance(ev);
+          var ejson = JSON.stringify(stripped);
+          evBatch.set(evCol.doc(eid), { json: ejson });
+          self._eJson[eid] = ejson;
+          evInBatch++;
+          if (evInBatch >= 400) { await evBatch.commit(); evBatch = fbDb.batch(); evInBatch = 0; }
+          // RTDB에 참석 데이터 기록
+          var rtdbRef = this._getAttendanceRef(ev.id);
+          if (rtdbRef) {
+            rtdbRef.set({
+              participants: ev.participants || [],
+              waitlist: ev.waitlist || [],
+              participantTimes: ev.participantTimes || {},
+              maxParticipants: ev.maxParticipants || 0,
+              maxMale: ev.maxMale || 0,
+              maxFemale: ev.maxFemale || 0
+            });
+          }
+        }
+        if (evInBatch > 0) await evBatch.commit();
+      }
 
       // tournaments → 개별 문서로 마이그레이션
       if (tournaments.length > 0) {
         this._data.tournaments = tournaments;
         var batch = fbDb.batch();
         var inBatch = 0;
-        var self = this;
         for (var i = 0; i < tournaments.length; i++) {
           var t = tournaments[i];
           if (!t || t.id == null) continue;
@@ -1881,36 +1964,57 @@ const Storage = {
 
     this._unsubPlayers = listenDoc('players');
     this._unsubTeams = listenDoc('teams');
-    // events: RTDB가 관리하는 참석 필드(participants/waitlist/participantTimes)를 보존
-    this._unsubEvents = dataBase.doc('events').onSnapshot(function(doc) {
-      if (doc.metadata.hasPendingWrites) return;
-      if (!doc.exists) return;
-      var remoteJson = doc.data().json || '[]';
-      if (self._writing.events !== null) {
-        if (remoteJson === self._writing.events) self._writing.events = null;
-        return;
-      }
-      if (remoteJson === self._json.events) return;
-      var remoteEvents = JSON.parse(remoteJson);
-      // RTDB 참석 데이터 보존: 로컬 이벤트의 참석 필드를 원격 이벤트에 병합
-      var localMap = {};
-      (self._data.events || []).forEach(function(ev) {
-        if (ev.id) localMap[ev.id] = ev;
-      });
-      for (var i = 0; i < remoteEvents.length; i++) {
-        var local = localMap[remoteEvents[i].id];
-        if (local) {
-          remoteEvents[i].participants = local.participants || [];
-          remoteEvents[i].waitlist = local.waitlist || [];
-          remoteEvents[i].participantTimes = local.participantTimes || {};
-        }
-      }
-      self._json.events = remoteJson;
-      self._data.events = remoteEvents;
-      self._onRemoteChange();
-    }, function(err) { console.error('events realtime sync error:', err); });
     this._unsubCourts = listenDoc('courts');
     this._unsubGroups = listenDoc('groups');
+
+    // events: 컬렉션 리스너 (문서별 추가/수정/삭제 반영, 참석 데이터는 RTDB가 관리)
+    this._unsubEvents = parent.collection('events').onSnapshot(function(snap) {
+      var changed = false;
+      snap.docChanges().forEach(function(chg) {
+        var id = chg.doc.id;
+        if (chg.doc.metadata.hasPendingWrites) return;
+
+        if (chg.type === 'removed') {
+          var i = self._data.events.findIndex(function(e) { return String(e.id) === id; });
+          if (i !== -1) { self._data.events.splice(i, 1); changed = true; }
+          delete self._eJson[id];
+          if (self._writingE[id] === '__deleted__') delete self._writingE[id];
+          return;
+        }
+
+        var remoteJson = chg.doc.data().json;
+        if (remoteJson == null) return;
+
+        // 쓰기 진행 중: 에코이면 확인, 아니면 원격 변경 무시
+        if (self._writingE[id] != null && self._writingE[id] !== '__deleted__') {
+          if (self._writingE[id] === remoteJson) {
+            delete self._writingE[id];
+            self._eJson[id] = remoteJson;
+          }
+          return;
+        }
+        if (self._eJson[id] === remoteJson) return;
+
+        // 다른 클라이언트의 변경 → 메모리 반영 (RTDB 참석 데이터 보존)
+        var ev;
+        try { ev = JSON.parse(remoteJson); } catch (e) { return; }
+        var i = self._data.events.findIndex(function(x) { return String(x.id) === id; });
+        if (i !== -1) {
+          ev.participants = self._data.events[i].participants || [];
+          ev.waitlist = self._data.events[i].waitlist || [];
+          ev.participantTimes = self._data.events[i].participantTimes || {};
+          self._data.events[i] = ev;
+        } else {
+          self._data.events.push(ev);
+        }
+        self._eJson[id] = remoteJson;
+        changed = true;
+      });
+      if (changed) {
+        self._sortEvents(self._data.events);
+        self._onRemoteChange();
+      }
+    }, function(err) { console.error('events realtime sync error:', err); });
 
     // tournaments: 컬렉션 리스너 (문서별 추가/수정/삭제 반영)
     this._unsubTournaments = parent.collection('tournaments').onSnapshot(function(snap) {
@@ -1977,7 +2081,6 @@ const Storage = {
         ev.participantTimes = att.participantTimes || {};
         if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
         if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
-        self._json.events = JSON.stringify(self._data.events);
         self._onRemoteChange();
       };
       this._rtdbAttendanceRef.on('child_changed', onAttendanceUpdate);
@@ -2087,6 +2190,6 @@ const Storage = {
           App.navigate(App.currentTab);
         }
       }
-    }, 100);
+    }, 300);
   },
 };
