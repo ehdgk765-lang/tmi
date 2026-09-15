@@ -176,7 +176,7 @@ const CustomBracket = {
     let html = `<div class="bracket-scroll-hint"><div class="bracket-container overflow-x-auto pb-4"><div class="bracket flex gap-0 min-w-max">`;
 
     // 1라운드: 클릭 가능한 슬롯
-    html += `<div class="bracket-round flex flex-col" style="min-width: 200px;">
+    html += `<div class="bracket-round flex flex-col">
       <div class="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">${roundNames[0]}</div>
       <div class="flex flex-col justify-around flex-1 gap-2">`;
 
@@ -196,9 +196,9 @@ const CustomBracket = {
 
     // 이후 라운드: 비활성 "대기 중"
     for (let r = 1; r < totalRounds; r++) {
-      html += `<div class="bracket-connector flex flex-col justify-around" style="width: 24px;"></div>`;
+      html += `<div class="bracket-connector flex flex-col justify-around"></div>`;
       const matchesInRound = size / Math.pow(2, r + 1);
-      html += `<div class="bracket-round flex flex-col" style="min-width: 200px;">
+      html += `<div class="bracket-round flex flex-col">
         <div class="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">${roundNames[r]}</div>
         <div class="flex flex-col justify-around flex-1 gap-2">`;
 

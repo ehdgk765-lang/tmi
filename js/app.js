@@ -1454,7 +1454,7 @@ const App = {
 
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">경기 종류</label>
-          <div class="grid grid-cols-5 gap-1.5">
+          <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
             ${Object.entries(GAME_TYPES).map(([key, cfg], i) => `
               <label class="cursor-pointer">
                 <input type="radio" name="gameType" value="${key}" ${key === 'XD' ? 'checked' : ''} class="sr-only peer">

@@ -141,7 +141,7 @@ const Tournament = {
 
     for (let r = 0; r < totalRounds; r++) {
       html += `
-        <div class="bracket-round flex flex-col" style="min-width: 200px;">
+        <div class="bracket-round flex flex-col">
           <div class="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">${roundNames[r]}</div>
           <div class="flex flex-col justify-around flex-1 gap-2">`;
 
@@ -183,7 +183,7 @@ const Tournament = {
 
       // 라운드 사이 연결선
       if (r < totalRounds - 1) {
-        html += `<div class="bracket-connector flex flex-col justify-around" style="width: 24px;"></div>`;
+        html += `<div class="bracket-connector flex flex-col justify-around"></div>`;
       }
     }
 

@@ -216,10 +216,10 @@ header {
   padding: 0 1px;
 }
 .calendar-label {
-  font-size: 7px;
-  line-height: 10px;
-  border-radius: 2px;
-  padding: 0 2px;
+  font-size: 9px;
+  line-height: 13px;
+  border-radius: 3px;
+  padding: 0 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -251,11 +251,27 @@ header {
   color: #fff;
 }
 .calendar-label-more {
-  font-size: 7px;
-  line-height: 10px;
+  font-size: 9px;
+  line-height: 13px;
   color: #9ca3af;
   text-align: center;
   font-weight: 600;
+}
+
+/* 캘린더 참석자 이름 */
+.cal-names-wrap {
+  font-size: 0;
+  line-height: 0;
+}
+.cal-participant-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  vertical-align: middle;
+}
+.cal-participant-name {
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* 모달 스크롤 잠금 */
@@ -284,6 +300,7 @@ header {
 
 .bracket-round {
   padding: 0 4px;
+  min-width: 200px;
 }
 
 .bracket-match {
@@ -296,6 +313,7 @@ header {
 
 .bracket-connector {
   position: relative;
+  width: 24px;
 }
 
 /* 브래킷 스크롤 힌트 (그라데이션) */
@@ -595,6 +613,23 @@ html.dark .custom-modal-box .text-blue-500 {
     padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* 모달 max-width 안전 마진 - 320px 기기 대응 */
+  .max-w-sm, .max-w-md {
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  /* 캘린더 참석자 이름 반응형 */
+  .cal-participant-name {
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .cal-participant-label {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 20px;
+    vertical-align: middle;
   }
 
   /* 순위표 글자 크기 */
