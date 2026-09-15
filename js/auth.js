@@ -11,6 +11,23 @@ const Auth = {
         // 역할 초기화 (Firestore에서 비동기 조회)
         await RolesConfig.initRole();
 
+        // 탭-역할 불일치 검증: 멤버 탭에서 관리자 계정 또는 관리자 탭에서 멤버 계정 차단
+        const loginTab = localStorage.getItem('tennis_login_tab');
+        if (loginTab) {
+          const roleMismatch =
+            (loginTab === 'member' && RolesConfig.isAdmin()) ||
+            (loginTab === 'admin' && RolesConfig.isMember());
+          if (roleMismatch) {
+            const msg = loginTab === 'member'
+              ? '관리자 계정입니다. 관리자 탭에서 로그인해주세요.'
+              : '멤버 계정입니다. 멤버 탭에서 로그인해주세요.';
+            localStorage.removeItem('tennis_member_name');
+            await fbAuth.signOut();
+            this._showLoginError(msg);
+            return;
+          }
+        }
+
         // 다른 계정으로 전환된 경우 이전 데이터 정리
         const lastUid = localStorage.getItem('tennis_last_uid');
         if (lastUid && lastUid !== user.uid) {
@@ -138,8 +155,8 @@ const Auth = {
         <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-blue-200/50 border border-white/60 overflow-hidden">
           <!-- 탭 -->
           <div class="flex border-b border-gray-200">
-            <button type="button" id="auth-tab-admin" class="flex-1 py-3 text-sm font-bold text-blue-700 border-b-2 border-blue-700 transition">관리자</button>
-            <button type="button" id="auth-tab-member" class="flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">멤버</button>
+            <button type="button" id="auth-tab-admin" class="flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">관리자</button>
+            <button type="button" id="auth-tab-member" class="flex-1 py-3 text-sm font-bold text-blue-700 border-b-2 border-blue-700 transition">멤버</button>
           </div>
           <div class="p-6">
           <form id="auth-form" class="space-y-4">
@@ -155,7 +172,7 @@ const Auth = {
                 class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 focus:bg-white transition"
                 placeholder="6자 이상">
             </div>
-            <div id="auth-member-name-wrap" style="display:none">
+            <div id="auth-member-name-wrap">
               <label class="block text-xs font-semibold text-gray-500 mb-1.5 ml-1">이름</label>
               <input type="text" autocomplete="off" id="auth-member-name" maxlength="20"
                 class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 focus:bg-white transition"
@@ -169,7 +186,7 @@ const Auth = {
             </div>
             <label class="flex items-center justify-end gap-1.5 cursor-pointer select-none">
               <input type="checkbox" id="auth-remember" class="w-4 h-4 rounded border-gray-300 text-blue-700 focus:ring-blue-700 accent-blue-700">
-              <span id="auth-remember-label" class="text-xs text-gray-400">아이디 기억하기</span>
+              <span id="auth-remember-label" class="text-xs text-gray-400">아이디/이름 기억하기</span>
             </label>
             <p id="auth-error" class="text-sm text-red-500 hidden"></p>
             <button type="submit" id="auth-submit-btn"
@@ -267,17 +284,10 @@ const Auth = {
       };
     }
 
-    // 이메일 기억하기: 저장된 이메일/이름 복원
     const emailInput = container.querySelector('#auth-email');
     const rememberCheck = container.querySelector('#auth-remember');
-    const savedEmail = localStorage.getItem('tennis_remember_email');
-    const savedRememberName = localStorage.getItem('tennis_remember_name');
-    if (savedEmail) {
-      emailInput.value = savedEmail;
-      rememberCheck.checked = true;
-    }
 
-    let isMemberTab = false;
+    let isMemberTab = true;
     const form = container.querySelector('#auth-form');
     const confirmWrap = container.querySelector('#auth-confirm-wrap');
     const memberNameWrap = container.querySelector('#auth-member-name-wrap');
@@ -287,29 +297,53 @@ const Auth = {
     const tabAdmin = container.querySelector('#auth-tab-admin');
     const tabMember = container.querySelector('#auth-tab-member');
 
-    // 저장된 멤버 이름 복원 (기억하기 > 기존 저장 순)
-    if (savedRememberName) {
-      memberNameInput.value = savedRememberName;
-    } else {
-      const savedMemberName = localStorage.getItem('tennis_member_name');
-      if (savedMemberName) memberNameInput.value = savedMemberName;
-    }
+    // 탭별 기억하기 복원 함수
+    const restoreRemember = (forMember) => {
+      const suffix = forMember ? '_member' : '_admin';
+      const savedEmail = localStorage.getItem('tennis_remember_email' + suffix);
+      const savedName = forMember ? localStorage.getItem('tennis_remember_name_member') : '';
+      if (savedEmail) {
+        emailInput.value = savedEmail;
+        rememberCheck.checked = true;
+      } else {
+        emailInput.value = '';
+        rememberCheck.checked = false;
+      }
+      if (forMember) {
+        if (savedName) {
+          memberNameInput.value = savedName;
+        } else {
+          const savedMemberName = localStorage.getItem('tennis_member_name');
+          if (savedMemberName) memberNameInput.value = savedMemberName;
+        }
+      }
+    };
 
-    // 저장된 탭 복원
+    // 저장된 탭 복원 (기본: 멤버 탭)
     const savedTab = localStorage.getItem('tennis_login_tab');
-    if (savedTab === 'member') {
-      isMemberTab = true;
+    if (savedTab === 'admin') {
+      isMemberTab = false;
+      tabAdmin.className = 'flex-1 py-3 text-sm font-bold text-blue-700 border-b-2 border-blue-700 transition';
+      tabMember.className = 'flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition';
+      memberNameWrap.style.display = 'none';
+      container.querySelector('#auth-remember-label').textContent = '아이디 기억하기';
+    } else {
       tabAdmin.className = 'flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition';
       tabMember.className = 'flex-1 py-3 text-sm font-bold text-blue-700 border-b-2 border-blue-700 transition';
       memberNameWrap.style.display = '';
       container.querySelector('#auth-remember-label').textContent = '아이디/이름 기억하기';
     }
 
+    // 초기 탭에 맞는 기억하기 복원
+    restoreRemember(isMemberTab);
+
     const rememberLabel = container.querySelector('#auth-remember-label');
     const switchTab = (toMember) => {
       isMemberTab = toMember;
       errorEl.classList.add('hidden');
       localStorage.setItem('tennis_login_tab', toMember ? 'member' : 'admin');
+      // 탭 전환 시 해당 탭의 저장된 값 복원
+      restoreRemember(toMember);
       if (toMember) {
         tabAdmin.className = 'flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition';
         tabMember.className = 'flex-1 py-3 text-sm font-bold text-blue-700 border-b-2 border-blue-700 transition';
@@ -346,7 +380,7 @@ const Auth = {
       if (fbAuth.currentUser && isMemberTab) {
         // 이메일/이름 기억하기 처리
         if (rememberCheck.checked) {
-          localStorage.setItem('tennis_remember_name', memberNameInput.value.trim());
+          localStorage.setItem('tennis_remember_name_member', memberNameInput.value.trim());
         }
         submitBtn.disabled = true;
         submitBtn.textContent = '처리 중...';
@@ -358,15 +392,18 @@ const Auth = {
       submitBtn.textContent = '처리 중...';
 
       try {
-        // 이메일/이름 기억하기 처리
+        // 이메일/이름 기억하기 처리 (탭별 분리)
+        const suffix = isMemberTab ? '_member' : '_admin';
         if (rememberCheck.checked) {
-          localStorage.setItem('tennis_remember_email', email);
+          localStorage.setItem('tennis_remember_email' + suffix, email);
           if (isMemberTab) {
-            localStorage.setItem('tennis_remember_name', memberNameInput.value.trim());
+            localStorage.setItem('tennis_remember_name_member', memberNameInput.value.trim());
           }
         } else {
-          localStorage.removeItem('tennis_remember_email');
-          localStorage.removeItem('tennis_remember_name');
+          localStorage.removeItem('tennis_remember_email' + suffix);
+          if (isMemberTab) {
+            localStorage.removeItem('tennis_remember_name_member');
+          }
         }
 
         await fbAuth.signInWithEmailAndPassword(email, password);
