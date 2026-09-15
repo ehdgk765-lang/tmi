@@ -353,10 +353,10 @@ const Calendar = {
                   (function() {
                     var isRegular = Storage.isRegularEvent(ev);
                     var isCreator = memberName && ev.createdBy === memberName;
-                    var canEditThis = isAdmin || (isCreator && !isRegular);
-                    var canDeleteThis = isAdmin || (isCreator && !isRegular);
-                    var canBracket = (isAdmin || isCreator) && participants.length >= 2;
                     var isHost = memberName && ev.host === memberName;
+                    var canEditThis = isAdmin || isHost;
+                    var canDeleteThis = isAdmin;
+                    var canBracket = (isAdmin || isCreator || isHost) && participants.length >= 2;
                     var canSettlement = canEditThis || isHost;
                     var hasSettlement = !!ev.settlement;
                     var showShare = isClub;
@@ -1590,6 +1590,20 @@ const Calendar = {
             '</div>' +
           '</div>'
         ) +
+        // 몸풀기 시간
+        '<div>' +
+          '<label class="block text-xs font-semibold text-gray-500 mb-1.5">몸풀기 시간</label>' +
+          '<div class="flex gap-1.5">' +
+            '<label class="cursor-pointer flex-1">' +
+              '<input type="radio" name="bm-warmup" value="10" class="sr-only peer">' +
+              '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">10분</div>' +
+            '</label>' +
+            '<label class="cursor-pointer flex-1">' +
+              '<input type="radio" name="bm-warmup" value="15" checked class="sr-only peer">' +
+              '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">15분</div>' +
+            '</label>' +
+          '</div>' +
+        '</div>' +
         // 옵션
         '<div class="flex items-center justify-end gap-4">' +
           '<label class="flex items-center gap-1.5 cursor-pointer">' +
@@ -1647,6 +1661,12 @@ const Calendar = {
       return checked ? parseInt(checked.value) : 2;
     }
 
+    // 몸풀기 시간 읽기 헬퍼
+    function getWarmupMin() {
+      var checked = modal.querySelector('input[name="bm-warmup"]:checked');
+      return checked ? parseInt(checked.value) : 15;
+    }
+
     // 코트 수, 시간, 섞어 옵션 변경 시 게임 종류 갱신
     modal.querySelectorAll('input[name="bm-courts"]').forEach(function(r) {
       r.onchange = function() { renderTypeSection(); };
@@ -1656,6 +1676,9 @@ const Calendar = {
     if (bmStartEl && bmStartEl.tagName === 'SELECT') bmStartEl.onchange = function() { renderTypeSection(); };
     if (bmEndEl && bmEndEl.tagName === 'SELECT') bmEndEl.onchange = function() { renderTypeSection(); };
     modal.querySelector('#bm-mixed').onchange = function() { renderTypeSection(); };
+    modal.querySelectorAll('input[name="bm-warmup"]').forEach(function(r) {
+      r.onchange = function() { renderTypeSection(); };
+    });
 
     // 게임 종류 자동/수동 설정 렌더링
     function renderTypeSection() {
@@ -1684,7 +1707,7 @@ const Calendar = {
 
       if (codes.length === 0) { section.innerHTML = ''; return; }
 
-      var slots = Schedule.calculateTimeSlots(st, et, 10, 25);
+      var slots = Schedule.calculateTimeSlots(st, et, getWarmupMin(), 25);
       var totalGamesMax = slots.length * courts;
       if (totalGamesMax <= 0) { section.innerHTML = ''; return; }
 
@@ -1812,6 +1835,7 @@ const Calendar = {
       var startTime = modal.querySelector('#bm-start').value;
       var endTime = modal.querySelector('#bm-end').value;
       var courts = getCourtCount();
+      var warmupMin = getWarmupMin();
       var isSingles = modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles';
       var allowMixed = modal.querySelector('#bm-mixed').checked;
 
@@ -1847,7 +1871,7 @@ const Calendar = {
         });
         var total = 0;
         for (var k in typeDistribution) { if (typeDistribution.hasOwnProperty(k)) total += typeDistribution[k]; }
-        var slotsForVal = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
+        var slotsForVal = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         var expectedTotal = slotsForVal.length * courts;
         if (total !== expectedTotal) {
           alert('게임 종류 합계(' + total + ')가 총 경기수(' + expectedTotal + ')와 일치하지 않습니다.');
@@ -1861,9 +1885,9 @@ const Calendar = {
         }
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, 10, 25);
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, warmupMin, 25);
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 몸풀기 10분 + 최소 1게임(25분) 이상 설정해주세요.');
+        alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
@@ -1880,7 +1904,7 @@ const Calendar = {
         startTime: startTime,
         endTime: endTime,
         allowMixed: allowMixed,
-        warmupMinutes: 10,
+        warmupMinutes: warmupMin,
         gameMinutes: 25,
         gameDate: gameDate,
         males: males,

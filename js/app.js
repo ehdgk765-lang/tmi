@@ -1983,6 +1983,25 @@ const App = {
           <p id="time-info" class="text-xs text-gray-500 mt-1"></p>
         </div>
 
+        <!-- 몸풀기 시간 -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">몸풀기 시간</label>
+          <div class="flex gap-2">
+            <label class="cursor-pointer flex-1">
+              <input type="radio" name="warmup-time" value="10" class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <span class="font-semibold text-gray-800 text-sm">10분</span>
+              </div>
+            </label>
+            <label class="cursor-pointer flex-1">
+              <input type="radio" name="warmup-time" value="15" checked class="sr-only peer">
+              <div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <span class="font-semibold text-gray-800 text-sm">15분</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- 코트 수 -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">코트 수</label>
@@ -2115,6 +2134,9 @@ const App = {
 
     container.querySelector('#start-time').onchange = () => this.updateSchedulePreview(container);
     container.querySelector('#end-time').onchange = () => this.updateSchedulePreview(container);
+    container.querySelectorAll('input[name="warmup-time"]').forEach(r => {
+      r.onchange = () => this.updateSchedulePreview(container);
+    });
 
     // 빠른 시간 설정 버튼
     container.querySelectorAll('.quick-time-btn').forEach(btn => {
@@ -2150,6 +2172,7 @@ const App = {
       const startTime = container.querySelector('#start-time').value;
       const endTime = container.querySelector('#end-time').value;
       const courts = parseInt(container.querySelector('input[name="courts"]:checked').value);
+      const warmupMin = parseInt(container.querySelector('input[name="warmup-time"]:checked')?.value) || 15;
       const selectedMales = Array.from(container.querySelectorAll('.male-cb:checked')).map(cb => cb.value);
       const selectedFemales = Array.from(container.querySelectorAll('.female-cb:checked')).map(cb => cb.value);
       const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
@@ -2189,7 +2212,7 @@ const App = {
           if (count > 0) typeDistribution[el.dataset.type] = count;
         });
         const total = Object.values(typeDistribution).reduce((s, v) => s + v, 0);
-        const slotsForValidation = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
+        const slotsForValidation = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         const expectedTotal = slotsForValidation.length * courts;
         if (total !== expectedTotal) {
           alert(`게임 종류 합계(${total})가 총 경기수(${expectedTotal})와 일치하지 않습니다.`);
@@ -2199,7 +2222,7 @@ const App = {
 
       // 수동 모드 사전 검증: 배분 가능한지 확인
       if (typeDistribution) {
-        const slotsForTest = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
+        const slotsForTest = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         const testResult = Schedule.distributeTypesToSlots(typeDistribution, slotsForTest.length, courts, selectedMales.length, selectedFemales.length);
         if (!testResult) {
           alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.\n\n예) 혼복+여복은 같은 시간에 배치 불가 (여자 6명 필요)');
@@ -2207,10 +2230,10 @@ const App = {
         }
       }
 
-      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, 10, 25);
+      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, warmupMin, 25);
 
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 몸풀기 10분 + 최소 1게임(25분) 이상 설정해주세요.');
+        alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
@@ -2227,7 +2250,7 @@ const App = {
         startTime,
         endTime,
         allowMixed,
-        warmupMinutes: 10,
+        warmupMinutes: warmupMin,
         gameMinutes: 25,
         gameDate,
         males: selectedMales,
@@ -2265,10 +2288,11 @@ const App = {
       return;
     }
 
-    const slots = Schedule.calculateTimeSlots(startTime, endTime, 10, 25);
+    const warmupMin = parseInt(container.querySelector('input[name="warmup-time"]:checked')?.value) || 15;
+    const slots = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
     const totalGamesMax = slots.length * courts;
 
-    timeInfo.textContent = `몸풀기 10분 + ${slots.length}게임 (25분 × ${slots.length})`;
+    timeInfo.textContent = `몸풀기 ${warmupMin}분 + ${slots.length}게임 (25분 × ${slots.length})`;
     timeInfo.className = 'text-xs text-gray-500 mt-1';
 
     const allowMixed = container.querySelector('#allow-mixed')?.checked || false;

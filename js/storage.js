@@ -314,11 +314,11 @@ const Storage = {
           }
           for (var i = 0; i < events.length; i++) {
             if (events[i].id === eventId) {
-              // 권한 체크
+              // 권한 체크: 관리자/권한부여멤버 또는 호스트
               if (typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
-                if (self.isRegularEvent(events[i])) return;
                 var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
-                if (!events[i].createdBy || events[i].createdBy !== myName) return;
+                var isHost = myName && events[i].host === myName;
+                if (!isHost) return;
               }
               for (var key in updatedFields) {
                 if (updatedFields.hasOwnProperty(key)) {
@@ -421,10 +421,11 @@ const Storage = {
     var events = this._data.events;
     for (var i = 0; i < events.length; i++) {
       if (events[i].id === eventId) {
+        // 권한 체크: 관리자/권한부여멤버 또는 호스트
         if (typeof RolesConfig !== 'undefined' && !RolesConfig.hasAdminAccess()) {
-          if (this.isRegularEvent(events[i])) return false;
           var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
-          if (!events[i].createdBy || events[i].createdBy !== myName) return false;
+          var isHost = myName && events[i].host === myName;
+          if (!isHost) return false;
         }
         for (var key in updatedFields) {
           if (updatedFields.hasOwnProperty(key)) {
