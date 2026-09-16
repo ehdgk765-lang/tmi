@@ -406,6 +406,388 @@ const App = {
     'css/notice/KakaoTalk_20260916_071935973_11.png'
   ],
 
+  // ── 대관 일정 업로드 ──
+
+  _handleReservationFile(file, container) {
+    var self = this;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(e.target.result, { type: 'array' });
+        // 현재 연도+월 + "대관" 키워드로 시트 감지
+        var now = new Date();
+        var curYear = String(now.getFullYear()).slice(2); // '26'
+        var curMonth = now.getMonth() + 1; // 1~12
+        var yearMonthStr = curYear + '년 ' + curMonth + '월'; // '26년 9월'
+        var monthStr = curMonth + '월';
+        var resSheets = wb.SheetNames.filter(function(n) { return n.indexOf('대관') >= 0; });
+        if (resSheets.length === 0) {
+          Modal.alert('대관 관련 시트를 찾을 수 없습니다.');
+          return;
+        }
+        // 1순위: 연도+월 매칭 (예: '26년 9월' + '대관')
+        var yearMonthSheets = resSheets.filter(function(n) { return n.indexOf(yearMonthStr) >= 0; });
+        var targetSheet;
+        if (yearMonthSheets.length > 0) {
+          targetSheet = yearMonthSheets[yearMonthSheets.length - 1];
+        } else {
+          // 2순위: 월만 매칭 (예: '9월' + '대관')
+          var monthSheets = resSheets.filter(function(n) { return n.indexOf(monthStr) >= 0; });
+          if (monthSheets.length > 0) {
+            targetSheet = monthSheets[monthSheets.length - 1];
+          } else {
+            // 3순위: 대관 시트 목록 표시 후 마지막 시트 사용
+            var sheetList = resSheets.map(function(s, i) { return (i + 1) + '. ' + s; }).join('\n');
+            Modal.alert(monthStr + ' 대관 시트를 찾을 수 없습니다.\n\n발견된 대관 시트:\n' + sheetList + '\n\n마지막 시트를 사용합니다.');
+            targetSheet = resSheets[resSheets.length - 1];
+          }
+        }
+        console.log('[대관업로드] 선택된 시트:', targetSheet);
+        self._processReservationSheet(wb, targetSheet, container);
+      } catch (err) {
+        console.error('대관 엑셀 파싱 오류:', err);
+        Modal.alert('파일을 읽을 수 없습니다. 엑셀(.xlsx) 파일인지 확인해주세요.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  _processReservationSheet(wb, sheetName, container) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    // 헤더 행 감지 (주차, 날짜 등 키워드)
+    var headerIdx = -1;
+    var cols = {};
+    var headerKeywords = { week: ['주차'], date: ['날짜'], day: ['요일'], time: ['시간'], court: ['코트'], venue: ['장소', '위치'], booker: ['예약자', '예약'] };
+    for (var i = 0; i < Math.min(rows.length, 10); i++) {
+      var row = rows[i];
+      if (!row) continue;
+      var matched = 0;
+      for (var j = 0; j < row.length; j++) {
+        var cell = String(row[j]).trim();
+        for (var key in headerKeywords) {
+          if (!cols[key] && headerKeywords[key].some(function(kw) { return cell.indexOf(kw) >= 0; })) {
+            cols[key] = j;
+            matched++;
+          }
+        }
+      }
+      if (matched >= 3) { headerIdx = i; break; }
+    }
+
+    if (headerIdx < 0 || !cols.date || cols.time === undefined) {
+      Modal.alert('헤더 행을 찾을 수 없습니다.\n주차, 날짜, 시간, 코트, 장소, 예약자 컬럼이 필요합니다.');
+      return;
+    }
+
+    // 데이터 행 파싱
+    var parsed = [];
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    for (var r = headerIdx + 1; r < rows.length; r++) {
+      var row = rows[r];
+      if (!row || !row[cols.date]) continue;
+      var weekVal = cols.week !== undefined ? row[cols.week] : '';
+      if (!weekVal && weekVal !== 0) continue; // 주차 없는 행 건너뜀
+      var weekNum = parseInt(weekVal);
+      if (isNaN(weekNum)) continue;
+
+      // 날짜 변환 (Excel serial → YYYY-MM-DD)
+      var dateRaw = row[cols.date];
+      var dateStr = '';
+      if (typeof dateRaw === 'number') {
+        var dt = new Date((dateRaw - 25569) * 86400000);
+        dateStr = dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
+      } else if (dateRaw instanceof Date) {
+        // cellDates 옵션 사용 시 Date 객체 (UTC 기준 변환)
+        dateStr = dateRaw.getUTCFullYear() + '-' + String(dateRaw.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dateRaw.getUTCDate()).padStart(2, '0');
+      } else {
+        dateStr = String(dateRaw).trim();
+      }
+      if (r === headerIdx + 1) {
+        console.log('[대관파싱] 첫 행 날짜:', dateRaw, '→', dateStr);
+      }
+      if (!dateStr || dateStr.length < 8) continue;
+
+      // 시간 파싱 (20-22 → 20:00, 22:00)
+      var timeStr = String(row[cols.time] || '').trim();
+      var timeParts = timeStr.split('-');
+      if (timeParts.length < 2) continue;
+      var startTime = String(parseInt(timeParts[0])).padStart(2, '0') + ':00';
+      var endTime = String(parseInt(timeParts[1])).padStart(2, '0') + ':00';
+
+      // 코트 번호
+      var courtNum = cols.court !== undefined ? String(row[cols.court]).trim() : '';
+      courtNum = courtNum.replace(/[면번]/g, '').trim();
+
+      // 장소
+      var venue = cols.venue !== undefined ? String(row[cols.venue]).trim() : '';
+
+      // 예약자
+      var booker = cols.booker !== undefined ? String(row[cols.booker]).trim() : '';
+
+      // 요일 계산
+      var dp = dateStr.split('-');
+      var dObj = new Date(parseInt(dp[0]), parseInt(dp[1]) - 1, parseInt(dp[2]));
+      var dayOfWeek = dObj.getDay();
+
+      parsed.push({
+        week: weekNum,
+        date: dateStr,
+        dayName: dayNames[dayOfWeek] || '',
+        startTime: startTime,
+        endTime: endTime,
+        court: courtNum,
+        venue: venue,
+        booker: booker,
+        dayOfWeek: dayOfWeek
+      });
+    }
+
+    if (parsed.length === 0) {
+      Modal.alert('파싱된 데이터가 없습니다. 엑셀 형식을 확인해주세요.');
+      return;
+    }
+
+    // 그룹핑
+    var weeks = this._groupReservationRows(parsed);
+
+    // localStorage 저장
+    var data = {
+      uploadedAt: new Date().toISOString(),
+      sheetName: sheetName,
+      weeks: weeks
+    };
+    localStorage.setItem('tmi_reservations', JSON.stringify(data));
+
+    // 건수 요약
+    var weekKeys = Object.keys(weeks);
+    var totalEvents = 0;
+    weekKeys.forEach(function(wk) { totalEvents += weeks[wk].events.length; });
+    Modal.alert(sheetName + ' 시트에서 ' + weekKeys.length + '주차, ' + totalEvents + '건의 일정을 파싱했습니다.');
+
+    this._renderReservationWeeks(container);
+  },
+
+  _groupReservationRows(rows) {
+    var weekMap = {};
+    rows.forEach(function(row) {
+      var wk = String(row.week);
+      if (!weekMap[wk]) weekMap[wk] = {};
+
+      var timeLabel = row.startTime.replace(':00', '') + '~' + row.endTime.replace(':00', '');
+      var groupKey = row.date + '|' + row.venue + '|' + timeLabel;
+
+      if (!weekMap[wk][groupKey]) {
+        weekMap[wk][groupKey] = {
+          date: row.date,
+          dayName: row.dayName,
+          title: row.venue + ' ' + timeLabel,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          venue: row.venue,
+          courts: [],
+          courtBookers: {},
+          dayOfWeek: row.dayOfWeek
+        };
+      }
+      var courtLabel = (row.court && row.venue) ? row.venue + ' ' + row.court + '면' : '';
+      var group = weekMap[wk][groupKey];
+      if (courtLabel && group.courts.indexOf(courtLabel) < 0) {
+        group.courts.push(courtLabel);
+      }
+      if (row.booker && courtLabel) {
+        group.courtBookers[courtLabel] = row.booker;
+      }
+    });
+
+    // 객체 → 정렬된 배열
+    var result = {};
+    Object.keys(weekMap).sort(function(a, b) { return parseInt(a) - parseInt(b); }).forEach(function(wk) {
+      var evMap = weekMap[wk];
+      var evArr = Object.keys(evMap).map(function(k) {
+        var ev = evMap[k];
+        ev.courts.sort(function(a, b) { return parseInt(a) - parseInt(b); });
+        return ev;
+      });
+      evArr.sort(function(a, b) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return a.startTime.localeCompare(b.startTime);
+      });
+      result[wk] = { registered: false, events: evArr };
+    });
+    return result;
+  },
+
+  _renderReservationWeeks(container) {
+    var area = document.getElementById('reservation-weeks-area');
+    if (!area) return;
+    var raw = localStorage.getItem('tmi_reservations');
+    if (!raw) { area.innerHTML = ''; return; }
+    var data;
+    try { data = JSON.parse(raw); } catch(e) { area.innerHTML = ''; return; }
+    if (!data.weeks || Object.keys(data.weeks).length === 0) { area.innerHTML = ''; return; }
+
+    var self = this;
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    var uploadDate = data.uploadedAt ? new Date(data.uploadedAt) : null;
+    var uploadLabel = uploadDate ? (uploadDate.getMonth() + 1) + '/' + uploadDate.getDate() + ' 업로드' : '';
+
+    var html = '<div class="px-4 py-2 border-t border-gray-100">' +
+      '<p class="text-xs text-gray-400 mb-2">' + data.sheetName + ' · ' + uploadLabel + '</p>' +
+    '</div>';
+
+    var weekKeys = Object.keys(data.weeks).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    weekKeys.forEach(function(wk) {
+      var week = data.weeks[wk];
+      var evCount = week.events.length;
+      var isReg = week.registered;
+
+      html += '<div class="px-4 py-2.5 border-t border-gray-100">' +
+        '<div class="flex items-center justify-between">' +
+          '<div class="flex items-center gap-2">' +
+            '<span class="text-sm font-semibold text-gray-700">' + wk + '주차</span>' +
+            '<span class="text-xs text-gray-400">' + evCount + '건</span>' +
+            (isReg ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-600 font-medium">등록 완료</span>' : '') +
+          '</div>' +
+          '<div class="flex items-center gap-1">' +
+            '<button class="res-toggle-btn text-gray-400 hover:text-gray-600 px-2 py-1 text-xs rounded-lg transition" data-week="' + wk + '">상세</button>' +
+            (isReg
+              ? '<button class="res-reg-btn px-2.5 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs hover:bg-blue-50 hover:text-blue-500 transition font-medium" data-week="' + wk + '">재등록</button>' +
+                '<button class="res-unreg-btn text-orange-400 hover:text-orange-600 px-2 py-1 text-xs rounded-lg transition" data-week="' + wk + '">취소</button>'
+              : '<button class="res-reg-btn px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg text-xs hover:from-blue-600 hover:to-indigo-600 active:scale-[0.97] transition-all font-medium" data-week="' + wk + '">등록</button>') +
+          '</div>' +
+        '</div>';
+
+      // 상세 (접힌 상태)
+      html += '<div class="res-detail hidden mt-2 space-y-1" data-week="' + wk + '">';
+      week.events.forEach(function(ev) {
+        var dateShort = ev.date.slice(5).replace('-', '/');
+        var courtInfo = ev.courts.map(function(c) {
+          var b = ev.courtBookers[c];
+          return c + (b ? '(' + b + ')' : '');
+        }).join(', ');
+        html += '<div class="ml-1 text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">' +
+          '<span class="font-medium text-gray-600">' + dateShort + '(' + ev.dayName + ')</span>' +
+          '<span class="text-gray-700">' + ev.title + '</span>' +
+          '<span class="text-gray-400">' + courtInfo + '</span>' +
+        '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    area.innerHTML = html;
+
+    // 이벤트 바인딩
+    area.querySelectorAll('.res-toggle-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var detail = area.querySelector('.res-detail[data-week="' + btn.dataset.week + '"]');
+        if (detail) detail.classList.toggle('hidden');
+      };
+    });
+    area.querySelectorAll('.res-reg-btn').forEach(function(btn) {
+      btn.onclick = async function() {
+        btn.disabled = true;
+        btn.textContent = '등록 중...';
+        await self._registerReservationWeek(btn.dataset.week, container);
+      };
+    });
+    area.querySelectorAll('.res-unreg-btn').forEach(function(btn) {
+      btn.onclick = async function() {
+        if (!await Modal.confirm(btn.dataset.week + '주차 등록 상태를 초기화하시겠습니까?\n이미 생성된 일정은 캘린더에서 직접 삭제해야 합니다.')) return;
+        var raw = localStorage.getItem('tmi_reservations');
+        if (!raw) return;
+        var data = JSON.parse(raw);
+        if (data.weeks[btn.dataset.week]) {
+          data.weeks[btn.dataset.week].registered = false;
+          localStorage.setItem('tmi_reservations', JSON.stringify(data));
+        }
+        self._renderReservationWeeks(container);
+      };
+    });
+  },
+
+  async _registerReservationWeek(weekNum, container) {
+    var raw = localStorage.getItem('tmi_reservations');
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    var week = data.weeks[weekNum];
+    if (!week || !week.events || week.events.length === 0) return;
+
+    // 기존 이벤트 배열 가져오기 (handleRegularExercise와 동일한 패턴)
+    var events = Storage.getEvents();
+    var beforeCount = events.length;
+    var added = 0, skipped = 0;
+    var creatorName = this.getMemberName() || '관리자';
+    var dayColors = ['red', 'green', 'blue', 'purple', 'orange', 'teal', 'pink'];
+
+    for (var i = 0; i < week.events.length; i++) {
+      var ev = week.events[i];
+      // 중복 체크 (같은 날짜 + 제목)
+      var dup = events.some(function(e) { return e.date === ev.date && e.title === ev.title; });
+      if (dup) { skipped++; continue; }
+
+      var courtCount = ev.courts ? ev.courts.length : 0;
+      var hours = parseInt(ev.endTime) - parseInt(ev.startTime);
+      var is3h = hours >= 3;
+
+      events.push({
+        id: Storage.generateId(),
+        title: ev.title,
+        date: ev.date,
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        description: '',
+        color: dayColors[ev.dayOfWeek] || 'green',
+        maxParticipants: is3h ? courtCount * 6 : courtCount * 4,
+        maxMale: is3h ? 0 : courtCount * 2,
+        maxFemale: is3h ? 0 : courtCount * 2,
+        courts: ev.courts || [],
+        host: '',
+        courtBookers: ev.courtBookers || {},
+        participants: [],
+        waitlist: [],
+        createdBy: creatorName
+      });
+      added++;
+    }
+
+    if (added > 0) {
+      // 날짜 + 시간순 정렬 후 일괄 저장 (기존 정규일정 등록과 동일 방식)
+      events.sort(function(a, b) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+      var saveResult = Storage.saveEvents(events);
+      console.log('[대관등록] ' + weekNum + '주차: ' + added + '건 추가 (이전 ' + beforeCount + '건 → 현재 ' + events.length + '건), saveEvents=' + saveResult);
+      if (saveResult === false) {
+        await Modal.alert('일정 저장에 실패했습니다. 관리자 권한을 확인해주세요.');
+        return;
+      }
+    } else {
+      console.log('[대관등록] ' + weekNum + '주차: 추가할 일정 없음 (중복 ' + skipped + '건)');
+    }
+
+    // 등록 완료 표시
+    data.weeks[weekNum].registered = true;
+    localStorage.setItem('tmi_reservations', JSON.stringify(data));
+
+    var msg = weekNum + '주차 대관 일정 ' + added + '건이 등록되었습니다.';
+    if (skipped > 0) msg += '\n(중복 ' + skipped + '건 제외)';
+    await Modal.alert(msg);
+
+    this._renderReservationWeeks(container);
+  },
+
+  _clearReservationData() {
+    Modal.confirm('업로드된 대관 데이터를 초기화하시겠습니까?').then(function(ok) {
+      if (!ok) return;
+      localStorage.removeItem('tmi_reservations');
+      var area = document.getElementById('reservation-weeks-area');
+      if (area) area.innerHTML = '';
+    });
+  },
+
   _showNoticeGallery() {
     var images = this._noticeImages;
     var idx = 0;
@@ -577,7 +959,7 @@ const App = {
     patchDOM(container,
       '<div class="max-w-lg mx-auto">' +
         '<h2 class="text-2xl font-bold text-gray-800 mb-6">설정</h2>' +
-        // 정규 일정 등록
+        // 정규 일정 등록 (주차별)
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mb-4">' +
           '<div class="px-4 py-3">' +
             '<h3 class="font-semibold text-gray-700 text-sm mb-3">정규 일정 등록</h3>' +
@@ -590,9 +972,9 @@ const App = {
               '<select id="reg-month-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700">' +
                 monthOptions +
               '</select>' +
-              '<button id="reg-exercise-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-blue-200/50">정규 일정 등록</button>' +
             '</div>' +
           '</div>' +
+          '<div id="regular-weeks-area"></div>' +
         '</div>' +
         // 정규 일정 확인
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mb-4">' +
@@ -611,6 +993,19 @@ const App = {
             '</div>' +
             '<button id="reg-check-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium shadow-sm shadow-blue-200/50">참석자 확인</button>' +
           '</div>' +
+        '</div>' +
+        // 대관 일정 업로드
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mb-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">대관 일정 업로드</h3>' +
+            '<div class="flex gap-2">' +
+              '<button id="reservation-upload-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-xl hover:from-violet-600 hover:to-purple-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-violet-200/50 text-sm">엑셀 업로드</button>' +
+              '<input type="file" id="reservation-file-input" accept=".xlsx,.xls" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none">' +
+              '<button id="reservation-clear-btn" class="px-4 py-2.5 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all font-medium whitespace-nowrap text-sm">초기화</button>' +
+            '</div>' +
+            '<p class="text-xs text-gray-400 mt-2">대관 내역 엑셀(.xlsx)을 업로드하면 주차별 일정으로 변환됩니다.</p>' +
+          '</div>' +
+          '<div id="reservation-weeks-area"></div>' +
         '</div>' +
         // 코트 관리
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60">' +
@@ -994,15 +1389,15 @@ const App = {
       };
     });
 
-    // 정규 일정 등록 버튼
-    var regBtn = document.getElementById('reg-exercise-btn');
-    if (regBtn) {
-      regBtn.onclick = function() {
-        var year = parseInt(document.getElementById('reg-year-select').value);
-        var month = parseInt(document.getElementById('reg-month-select').value);
-        self.handleRegularExercise(container, year, month);
-      };
+    // 정규 일정 주차별 렌더링
+    var regYearSel = document.getElementById('reg-year-select');
+    var regMonthSel = document.getElementById('reg-month-select');
+    function renderRegWeeks() {
+      self._renderRegularWeeks(container, parseInt(regYearSel.value), parseInt(regMonthSel.value));
     }
+    renderRegWeeks();
+    regYearSel.onchange = renderRegWeeks;
+    regMonthSel.onchange = renderRegWeeks;
 
     // 정규 일정 확인 - 일(day) 옵션 동적 생성
     var regCheckYear = document.getElementById('reg-check-year');
@@ -1070,94 +1465,202 @@ const App = {
         self.handleRegularExerciseCheck(year, month, day);
       };
     }
+
+    // 대관 일정 업로드
+    var resUploadBtn = document.getElementById('reservation-upload-btn');
+    var resFileInput = document.getElementById('reservation-file-input');
+    var resClearBtn = document.getElementById('reservation-clear-btn');
+    if (resUploadBtn && resFileInput) {
+      resUploadBtn.onclick = function() {
+        loadXLSX().then(function() {
+          resFileInput.click();
+        }).catch(function() {
+          Modal.alert('엑셀 라이브러리를 불러올 수 없습니다. 네트워크를 확인해주세요.');
+        });
+      };
+      resFileInput.onchange = function() {
+        var file = resFileInput.files[0];
+        if (!file) return;
+        self._handleReservationFile(file, container);
+        resFileInput.value = '';
+      };
+    }
+    if (resClearBtn) {
+      resClearBtn.onclick = function() { self._clearReservationData(); };
+    }
+    // 기존 업로드 데이터 표시
+    this._renderReservationWeeks(container);
   },
 
-  handleRegularExercise(container, year, month) {
-    // 선택한 년/월의 모든 토요일·일요일 구하기
-    var weekendDates = [];
-    var daysInMonth = new Date(year, month + 1, 0).getDate();
-    for (var d = 1; d <= daysInMonth; d++) {
-      var dayOfWeek = new Date(year, month, d).getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) { // 일요일(0) 또는 토요일(6)
-        var mm = String(month + 1).padStart(2, '0');
-        var dd = String(d).padStart(2, '0');
-        weekendDates.push(year + '-' + mm + '-' + dd);
-      }
-    }
+  _renderRegularWeeks(container, year, month) {
+    var area = document.getElementById('regular-weeks-area');
+    if (!area) return;
 
-    if (weekendDates.length === 0) {
-      Modal.alert('해당 월에 주말이 없습니다.');
+    // 코트+슬롯 → 같은 시간대 묶어서 그룹 템플릿 생성
+    var courts = Storage.getCourts();
+    var slotMap = {}; // 'startTime|endTime|day' → { title, courts:[], ... }
+    courts.forEach(function(court) {
+      (court.slots || []).forEach(function(slot) {
+        var dayKey = slot.day != null ? slot.day : 'all';
+        var key = slot.startTime + '|' + slot.endTime + '|' + dayKey;
+        if (!slotMap[key]) {
+          var timeLabel = slot.startTime.replace(':00', '') + '~' + slot.endTime.replace(':00', '');
+          slotMap[key] = {
+            title: timeLabel + ' 정규 일정',
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            color: slot.color,
+            courts: [],
+            day: slot.day != null ? slot.day : null
+          };
+        }
+        slotMap[key].courts.push(court.name);
+      });
+    });
+    var templates = Object.keys(slotMap).map(function(k) { return slotMap[k]; });
+
+    if (templates.length === 0) {
+      area.innerHTML = '<p class="px-4 py-3 text-xs text-gray-400">코트 관리에서 슬롯을 먼저 추가해주세요.</p>';
       return;
     }
 
-    // 코트 관리에서 등록된 코트+슬롯 기반으로 일정 템플릿 생성
-    var courts = Storage.getCourts();
-    var templates = [];
-    courts.forEach(function(court) {
-      (court.slots || []).forEach(function(slot) {
-        var timeLabel = slot.startTime.replace(':00', '') + '~' + slot.endTime.replace(':00', '');
-        templates.push({
-          title: court.name + ' ' + timeLabel + ' 정규 일정',
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          color: slot.color,
-          day: slot.day != null ? slot.day : null  // 6=토, 0=일, null=토/일 모두
-        });
-      });
-    });
+    // 해당 월의 토/일 날짜 수집 → 주차별 그룹
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var mm = String(month + 1).padStart(2, '0');
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    var weeks = {};
+    var weekNum = 0;
 
-    if (templates.length === 0) {
-      Modal.alert('등록된 코트에 시간대 슬롯이 없습니다. 코트 관리에서 슬롯을 먼저 추가해주세요.');
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dow = new Date(year, month, d).getDay();
+      if (dow !== 0 && dow !== 6) continue;
+      var dd = String(d).padStart(2, '0');
+      var dateStr = year + '-' + mm + '-' + dd;
+
+      if (dow === 6) weekNum++;
+      else if (dow === 0 && (d === 1 || new Date(year, month, d - 1).getDay() !== 6)) weekNum++;
+
+      var dayTemplates = templates.filter(function(t) {
+        return t.day === null || t.day === dow;
+      });
+      if (dayTemplates.length === 0) continue;
+
+      if (!weeks[weekNum]) weeks[weekNum] = [];
+      weeks[weekNum].push({ dateStr: dateStr, day: d, dow: dow, dayName: dayNames[dow], templates: dayTemplates });
+    }
+
+    var weekKeys = Object.keys(weeks).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    if (weekKeys.length === 0) {
+      area.innerHTML = '<p class="px-4 py-3 text-xs text-gray-400">해당 월에 주말이 없습니다.</p>';
       return;
     }
 
     var events = Storage.getEvents();
+    var self = this;
 
-    // 중복 체크: 같은 날짜 + 같은 제목이 이미 있으면 건너뜀
-    var newCount = 0;
-    for (var i = 0; i < weekendDates.length; i++) {
-      var dateStr = weekendDates[i];
-      var dow = new Date(year, month, parseInt(dateStr.slice(8))).getDay(); // 0=일, 6=토
-      for (var j = 0; j < templates.length; j++) {
-        var tmpl = templates[j];
-        // 슬롯에 요일이 지정되어 있으면 해당 요일만 등록
-        if (tmpl.day !== null && tmpl.day !== dow) continue;
-        var exists = events.some(function(e) {
-          return e.date === dateStr && e.title === tmpl.title;
-        });
-        if (!exists) {
-          events.push({
-            id: Storage.generateId(),
-            title: tmpl.title,
-            date: dateStr,
-            startTime: tmpl.startTime,
-            endTime: tmpl.endTime,
-            description: '',
-            color: tmpl.color,
-            maxParticipants: 0,
-            maxMale: 0,
-            maxFemale: 0,
-            participants: [],
-            waitlist: []
-          });
-          newCount++;
+    var html = '';
+    weekKeys.forEach(function(wk) {
+      var weekDays = weeks[wk];
+      var totalEvents = 0;
+      var registeredCount = 0;
+      var dateLabels = [];
+      weekDays.forEach(function(wd) {
+        if (dateLabels.indexOf(wd.day + '일(' + wd.dayName + ')') < 0) {
+          dateLabels.push(wd.day + '일(' + wd.dayName + ')');
         }
+        wd.templates.forEach(function(t) {
+          totalEvents++;
+          if (events.some(function(e) { return e.date === wd.dateStr && e.title === t.title; })) {
+            registeredCount++;
+          }
+        });
+      });
+
+      var isAllReg = registeredCount === totalEvents && totalEvents > 0;
+      var isPartial = registeredCount > 0 && registeredCount < totalEvents;
+
+      html += '<div class="px-4 py-2.5 border-t border-gray-100">' +
+        '<div class="flex items-center justify-between">' +
+          '<div class="flex items-center gap-2">' +
+            '<span class="text-sm font-semibold text-gray-700">' + wk + '주차</span>' +
+            '<span class="text-xs text-gray-400">' + dateLabels.join(', ') + '</span>' +
+            '<span class="text-xs text-gray-400">' + totalEvents + '건</span>' +
+            (isAllReg ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-600 font-medium">등록 완료</span>' : '') +
+            (isPartial ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-600 font-medium">' + registeredCount + '/' + totalEvents + '</span>' : '') +
+          '</div>' +
+          '<div class="flex items-center gap-1">' +
+            (isAllReg
+              ? '<button class="reg-week-btn px-2.5 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs hover:bg-blue-50 hover:text-blue-500 transition font-medium" data-week="' + wk + '">재등록</button>'
+              : '<button class="reg-week-btn px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg text-xs hover:from-blue-600 hover:to-indigo-600 active:scale-[0.97] transition-all font-medium" data-week="' + wk + '">등록</button>') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+
+    area.innerHTML = html;
+
+    area.querySelectorAll('.reg-week-btn').forEach(function(btn) {
+      btn.onclick = async function() {
+        btn.disabled = true;
+        btn.textContent = '등록 중...';
+        var wk = btn.dataset.week;
+        var weekDays = weeks[wk];
+        await self._registerRegularWeek(weekDays, container, year, month);
+      };
+    });
+  },
+
+  async _registerRegularWeek(weekDays, container, year, month) {
+    var events = Storage.getEvents();
+    var added = 0, skipped = 0;
+
+    for (var i = 0; i < weekDays.length; i++) {
+      var wd = weekDays[i];
+      for (var j = 0; j < wd.templates.length; j++) {
+        var tmpl = wd.templates[j];
+        var exists = events.some(function(e) { return e.date === wd.dateStr && e.title === tmpl.title; });
+        if (exists) { skipped++; continue; }
+
+        var courtCount = tmpl.courts.length;
+        var hours = parseInt(tmpl.endTime) - parseInt(tmpl.startTime);
+        var is3h = hours >= 3;
+
+        events.push({
+          id: Storage.generateId(),
+          title: tmpl.title,
+          date: wd.dateStr,
+          startTime: tmpl.startTime,
+          endTime: tmpl.endTime,
+          description: '',
+          color: tmpl.color,
+          maxParticipants: is3h ? courtCount * 6 : courtCount * 4,
+          maxMale: is3h ? 0 : courtCount * 2,
+          maxFemale: is3h ? 0 : courtCount * 2,
+          courts: tmpl.courts,
+          participants: [],
+          waitlist: []
+        });
+        added++;
       }
     }
 
-    if (newCount === 0) {
-      Modal.alert((month + 1) + '월 주말 정규 일정이 이미 모두 등록되어 있습니다.');
-      return;
+    if (added > 0) {
+      events.sort(function(a, b) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+      var result = Storage.saveEvents(events);
+      if (result === false) {
+        await Modal.alert('일정 저장에 실패했습니다. 관리자 권한을 확인해주세요.');
+        return;
+      }
     }
 
-    // 날짜순 정렬
-    events.sort(function(a, b) {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
-    });
+    var msg = '정규 일정 ' + added + '건이 등록되었습니다.';
+    if (skipped > 0) msg += '\n(중복 ' + skipped + '건 제외)';
+    await Modal.alert(msg);
 
-    Storage.saveEvents(events);
-    Modal.alert((month + 1) + '월 주말 정규 일정 ' + newCount + '건이 등록되었습니다.');
+    this._renderRegularWeeks(container, year, month);
   },
 
   handleRegularExerciseCheck(year, month, day) {

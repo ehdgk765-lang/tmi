@@ -62,6 +62,15 @@ const Calendar = {
     var month = this._currentMonth.getMonth();
     var monthLabel = year + '년 ' + (month + 1) + '월';
 
+    // 디버깅: 캘린더에 전달되는 이벤트 확인
+    var monthPrefix = year + '-' + String(month + 1).padStart(2, '0');
+    var monthEvents = events.filter(function(e) { return e.date && e.date.indexOf(monthPrefix) === 0; });
+    console.log('[캘린더] ' + monthLabel + ' 렌더링: 전체 ' + events.length + '건, 이번달 ' + monthEvents.length + '건');
+    if (events.length > 0 && monthEvents.length === 0) {
+      var dates = events.map(function(e) { return e.date; }).filter(function(v, i, a) { return a.indexOf(v) === i; });
+      console.log('[캘린더] 이벤트 날짜 목록:', dates.slice(0, 10).join(', '));
+    }
+
     // 캘린더 그리드 생성
     var calendarGrid = this._buildCalendarGrid(year, month, events);
     // 선택 날짜 일정 목록
