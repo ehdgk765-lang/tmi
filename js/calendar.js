@@ -1936,6 +1936,7 @@ const Calendar = {
         createdAt: new Date().toISOString(),
         completedAt: null,
         timeSlots: timeSlots,
+        eventId: ev.id || null,
       };
 
       var tournaments = Storage.getTournaments();

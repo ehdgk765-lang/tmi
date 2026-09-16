@@ -2203,7 +2203,6 @@ const App = {
               <input type="checkbox" name="players" value="${Results.escapeHtml(p.name)}" class="player-checkbox w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
               <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
               <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${p.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}">${p.gender === 'M' ? '남' : '여'}</span>
-              <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
               ${pGroups.map(g => `<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-600">${Results.escapeHtml(g.name)}</span>`).join('')}
             </label>`;
           }).join('')}
@@ -2274,7 +2273,6 @@ const App = {
               <input type="checkbox" name="${prefix}" value="${Results.escapeHtml(p.name)}" class="${prefix}-cb w-4 h-4 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
               <span class="ml-3 text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
               <span class="ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${badgeClass}">${genderLabel}</span>
-              <span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
             </label>
           `).join('')}
         </div>
@@ -2660,7 +2658,6 @@ const App = {
                 <input type="checkbox" name="males" value="${Results.escapeHtml(p.name)}" class="male-cb w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
                 <span class="ml-2 text-xs text-gray-800">${Results.escapeHtml(p.name)}</span>
                 <span class="ml-1.5 text-[10px] px-1 py-0.5 rounded font-medium bg-blue-100 text-blue-700">남</span>
-                <span class="text-[10px] px-1 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
                 ${tn ? `<span class="sch-team-badge text-[10px] px-1 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
               </label>`;
             }).join('')}
@@ -2687,7 +2684,6 @@ const App = {
                 <input type="checkbox" name="females" value="${Results.escapeHtml(p.name)}" class="female-cb w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
                 <span class="ml-2 text-xs text-gray-800">${Results.escapeHtml(p.name)}</span>
                 <span class="ml-1.5 text-[10px] px-1 py-0.5 rounded font-medium bg-pink-100 text-pink-700">여</span>
-                <span class="text-[10px] px-1 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
                 ${tn ? `<span class="sch-team-badge text-[10px] px-1 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
               </label>`;
             }).join('')}
@@ -3131,6 +3127,7 @@ const App = {
     });
 
     const renderCard = (t) => {
+      const canEditT = RolesConfig.hasAdminAccess() || Schedule._isEventHost(t);
       const isMember = RolesConfig.isMember();
       let hasMyName = false;
       if (isMember) {
@@ -3166,7 +3163,7 @@ const App = {
         return `
           <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
                data-id="${t.id}">
-            ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+            ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}
             <div class="flex items-center justify-between mb-2 pr-6 gap-2">
@@ -3197,7 +3194,7 @@ const App = {
       return `
         <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
              data-id="${t.id}">
-          ${RolesConfig.hasAdminAccess() ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+          ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>` : ''}
           <div class="flex items-center justify-between mb-2 pr-6 gap-2">
@@ -3263,14 +3260,8 @@ const App = {
       };
     });
 
-    // 관리자 권한 없는 멤버: 삭제 버튼 숨기기
-    if (!RolesConfig.hasAdminAccess()) {
-      container.querySelectorAll('.delete-tournament-btn').forEach(el => el.style.display = 'none');
-    }
-
-    // 삭제 버튼 (관리자 권한만)
+    // 삭제 버튼 (관리자 또는 호스트 - 렌더링 시 canEditT로 조건부 생성)
     container.querySelectorAll('.delete-tournament-btn').forEach(btn => {
-      if (!RolesConfig.hasAdminAccess()) return;
       btn.onclick = (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;

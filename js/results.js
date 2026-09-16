@@ -201,20 +201,15 @@ const Results = {
     return scores.map(([s1, s2]) => `${s1}-${s2}`).join(', ');
   },
 
-  // 팀 문자열("A / B")을 NTRP 포함 HTML로 변환
+  // 팀 문자열("A / B")을 HTML로 변환
   formatTeamHtml(teamStr, isCustom) {
     const allPlayers = Storage.getPlayers();
     const names = teamStr.split(' / ');
     return names.map(name => {
       const pd = allPlayers.find(p => p.name === name);
       let badge = '';
-      if (isCustom) {
-        if (pd) {
-          badge = `<span class="ml-0.5">${genderBadge(pd.gender, 'text')}</span>`;
-        }
-      } else if (RolesConfig.hasAdminAccess()) {
-        const ntrp = (pd?.ntrp || 2.5).toFixed(1);
-        badge = `<span class="text-yellow-600 text-xs ml-0.5">${ntrp}</span>`;
+      if (isCustom && pd) {
+        badge = `<span class="ml-0.5">${genderBadge(pd.gender, 'text')}</span>`;
       }
       return `${this.escapeHtml(name)}${badge}`;
     }).join(' <span class="text-gray-300 mx-0.5">/</span> ');

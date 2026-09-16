@@ -2,6 +2,16 @@
 // console.log('[Schedule] loaded, forcedPlan 지원 버전');
 
 const Schedule = {
+  // 대진표의 원본 일정 호스트인지 확인
+  _isEventHost(tournament) {
+    if (!tournament || !tournament.eventId) return false;
+    var memberName = typeof App !== 'undefined' ? App.getMemberName() : '';
+    if (!memberName) return false;
+    var events = Storage.getEvents();
+    var ev = events.find(function(e) { return e.id === tournament.eventId; });
+    return !!(ev && ev.host === memberName);
+  },
+
   // 시간 문자열에 분 더하기 헬퍼
   _addMinutes(timeStr, minutes) {
     const [h, m] = timeStr.split(':').map(Number);
@@ -54,13 +64,6 @@ const Schedule = {
     return a;
   },
 
-  // NTRP 맵 생성 (이름 → NTRP)
-  buildNtrpMap() {
-    const map = {};
-    Storage.getPlayers().forEach(p => { map[p.name] = p.ntrp || 2.5; });
-    return map;
-  },
-
   // 팀 키 생성 (이름 정렬하여 고유 키)
   teamKey(a, b) {
     return [a, b].sort().join('|');
@@ -72,23 +75,22 @@ const Schedule = {
     usedTeams.set(key, (usedTeams.get(key) || 0) + 1);
   },
 
-  // 4명을 NTRP 균형 + 중복 팀 최소화로 2팀 분배
-  balancedPair(players, ntrpMap, usedTeams) {
+  // 4명을 중복 팀 최소화로 2팀 분배
+  balancedPair(players, usedTeams) {
     if (players.length !== 4) return [players.slice(0, 2), players.slice(2)];
     const [a, b, c, d] = players;
-    const n = [ntrpMap[a] || 2.5, ntrpMap[b] || 2.5, ntrpMap[c] || 2.5, ntrpMap[d] || 2.5];
 
     const pairings = [
-      { t1: [a, b], t2: [c, d], diff: Math.abs((n[0] + n[1]) - (n[2] + n[3])) },
-      { t1: [a, c], t2: [b, d], diff: Math.abs((n[0] + n[2]) - (n[1] + n[3])) },
-      { t1: [a, d], t2: [b, c], diff: Math.abs((n[0] + n[3]) - (n[1] + n[2])) },
+      { t1: [a, b], t2: [c, d] },
+      { t1: [a, c], t2: [b, d] },
+      { t1: [a, d], t2: [b, c] },
     ];
 
-    // 중복 팀 페널티 (중복 회피 우선, NTRP는 보조)
+    // 중복 팀 페널티
     pairings.forEach(p => {
       const dup1 = usedTeams.get(this.teamKey(p.t1[0], p.t1[1])) || 0;
       const dup2 = usedTeams.get(this.teamKey(p.t2[0], p.t2[1])) || 0;
-      p.score = (dup1 + dup2) * 100 + p.diff;
+      p.score = dup1 + dup2;
     });
 
     pairings.sort((x, y) => x.score - y.score);
@@ -98,22 +100,20 @@ const Schedule = {
     return [chosen.t1, chosen.t2];
   },
 
-  // XD(혼합복식)용 NTRP 균형 + 중복 최소화 페어링
-  balancedPairXD(males, females, ntrpMap, usedTeams) {
+  // XD(혼합복식)용 중복 최소화 페어링
+  balancedPairXD(males, females, usedTeams) {
     const [m1, m2] = males;
     const [f1, f2] = females;
-    const nm1 = ntrpMap[m1] || 2.5, nm2 = ntrpMap[m2] || 2.5;
-    const nf1 = ntrpMap[f1] || 2.5, nf2 = ntrpMap[f2] || 2.5;
 
     const pairings = [
-      { t1: [f1, m1], t2: [f2, m2], diff: Math.abs((nm1 + nf1) - (nm2 + nf2)) },
-      { t1: [f2, m1], t2: [f1, m2], diff: Math.abs((nm1 + nf2) - (nm2 + nf1)) },
+      { t1: [f1, m1], t2: [f2, m2] },
+      { t1: [f2, m1], t2: [f1, m2] },
     ];
 
     pairings.forEach(p => {
       const dup1 = usedTeams.get(this.teamKey(p.t1[0], p.t1[1])) || 0;
       const dup2 = usedTeams.get(this.teamKey(p.t2[0], p.t2[1])) || 0;
-      p.score = (dup1 + dup2) * 100 + p.diff;
+      p.score = dup1 + dup2;
     });
 
     pairings.sort((x, y) => x.score - y.score);
@@ -290,8 +290,7 @@ const Schedule = {
       plan = bestPlans[Math.floor(Math.random() * bestPlans.length)];
     }
 
-    // NTRP 맵 + 가용 멤버 정렬: 경기 수 적은 순 (동점 셔플)
-    const ntrpMap = this.buildNtrpMap();
+    // 가용 멤버 정렬: 경기 수 적은 순 (동점 셔플)
     let availM = this.sortByCountShuffled(males, gameCounts);
     let availF = this.sortByCountShuffled(females, gameCounts);
 
@@ -342,7 +341,7 @@ const Schedule = {
           idx = availF.indexOf(p);
           if (idx >= 0) availF.splice(idx, 1);
         });
-        [team1, team2] = this.balancedPair(picked, ntrpMap, usedTeams);
+        [team1, team2] = this.balancedPair(picked, usedTeams);
         // 여자를 앞에 표시
         const femSort = (a, b) => (males.includes(a) ? 1 : 0) - (males.includes(b) ? 1 : 0);
         team1.sort(femSort);
@@ -356,15 +355,15 @@ const Schedule = {
       } else if (gameType === 'XD') {
         const mPicked = availM.splice(0, 2);
         const fPicked = availF.splice(0, 2);
-        [team1, team2] = this.balancedPairXD(mPicked, fPicked, ntrpMap, usedTeams);
+        [team1, team2] = this.balancedPairXD(mPicked, fPicked, usedTeams);
         [...mPicked, ...fPicked].forEach(p => gameCounts[p]++);
       } else if (gameType === 'MD') {
         const picked = availM.splice(0, 4);
-        [team1, team2] = this.balancedPair(picked, ntrpMap, usedTeams);
+        [team1, team2] = this.balancedPair(picked, usedTeams);
         picked.forEach(p => gameCounts[p]++);
       } else {
         const picked = availF.splice(0, 4);
-        [team1, team2] = this.balancedPair(picked, ntrpMap, usedTeams);
+        [team1, team2] = this.balancedPair(picked, usedTeams);
         picked.forEach(p => gameCounts[p]++);
       }
 
@@ -570,6 +569,10 @@ const Schedule = {
   // 대진표 렌더링
   render(container, tournament) {
     this._tournament = tournament;
+
+    // 편집 권한: 관리자 또는 일정 호스트
+    var canEdit = RolesConfig.hasAdminAccess() || this._isEventHost(tournament);
+    this._canEdit = canEdit;
 
     // 코트 수에 따라 메인 컨테이너 너비 확장
     const mainEl = document.getElementById('main-content');
@@ -884,7 +887,6 @@ const Schedule = {
               ${(() => { const allPlayersData = Storage.getPlayers(); return playerStats.map((s, idx) => {
                 const pd = allPlayersData.find(pl => pl.name === s.name);
                 const gender = pd?.gender;
-                const ntrp = pd?.ntrp || 2.5;
                 const medalPos = ['0%', '50%', '100%'];
                 const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                 const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(\'css/medal.png\') no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
@@ -892,7 +894,6 @@ const Schedule = {
                   '<td class="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white/95 dark:bg-slate-800/95 z-[1]">' +
                     medalHtml + Results.escapeHtml(s.name) +
                     ' ' + genderBadge(gender) +
-                    (!RolesConfig.hasAdminAccess() ? '' : ' <span class="text-xs px-1 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">' + ntrp.toFixed(1) + '</span>') +
                   '</td>' +
                   '<td class="text-center px-2 py-2 text-gray-600">' + s.games + '</td>' +
                   usedTypes.map(t => '<td class="text-center px-1.5 py-2 text-gray-400">' + (s.byType[t] || 0) + '</td>').join('') +
@@ -911,7 +912,7 @@ const Schedule = {
       </div>`);
 
     // 게스트 모드: 수정 UI 숨기기 (스코어 입력만 허용)
-    if (!RolesConfig.hasAdminAccess()) {
+    if (!canEdit) {
       container.querySelectorAll('#add-match-btn, .delete-match-btn, .court-add-match-btn').forEach(el => el.style.display = 'none');
       const titleEl = container.querySelector('#schedule-title');
       if (titleEl) titleEl.style.cursor = 'default';
@@ -940,7 +941,7 @@ const Schedule = {
     // 쉬는 멤버 표시 (모든 멤버 공개)
     container.querySelectorAll('.resting-players').forEach(el => el.style.display = '');
 
-    if (RolesConfig.hasAdminAccess()) {
+    if (canEdit) {
       // 배정 현황 오버뷰 표시 + 토글
       const overviewEl = container.querySelector('.assignment-overview');
       if (overviewEl) {
@@ -1064,9 +1065,9 @@ const Schedule = {
       });
     };
 
-    // 멤버 이름 탭 → 선택/교환 (관리자만)
+    // 멤버 이름 탭 → 선택/교환 (관리자 또는 호스트)
     container.querySelectorAll('.swap-player').forEach(el => {
-      if (!RolesConfig.hasAdminAccess()) { el.style.cursor = 'default'; return; }
+      if (!canEdit) { el.style.cursor = 'default'; return; }
       el.onclick = (e) => {
         e.stopPropagation(); // 카드 클릭(스코어) 방지
         try {
@@ -1205,9 +1206,9 @@ const Schedule = {
       };
     });
 
-    // 쉬는 멤버 배지 클릭 → 선택된 플레이어와 교체 (관리자만)
+    // 쉬는 멤버 배지 클릭 → 선택된 플레이어와 교체 (관리자 또는 호스트)
     container.querySelectorAll('.resting-player').forEach(badge => {
-      if (!RolesConfig.hasAdminAccess()) return;
+      if (!canEdit) return;
       badge.onclick = (e) => {
         e.stopPropagation();
         if (!selectedPlayer) return; // 선택된 플레이어 없으면 무시
@@ -1242,7 +1243,7 @@ const Schedule = {
     });
 
     // 카드 빈 영역 클릭 → 스코어 입력 (멤버 선택 중이면 해제)
-    const isMember = !RolesConfig.hasAdminAccess() && !!App.getMemberName();
+    const isMember = !canEdit && !!App.getMemberName();
     cards.forEach(card => {
       card.onclick = () => {
         if (selectedPlayer) {
@@ -1282,9 +1283,9 @@ const Schedule = {
       };
     });
 
-    // 대진 삭제 (X 버튼, 관리자만)
+    // 대진 삭제 (X 버튼, 관리자 또는 호스트)
     container.querySelectorAll('.delete-match-btn').forEach(btn => {
-      if (!RolesConfig.hasAdminAccess()) return;
+      if (!canEdit) return;
       btn.onclick = async (e) => {
         e.stopPropagation();
         const si = +btn.dataset.slotIdx;
@@ -1301,7 +1302,7 @@ const Schedule = {
 
     // 경기 종류 변경 (뱃지 클릭, 관리자만)
     container.querySelectorAll('.change-gametype-btn').forEach(btn => {
-      if (!RolesConfig.hasAdminAccess()) {
+      if (!canEdit) {
         btn.style.cursor = 'default';
         btn.classList.remove('cursor-pointer', 'hover:ring-2', 'hover:ring-offset-1', 'hover:ring-green-400');
         return;
@@ -1314,8 +1315,8 @@ const Schedule = {
       };
     });
 
-    // ── 드래그 (관리자 전용) ──
-    if (RolesConfig.hasAdminAccess()) {
+    // ── 드래그 (관리자 또는 호스트) ──
+    if (canEdit) {
     let _dragType = null; // 'card'
 
     // ── 매치 카드 교환 (데스크톱 DnD) ──
@@ -1409,7 +1410,7 @@ const Schedule = {
     };
 
     handles.forEach(handle => {
-      if (RolesConfig.hasAdminAccess()) handle.style.display = '';
+      if (canEdit) handle.style.display = '';
     });
 
     // 모바일/데스크톱 공용: 시간대 핸들 탭으로 교환
@@ -1459,7 +1460,7 @@ const Schedule = {
         clearSlotSelection();
       }
     });
-    } // end if (RolesConfig.hasAdminAccess()) - 드래그
+    } // end if (canEdit) - 드래그
   },
 
   // PDF 내보내기 (타임슬롯 단위 캡처, 페이지당 4개)
@@ -2147,11 +2148,10 @@ const Schedule = {
     const allPlayers = Storage.getPlayers();
     const pd = allPlayers.find(p => p.name === name);
     const isCustom = this._tournament?.isCustom;
-    const ntrpHtml = !RolesConfig.hasAdminAccess() ? '' : `<span class="text-yellow-600 text-xs">${(pd?.ntrp || 2.5).toFixed(1)}</span>`;
     const genderHtml = pd ? genderBadge(pd.gender, 'text') : '';
     return `<span class="swap-player cursor-pointer hover:bg-yellow-100 rounded px-0.5 transition inline-flex items-center gap-0.5"
       data-slot-idx="${slotIdx}" data-match-idx="${matchIdx}" data-team="${team}" data-pos="${pos}"
-      data-name="${Results.escapeHtml(name)}">${Results.escapeHtml(name)}${genderHtml}${ntrpHtml}</span>`;
+      data-name="${Results.escapeHtml(name)}">${Results.escapeHtml(name)}${genderHtml}</span>`;
   },
 
   // 커스텀 대진표: 코트별 세로 레이아웃
@@ -2201,7 +2201,8 @@ const Schedule = {
     const cfg = match.gameType ? SCHEDULE_GAME_TYPES[match.gameType] : null;
     const hasResult = !!match.winner || !!match.scores;
     const isDraw = match.winner === 'draw';
-    const isMember = !RolesConfig.hasAdminAccess() && !!App.getMemberName();
+    const _canEdit = this._canEdit || false;
+    const isMember = !_canEdit && !!App.getMemberName();
     const isMyMatch = this._isMyMatch(match);
     if (!match.player1 || !match.player2) return '';
     const t1Names = match.player1.split(' / ');
@@ -2241,7 +2242,7 @@ const Schedule = {
 
     return `
       <div class="schedule-match-card ${myMatchClass} relative bg-white border ${myBorderColor} rounded-xl p-3 cursor-pointer hover:shadow-md transition"
-           ${RolesConfig.hasAdminAccess() ? 'draggable="true"' : ''} data-match-id="${match.id}" data-slot-idx="${slotIdx}" data-match-idx="${matchIdx}" data-my-match="${isMember && isMyMatch}">
+           ${_canEdit ? 'draggable="true"' : ''} data-match-id="${match.id}" data-slot-idx="${slotIdx}" data-match-idx="${matchIdx}" data-my-match="${isMember && isMyMatch}">
         <button type="button" class="delete-match-btn absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm transition z-10" data-slot-idx="${slotIdx}" data-match-idx="${matchIdx}">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -2298,8 +2299,7 @@ const Schedule = {
           return `<div class="am-player-slot flex items-center justify-between px-3 py-2.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition" data-key="${key}">
             <div class="flex items-center gap-2">
               <span class="text-sm text-gray-800 font-medium">${Results.escapeHtml(name)}</span>
-              ${pd ? `${genderBadge(pd.gender)}
-              ${!RolesConfig.hasAdminAccess() ? '' : `<span class="text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(pd.ntrp || 2.5).toFixed(1)}</span>`}` : ''}
+              ${pd ? `${genderBadge(pd.gender)}` : ''}
               ${tn ? `<span class="text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
             </div>
             <button type="button" class="am-remove-player text-red-400 hover:text-red-600 text-xs" data-key="${key}">✕</button>
@@ -2581,7 +2581,6 @@ const Schedule = {
                   data-name="${Results.escapeHtml(p.name)}" data-used="${isDisabled}">
                   <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
                   <span class="ml-2">${genderBadge(p.gender)}</span>
-                  ${!RolesConfig.hasAdminAccess() ? '' : `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>`}
                   ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                   ${isUsed ? '<span class="ml-auto text-xs text-gray-400">선택됨</span>' : ''}
                   ${isBusy ? '<span class="ml-auto text-xs text-gray-400">같은 시간대</span>' : ''}
@@ -2688,7 +2687,7 @@ const Schedule = {
                   data-name="${Results.escapeHtml(p.name)}" data-disabled="${isDup || isSelf}">
                   <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
                   <span class="ml-2">${genderBadge(p.gender)}</span>
-                  ${!RolesConfig.hasAdminAccess() ? '' : `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>`}
+
                   ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                   ${isSelf ? '<span class="ml-auto text-xs text-gray-400">현재</span>' : ''}
                   ${isDup ? '<span class="ml-auto text-xs text-gray-400">같은 시간대</span>' : ''}

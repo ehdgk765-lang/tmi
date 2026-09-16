@@ -1,5 +1,4 @@
 // players.js - 멤버 관리 CRUD + UI 렌더링
-const NTRP_VALUES = [2.0, 2.5, 3.0, 3.5, 4.0];
 
 const Players = {
   _subTab: 'list', // 'list' | 'groups'
@@ -56,10 +55,7 @@ const Players = {
                 <option value="M">남</option>
                 <option value="F">여</option>
               </select>
-              <select id="player-ntrp-select"
-                class="px-1 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm font-medium bg-white flex-shrink-0">
-                ${NTRP_VALUES.map(v => `<option value="${v}" ${v === 2.5 ? 'selected' : ''}>${v.toFixed(1)}</option>`).join('')}
-              </select>
+
               <button id="add-player-btn"
                 class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-sm shadow-blue-200/50">
                 추가
@@ -72,7 +68,7 @@ const Players = {
             <button id="excel-upload-btn"
               class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-600 hover:text-blue-700 hover:bg-blue-50/50 transition cursor-pointer">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-              엑셀 파일 업로드 (이름, 성별, NTRP)
+              엑셀 파일 업로드 (이름, 성별)
             </button>
           </div>
           <!-- 헤더 -->
@@ -104,8 +100,6 @@ const Players = {
                     <input type="text" autocomplete="off" class="member-name-edit hidden px-2 py-1 border border-blue-500 rounded-lg text-sm font-medium text-gray-800 focus:ring-2 focus:ring-blue-700 focus:outline-none" data-id="${p.id}" value="${this.escapeAttr(p.name)}" maxlength="20" style="width:80px">
                     <button class="gender-toggle-btn text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 cursor-pointer active:scale-95 transition ${p.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}"
                       data-id="${p.id}">${p.gender === 'M' ? '남' : '여'}</button>
-                    <button class="ntrp-toggle-btn text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 cursor-pointer active:scale-95 transition bg-yellow-100 text-yellow-700"
-                      data-id="${p.id}">${(p.ntrp || 2.5).toFixed(1)}</button>
                   </div>
                   <button class="delete-player-btn text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg px-3 py-1 transition text-sm flex-shrink-0 ml-2"
                     data-id="${p.id}">삭제</button>
@@ -129,13 +123,12 @@ const Players = {
   bindEvents(container) {
     const input = container.querySelector('#player-name-input');
     const genderSelect = container.querySelector('#player-gender-select');
-    const ntrpSelect = container.querySelector('#player-ntrp-select');
+
     const addBtn = container.querySelector('#add-player-btn');
 
     const addPlayer = () => {
       const name = input.value.trim();
       const gender = genderSelect.value;
-      const ntrp = parseFloat(ntrpSelect.value);
       if (!name) return;
 
       const players = Storage.getPlayers();
@@ -144,7 +137,7 @@ const Players = {
         return;
       }
 
-      players.push({ id: Storage.generateId(), name, gender, ntrp });
+      players.push({ id: Storage.generateId(), name, gender });
       Storage.savePlayers(players);
       this._renderList(container);
     };
@@ -280,18 +273,6 @@ const Players = {
       };
     });
 
-    container.querySelectorAll('.ntrp-toggle-btn').forEach(btn => {
-      btn.onclick = () => {
-        const players = Storage.getPlayers();
-        const player = players.find(p => p.id === btn.dataset.id);
-        if (!player) return;
-        const current = player.ntrp || 2.5;
-        const idx = NTRP_VALUES.indexOf(current);
-        player.ntrp = NTRP_VALUES[(idx + 1) % NTRP_VALUES.length];
-        Storage.savePlayers(players);
-        btn.textContent = player.ntrp.toFixed(1);
-      };
-    });
 
     container.querySelectorAll('.delete-player-btn').forEach(btn => {
       btn.onclick = async () => {
@@ -462,15 +443,12 @@ const Players = {
             continue;
           }
 
-          const ntrpRaw = parseFloat(row[2]);
-          const ntrp = (!isNaN(ntrpRaw) && ntrpRaw >= 1.0 && ntrpRaw <= 7.0) ? ntrpRaw : 2.5;
-
           if (existingNames.has(name)) {
             skipped++;
             continue;
           }
 
-          players.push({ id: Storage.generateId(), name, gender, ntrp });
+          players.push({ id: Storage.generateId(), name, gender });
           existingNames.add(name);
           added++;
         }

@@ -348,7 +348,6 @@ const CustomBracket = {
                   data-name="${Results.escapeHtml(p.name)}" data-placed="${isPlaced}">
                   <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
                   <span class="ml-2">${genderBadge(p.gender)}</span>
-                  <span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
                   ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                   ${isPlaced ? '<span class="ml-auto text-xs text-gray-400">배치됨</span>' : ''}
                 </div>`;
@@ -454,7 +453,6 @@ const CustomBracket = {
                     data-name="${Results.escapeHtml(p.name)}" data-used="${isUsed}">
                     <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
                     <span class="ml-2">${genderBadge(p.gender)}</span>
-                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-yellow-100 text-yellow-700">${(p.ntrp || 2.5).toFixed(1)}</span>
                     ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
                     ${isUsed ? '<span class="ml-auto text-xs text-gray-400">선택됨</span>' : ''}
                   </div>`;
