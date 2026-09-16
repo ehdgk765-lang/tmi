@@ -142,22 +142,32 @@ const App = {
     var eventId = (typeof _pendingEventId !== 'undefined' && _pendingEventId) ||
                   sessionStorage.getItem('pending_event_id');
     if (!eventId) return;
+    // 사용 후 즉시 정리 (재로드 시 반복 방지)
     sessionStorage.removeItem('pending_event_id');
     if (typeof _pendingEventId !== 'undefined') _pendingEventId = null;
     this.navigateToEvent(eventId);
+  },
+
+  // 딥링크 pending 이벤트 정리 (Auth 초기화 시 조기 호출용)
+  _clearPendingEvent() {
+    sessionStorage.removeItem('pending_event_id');
+    if (typeof _pendingEventId !== 'undefined') _pendingEventId = null;
   },
 
   navigateToEvent(eventId) {
     var events = Storage.getEvents();
     var ev = events.find(function(e) { return e.id === eventId; });
     if (!ev) {
-      if (typeof Modal !== 'undefined') Modal.toast('일정을 찾을 수 없습니다.', 'error');
+      // 삭제된 일정 → 일반 접속으로 전환
+      if (typeof Modal !== 'undefined') Modal.toast('삭제된 일정입니다.', 'error');
+      this.navigate(RolesConfig.getDefaultTab());
       return;
     }
     // 캘린더 탭 접근 가능 여부 확인
     var visibleTabs = RolesConfig.getVisibleTabs();
     if (visibleTabs.indexOf('calendar') < 0) {
       if (typeof Modal !== 'undefined') Modal.toast('이 일정에 접근할 수 없습니다.', 'error');
+      this.navigate(RolesConfig.getDefaultTab());
       return;
     }
     // Calendar 날짜/월 설정 후 이동

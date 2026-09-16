@@ -1,9 +1,25 @@
 // auth.js - 로그인/회원가입 UI + Firebase Auth 관리
 const Auth = {
   initialized: false,
+  _authResolved: false,
 
   init() {
+    // iOS 인앱 브라우저(WKWebView)에서 Firebase Auth indexedDB 접근 실패 시
+    // onAuthStateChanged가 영원히 호출되지 않는 문제 방어
+    var self = this;
+    this._authResolved = false;
+    setTimeout(function() {
+      if (self._authResolved) return;
+      console.warn('[Auth] onAuthStateChanged 타임아웃 - 로그인 화면 표시');
+      self._authResolved = true;
+      var authEl = document.getElementById('auth-container');
+      if (authEl && authEl.style.display !== 'none') {
+        self.renderLogin();
+      }
+    }, 8000);
+
     fbAuth.onAuthStateChanged(async (user) => {
+      this._authResolved = true;
       const authEl = document.getElementById('auth-container');
       const appEl = document.getElementById('app-container');
 
@@ -90,8 +106,16 @@ const Auth = {
 
   // 로그인 화면에 에러 메시지 표시 (로그아웃 없이)
   _showLoginError(msg) {
-    const errorEl = document.querySelector('#auth-error');
-    const submitBtn = document.querySelector('#auth-submit-btn');
+    // 딥링크 pending 이벤트 정리 (로그인 화면으로 돌아갈 때)
+    if (typeof App !== 'undefined' && App._clearPendingEvent) App._clearPendingEvent();
+
+    // 로그인 폼이 아직 렌더링되지 않은 경우 (persistent auth → 바로 멤버 검증 실패)
+    var errorEl = document.querySelector('#auth-error');
+    if (!errorEl) {
+      this.renderLogin();
+      errorEl = document.querySelector('#auth-error');
+    }
+    var submitBtn = document.querySelector('#auth-submit-btn');
     if (errorEl) {
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
