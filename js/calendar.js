@@ -1453,10 +1453,10 @@ const Calendar = {
     var searchInput = modal.querySelector('#ap-search');
     if (searchInput) {
       searchInput.oninput = function() {
-        var keyword = this.value.trim().toLowerCase();
+        var keyword = this.value.trim();
         modal.querySelectorAll('.ap-add-item').forEach(function(item) {
-          var name = (item.dataset.name || '').toLowerCase();
-          item.style.display = name.indexOf(keyword) >= 0 ? '' : 'none';
+          var name = item.dataset.name || '';
+          item.style.display = (!keyword || matchesKoreanSearch(name, keyword)) ? '' : 'none';
         });
       };
     }

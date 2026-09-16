@@ -160,7 +160,7 @@ const Players = {
     const PAGE_SIZE = 10;
 
     input.addEventListener('input', () => {
-      const query = input.value.trim().toLowerCase();
+      const query = input.value.trim();
 
       if (!query) {
         // 검색어 없으면 원래 페이지네이션 복원
@@ -182,11 +182,11 @@ const Players = {
         return;
       }
 
-      // 검색 모드: 이름에 검색어 포함된 항목만 표시
+      // 검색 모드: 이름에 검색어 포함된 항목만 표시 (초성 검색 지원)
       if (showMoreWrap) showMoreWrap.style.display = 'none';
       allItems.forEach(el => {
-        const name = (el.dataset.name || '').toLowerCase();
-        const match = name.includes(query);
+        const name = el.dataset.name || '';
+        const match = matchesKoreanSearch(name, query);
         el.classList.toggle('hidden', !match);
         el.classList.toggle('search-hidden', !match);
       });

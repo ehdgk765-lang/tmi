@@ -57,7 +57,7 @@ const Members = {
     var filtered = players.filter(function(p) {
       // 검색
       if (self._searchQuery) {
-        if ((p.name || '').toLowerCase().indexOf(self._searchQuery.toLowerCase()) < 0) return false;
+        if (!matchesKoreanSearch(p.name || '', self._searchQuery)) return false;
       }
       // 정회원/게스트
       if (self._filterType === 'regular' && p.memberType === 'guest') return false;

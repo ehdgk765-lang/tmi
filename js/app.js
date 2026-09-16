@@ -1232,9 +1232,9 @@ const App = {
     }
 
     // 필터링: 권한 부여된 멤버를 상단에, 검색어로 필터
-    var keyword = (filter || '').toLowerCase();
+    var keyword = (filter || '').trim();
     var filtered = players.filter(function(p) {
-      return !keyword || p.name.toLowerCase().indexOf(keyword) >= 0;
+      return !keyword || matchesKoreanSearch(p.name, keyword);
     });
     // 권한 부여된 멤버 먼저 표시
     filtered.sort(function(a, b) {
@@ -1618,10 +1618,10 @@ const App = {
     const searchInput = section.querySelector('#player-search');
     const playerItems = section.querySelectorAll('.player-item');
     searchInput.oninput = () => {
-      const query = searchInput.value.trim().toLowerCase();
+      const query = searchInput.value.trim();
       playerItems.forEach(item => {
-        const name = item.dataset.name;
-        item.style.display = (!query || name.includes(query)) ? '' : 'none';
+        const name = item.dataset.name || '';
+        item.style.display = (!query || matchesKoreanSearch(name, query)) ? '' : 'none';
       });
     };
 
