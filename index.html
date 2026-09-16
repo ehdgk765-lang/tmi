@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20260916-6';
+    var APP_VERSION = '20260916-7';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -85,7 +85,7 @@
   <link rel="stylesheet" href="css/style.css" id="app-css">
   <script>document.getElementById('app-css').href = 'css/style.css?v=' + APP_VERSION;</script>
 </head>
-<body class="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 min-h-screen">
+<body class="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 min-h-screen dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 dark:text-slate-200">
 
   <!-- 토스트 알림 컨테이너 -->
   <div id="toast-container"></div>

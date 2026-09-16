@@ -78,9 +78,34 @@ html.dark #offline-banner {
   color-scheme: only light;
 }
 
+/* 기본 색상 명시 (브라우저 강제 다크모드 대비) */
+html {
+  background-color: #ffffff;
+  color: #1f2937;
+}
+
 html, body {
   overflow-x: hidden;
   width: 100%;
+}
+
+/* ── OS/브라우저 강제 다크모드 차단 (앱이 라이트 모드일 때) ── */
+@media (prefers-color-scheme: dark) {
+  html:not(.dark) {
+    color-scheme: only light !important;
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+  }
+  html:not(.dark) body {
+    color: #1f2937 !important;
+  }
+  /* 폼 요소 보호 */
+  html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
+  html:not(.dark) select,
+  html:not(.dark) textarea {
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+  }
 }
 
 /* iOS에서 input 확대 방지 (16px 이상이면 확대 안 됨) */
@@ -1601,3 +1626,87 @@ html.dark .pwa-install-banner {
 html.dark .pwa-install-banner .text-gray-800 { color: #e2e8f0 !important; }
 html.dark .pwa-install-banner .text-gray-500 { color: #94a3b8 !important; }
 html.dark .pwa-install-banner .bg-blue-100 { background-color: rgba(59, 130, 246, 0.15) !important; }
+
+/* ── 누락된 다크모드 배경 오버라이드 보완 (2차) ── */
+
+/* 반투명 화이트 배경 */
+html.dark .bg-white\/30 {
+  background-color: rgba(30, 41, 59, 0.3) !important;
+}
+html.dark .bg-white\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+html.dark .bg-white\/60 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+html.dark .bg-white\/90 {
+  background-color: rgba(30, 41, 59, 0.9) !important;
+}
+
+/* 추가 배경색 */
+html.dark .bg-indigo-100 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+}
+html.dark .bg-teal-100 {
+  background-color: rgba(20, 184, 166, 0.15) !important;
+}
+html.dark .bg-blue-200 {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+}
+html.dark .bg-green-200 {
+  background-color: rgba(34, 197, 94, 0.25) !important;
+}
+html.dark .bg-blue-50\/50 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+html.dark .bg-green-50\/50 {
+  background-color: rgba(34, 197, 94, 0.08) !important;
+}
+html.dark .bg-gray-50\/30 {
+  background-color: rgba(30, 41, 59, 0.3) !important;
+}
+
+/* 추가 호버 배경 */
+html.dark .hover\:bg-green-50:hover {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+html.dark .hover\:bg-green-100:hover {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+html.dark .hover\:bg-yellow-50:hover {
+  background-color: rgba(234, 179, 8, 0.1) !important;
+}
+html.dark .hover\:bg-white\/50:hover {
+  background-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* 추가 테두리 색상 */
+html.dark .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+html.dark .border-white\/40 {
+  border-color: rgba(71, 85, 105, 0.4) !important;
+}
+html.dark .border-white\/60 {
+  border-color: rgba(71, 85, 105, 0.5) !important;
+}
+html.dark .border-indigo-200 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+html.dark .border-teal-200 {
+  border-color: rgba(20, 184, 166, 0.3) !important;
+}
+
+/* 추가 텍스트 색상 */
+html.dark .text-indigo-700 {
+  color: #818cf8 !important;
+}
+html.dark .text-indigo-600 {
+  color: #818cf8 !important;
+}
+html.dark .text-teal-700 {
+  color: #2dd4bf !important;
+}
+html.dark .text-teal-600 {
+  color: #2dd4bf !important;
+}
