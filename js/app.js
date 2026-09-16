@@ -442,7 +442,7 @@ const App = {
             targetSheet = resSheets[resSheets.length - 1];
           }
         }
-        console.log('[대관업로드] 선택된 시트:', targetSheet);
+        // console.log('[대관업로드] 선택된 시트:', targetSheet);
         self._processReservationSheet(wb, targetSheet, container);
       } catch (err) {
         console.error('대관 엑셀 파싱 오류:', err);
@@ -505,7 +505,7 @@ const App = {
         dateStr = String(dateRaw).trim();
       }
       if (r === headerIdx + 1) {
-        console.log('[대관파싱] 첫 행 날짜:', dateRaw, '→', dateStr);
+        // console.log('[대관파싱] 첫 행 날짜:', dateRaw, '→', dateStr);
       }
       if (!dateStr || dateStr.length < 8) continue;
 
@@ -759,13 +759,13 @@ const App = {
         return (a.startTime || '').localeCompare(b.startTime || '');
       });
       var saveResult = Storage.saveEvents(events);
-      console.log('[대관등록] ' + weekNum + '주차: ' + added + '건 추가 (이전 ' + beforeCount + '건 → 현재 ' + events.length + '건), saveEvents=' + saveResult);
+      // console.log('[대관등록] ' + weekNum + '주차: ' + added + '건 추가 (이전 ' + beforeCount + '건 → 현재 ' + events.length + '건), saveEvents=' + saveResult);
       if (saveResult === false) {
         await Modal.alert('일정 저장에 실패했습니다. 관리자 권한을 확인해주세요.');
         return;
       }
     } else {
-      console.log('[대관등록] ' + weekNum + '주차: 추가할 일정 없음 (중복 ' + skipped + '건)');
+      // console.log('[대관등록] ' + weekNum + '주차: 추가할 일정 없음 (중복 ' + skipped + '건)');
     }
 
     // 등록 완료 표시
