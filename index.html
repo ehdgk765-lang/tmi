@@ -187,11 +187,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
-            <!-- 멤버 정보 (멤버용 - 관리자일 때 숨김) -->
-            <div id="member-header-info" class="hidden items-center gap-1.5">
-              <span id="member-header-name" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600"></span>
-              <button id="member-header-logout" class="px-1.5 py-0.5 text-[10px] font-medium text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded transition" title="로그아웃">로그아웃</button>
-            </div>
+            <!-- 좌측 여백 (멤버 정보는 서브 헤더로 이동) -->
           </div>
           <!-- 중앙: 로고 -->
           <h1 id="header-logo" class="text-lg font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-1.5 cursor-pointer select-none flex-shrink-0">
@@ -200,12 +196,6 @@
           </h1>
           <!-- 우측 영역 -->
           <div class="flex-1 flex items-center justify-end gap-1">
-          <!-- 주석 처리 -->
-            <!--<button id="btn-ledger" class="hidden" title="가계부 보기" aria-label="가계부 보기">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </button>-->
             <button id="theme-toggle" title="테마 전환" aria-label="테마 전환">
               <svg id="icon-sun" class="text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
@@ -214,6 +204,41 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
               </svg>
             </button>
+          </div>
+        </div>
+        <!-- 서브 헤더: 멤버 정보 + 외부 링크 -->
+        <div class="flex items-center justify-between px-1 py-1 border-t border-blue-100/60">
+          <!-- 좌측: 멤버 정보 (일반 멤버만 표시) -->
+          <div id="member-header-info" class="hidden items-center gap-1.5">
+            <span id="member-header-name" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600"></span>
+            <button id="member-header-logout" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 transition" title="로그아웃" aria-label="로그아웃">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+              </svg>
+            </button>
+          </div>
+          <!-- 우측: 외부 링크 -->
+          <div class="flex items-center gap-3 ml-auto">
+            <button id="btn-notice" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 transition" title="공지사항">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+              </svg>
+              <span>Notice</span>
+            </button>
+            <a href="https://www.instagram.com/tmi_tennisclub/" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-pink-500 transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="20" rx="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/>
+              </svg>
+              <span>Instagram</span>
+            </a>
+            <a href="https://docs.google.com/spreadsheets/d/16FltsTjBAVS879S0kK8Dns-fcCPomAsBXWXYipEY8-0/edit?usp=drivesdk" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-green-600 transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+              </svg>
+              <span>Info</span>
+            </a>
           </div>
         </div>
         <!-- 탭 네비게이션 -->

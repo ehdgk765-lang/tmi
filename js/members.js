@@ -645,7 +645,7 @@ const Members = {
       var day = parseInt(daySelect.value);
       var groups = Storage.getGroups();
       if (groups.some(function(g) { return g.name === name; })) {
-        alert('이미 등록된 조 이름입니다.');
+        Modal.alert('이미 등록된 조 이름입니다.');
         return;
       }
       groups.push({ id: Storage.generateId(), name: name, day: day });
@@ -691,7 +691,7 @@ const Members = {
           return;
         }
         if (groups.some(function(g) { return g.id !== gid && g.name === newName; })) {
-          alert('이미 등록된 조 이름입니다.');
+          Modal.alert('이미 등록된 조 이름입니다.');
           input.value = group.name;
           input.classList.add('hidden');
           if (span) span.classList.remove('hidden');
@@ -718,8 +718,8 @@ const Members = {
 
     // 조 삭제
     container.querySelectorAll('.delete-group-btn').forEach(function(btn) {
-      btn.onclick = function() {
-        if (!confirm('이 조를 삭제하시겠습니까?\n소속 멤버의 조 배정도 해제됩니다.')) return;
+      btn.onclick = async function() {
+        if (!await Modal.confirm('이 조를 삭제하시겠습니까?\n소속 멤버의 조 배정도 해제됩니다.')) return;
         var gid = btn.dataset.groupId;
         // 조 삭제
         var groups = Storage.getGroups().filter(function(g) { return g.id !== gid; });

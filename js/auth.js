@@ -428,8 +428,8 @@ const Auth = {
     return err.message || '오류가 발생했습니다.';
   },
 
-  logout() {
-    if (confirm('로그아웃 하시겠습니까?')) {
+  async logout() {
+    if (await Modal.confirm('로그아웃 하시겠습니까?')) {
       Storage.clearData();
       localStorage.removeItem('tennis_last_uid');
       localStorage.removeItem('tennis_member_name');

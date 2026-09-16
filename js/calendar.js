@@ -498,7 +498,7 @@ const Calendar = {
       btn.onclick = async function(e) {
         e.stopPropagation();
         var id = this.dataset.id;
-        if (confirm('이 일정을 삭제하시겠습니까?')) {
+        if (await Modal.confirm('이 일정을 삭제하시겠습니까?')) {
           btn.disabled = true;
           await Storage.removeEvent(id);
           self.render(self._container);
@@ -515,15 +515,15 @@ const Calendar = {
         if (!memberName) return;
         var result = Storage.toggleAttendanceOptimistic(id, memberName);
         if (result === 'full') {
-          alert('참석 인원이 마감되었습니다.');
+          Modal.alert('참석 인원이 마감되었습니다.');
           return;
         }
         if (result === 'gender_full') {
-          alert('해당 성별 참석 인원이 마감되었습니다.');
+          Modal.alert('해당 성별 참석 인원이 마감되었습니다.');
           return;
         }
         if (result && result.conflict) {
-          alert('같은 시간에 이미 참석 중인 일정이 있습니다.\n("' + result.title + '")');
+          Modal.alert('같은 시간에 이미 참석 중인 일정이 있습니다.\n("' + result.title + '")');
           return;
         }
         self.render(self._container);
@@ -1033,11 +1033,11 @@ const Calendar = {
       var host = hostVal ? hostVal.value : '';
 
       if (!title) {
-        alert('제목을 입력하세요.');
+        Modal.alert('제목을 입력하세요.');
         return;
       }
       if (!date) {
-        alert('날짜를 선택하세요.');
+        Modal.alert('날짜를 선택하세요.');
         return;
       }
 
@@ -1466,7 +1466,7 @@ const Calendar = {
       btn.onclick = async function() {
         var name = this.dataset.name;
         var type = this.dataset.type;
-        if (!confirm(name + ' 님을 ' + (type === 'waitlist' ? '대기 목록' : '참석자') + '에서 제거하시겠습니까?')) return;
+        if (!await Modal.confirm(name + ' 님을 ' + (type === 'waitlist' ? '대기 목록' : '참석자') + '에서 제거하시겠습니까?')) return;
         btn.disabled = true;
         if (type === 'waitlist') {
           await Storage.toggleWaitlist(ev.id, name);
@@ -1853,22 +1853,22 @@ const Calendar = {
       var allowMixed = modal.querySelector('#bm-mixed').checked;
 
       if (startTime >= endTime) {
-        alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
         return;
       }
 
       var minPlayers = isSingles ? 2 : 4;
       if (participants.length < minPlayers) {
-        alert('최소 ' + minPlayers + '명의 참석자가 필요합니다.');
+        Modal.alert('최소 ' + minPlayers + '명의 참석자가 필요합니다.');
         return;
       }
 
       var possibleTypes = Schedule.getPossibleTypes(males, females, allowMixed, isSingles);
       if (possibleTypes.length === 0) {
         if (isSingles) {
-          alert('참석자 성별 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
+          Modal.alert('참석자 성별 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
         } else {
-          alert('참석자 성별 구성으로 복식 경기를 만들 수 없습니다.\n혼합복식: 남2+여2, 남자복식: 남4, 여자복식: 여4 이상 필요\n또는 섞어복식 허용을 체크해주세요.');
+          Modal.alert('참석자 성별 구성으로 복식 경기를 만들 수 없습니다.\n혼합복식: 남2+여2, 남자복식: 남4, 여자복식: 여4 이상 필요\n또는 섞어복식 허용을 체크해주세요.');
         }
         return;
       }
@@ -1887,20 +1887,20 @@ const Calendar = {
         var slotsForVal = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         var expectedTotal = slotsForVal.length * courts;
         if (total !== expectedTotal) {
-          alert('게임 종류 합계(' + total + ')가 총 경기수(' + expectedTotal + ')와 일치하지 않습니다.');
+          Modal.alert('게임 종류 합계(' + total + ')가 총 경기수(' + expectedTotal + ')와 일치하지 않습니다.');
           return;
         }
         // 배분 가능성 검증
         var testResult = Schedule.distributeTypesToSlots(typeDistribution, slotsForVal.length, courts, males.length, females.length);
         if (!testResult) {
-          alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.');
+          Modal.alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.');
           return;
         }
       }
 
       var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, warmupMin, 25);
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
+        Modal.alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
@@ -2343,7 +2343,7 @@ const Calendar = {
       } else {
         btn.disabled = false;
         btn.textContent = '저장';
-        alert('저장 권한이 없습니다. 호스트 또는 관리자만 저장할 수 있습니다.');
+        Modal.alert('저장 권한이 없습니다. 호스트 또는 관리자만 저장할 수 있습니다.');
       }
     };
 

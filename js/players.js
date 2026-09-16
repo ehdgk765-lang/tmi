@@ -140,7 +140,7 @@ const Players = {
 
       const players = Storage.getPlayers();
       if (players.some(p => p.name === name)) {
-        alert('이미 등록된 멤버입니다.');
+        Modal.alert('이미 등록된 멤버입니다.');
         return;
       }
 
@@ -227,7 +227,7 @@ const Players = {
           return;
         }
         if (players.some(function(p) { return p.id !== playerId && p.name === newName; })) {
-          alert('이미 등록된 멤버 이름입니다.');
+          Modal.alert('이미 등록된 멤버 이름입니다.');
           input.value = oldName;
           input.classList.add('hidden');
           if (span) span.classList.remove('hidden');
@@ -296,7 +296,7 @@ const Players = {
     container.querySelectorAll('.delete-player-btn').forEach(btn => {
       btn.onclick = async () => {
         const id = btn.dataset.id;
-        if (!confirm('멤버를 삭제하시겠습니까?')) return;
+        if (!await Modal.confirm('멤버를 삭제하시겠습니까?')) return;
         const players = Storage.getPlayers();
         const deleted = players.find(p => p.id === id);
         if (deleted) {
@@ -351,7 +351,7 @@ const Players = {
       deleteSelectedBtn.onclick = async () => {
         const checkedIds = Array.from(container.querySelectorAll('.player-select-cb:checked')).map(cb => cb.dataset.id);
         if (checkedIds.length === 0) return;
-        if (!confirm(`선택한 ${checkedIds.length}명의 멤버를 삭제하시겠습니까?`)) return;
+        if (!await Modal.confirm(`선택한 ${checkedIds.length}명의 멤버를 삭제하시겠습니까?`)) return;
         const players = Storage.getPlayers();
         const deletedNames = players.filter(p => checkedIds.includes(p.id)).map(p => p.name);
         deleteSelectedBtn.disabled = true;
@@ -425,7 +425,7 @@ const Players = {
       loadXLSX().then(() => {
         this._processExcel(e.target.result, container);
       }).catch(() => {
-        alert('엑셀 라이브러리를 불러올 수 없습니다. 네트워크를 확인해주세요.');
+        Modal.alert('엑셀 라이브러리를 불러올 수 없습니다. 네트워크를 확인해주세요.');
       });
     };
     reader.readAsArrayBuffer(file);
@@ -480,12 +480,12 @@ const Players = {
         let msg = `${added}명 추가 완료`;
         if (skipped > 0) msg += `, ${skipped}명 중복 건너뜀`;
         if (errors.length > 0) msg += `\n\n오류:\n${errors.slice(0, 5).join('\n')}`;
-        alert(msg);
+        Modal.alert(msg);
 
         this._renderList(container);
       } catch (err) {
         console.error('엑셀 파싱 오류:', err);
-        alert('파일을 읽을 수 없습니다. 엑셀(.xlsx) 또는 CSV 파일인지 확인해주세요.');
+        Modal.alert('파일을 읽을 수 없습니다. 엑셀(.xlsx) 또는 CSV 파일인지 확인해주세요.');
       }
   },
 

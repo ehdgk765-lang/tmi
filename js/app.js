@@ -383,6 +383,88 @@ const App = {
         memberHeaderInfo.classList.remove('flex');
       }
     }
+
+    // 공지사항 갤러리
+    var noticeBtn = document.getElementById('btn-notice');
+    if (noticeBtn) {
+      noticeBtn.onclick = function() { App._showNoticeGallery(); };
+    }
+  },
+
+  _noticeImages: [
+    'css/notice/KakaoTalk_20260916_071935973_00.png',
+    'css/notice/KakaoTalk_20260916_071935973_01.png',
+    'css/notice/KakaoTalk_20260916_071935973_02.png',
+    'css/notice/KakaoTalk_20260916_071935973_03.png',
+    'css/notice/KakaoTalk_20260916_071935973_04.png',
+    'css/notice/KakaoTalk_20260916_071935973_05.png',
+    'css/notice/KakaoTalk_20260916_071935973_06.png',
+    'css/notice/KakaoTalk_20260916_071935973_07.png',
+    'css/notice/KakaoTalk_20260916_071935973_08.png',
+    'css/notice/KakaoTalk_20260916_071935973_09.png',
+    'css/notice/KakaoTalk_20260916_071935973_10.png',
+    'css/notice/KakaoTalk_20260916_071935973_11.png'
+  ],
+
+  _showNoticeGallery() {
+    var images = this._noticeImages;
+    var idx = 0;
+    var overlay = document.createElement('div');
+    overlay.id = 'notice-gallery';
+    overlay.className = 'fixed inset-0 z-50 flex items-center justify-center';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.85)';
+
+    function render() {
+      overlay.innerHTML =
+        '<button id="ng-close" class="absolute top-3 right-3 w-10 h-10 flex items-center justify-center text-white/70 hover:text-white z-10 transition" aria-label="닫기">' +
+          '<svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>' +
+        '<button id="ng-prev" class="absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-white/50 hover:text-white z-10 transition' + (idx <= 0 ? ' invisible' : '') + '" aria-label="이전">' +
+          '<svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>' +
+        '</button>' +
+        '<button id="ng-next" class="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-white/50 hover:text-white z-10 transition' + (idx >= images.length - 1 ? ' invisible' : '') + '" aria-label="다음">' +
+          '<svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
+        '</button>' +
+        '<div class="flex flex-col items-center gap-3 px-12 max-h-full">' +
+          '<img src="' + images[idx] + '" class="max-h-[80vh] max-w-full object-contain rounded-lg select-none" draggable="false" alt="공지사항 ' + (idx + 1) + '">' +
+          '<div class="flex items-center gap-2">' +
+            '<span class="text-white/70 text-sm font-medium">' + (idx + 1) + ' / ' + images.length + '</span>' +
+          '</div>' +
+        '</div>';
+
+      overlay.querySelector('#ng-close').onclick = close;
+      var prevBtn = overlay.querySelector('#ng-prev');
+      var nextBtn = overlay.querySelector('#ng-next');
+      if (prevBtn) prevBtn.onclick = function(e) { e.stopPropagation(); idx--; render(); };
+      if (nextBtn) nextBtn.onclick = function(e) { e.stopPropagation(); idx++; render(); };
+    }
+
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft' && idx > 0) { idx--; render(); }
+      else if (e.key === 'ArrowRight' && idx < images.length - 1) { idx++; render(); }
+    }
+
+    // 스와이프 지원
+    var touchStartX = 0;
+    overlay.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+    overlay.addEventListener('touchend', function(e) {
+      var dx = e.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(dx) > 50) {
+        if (dx < 0 && idx < images.length - 1) { idx++; render(); }
+        else if (dx > 0 && idx > 0) { idx--; render(); }
+      }
+    });
+
+    overlay.onclick = function(e) { if (e.target === overlay) close(); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    render();
   },
 
   bindTabs() {
@@ -671,7 +753,7 @@ const App = {
             self._loadRoleList();
             if (typeof showToast === 'function') showToast('역할이 등록되었습니다.', 'success');
           } else {
-            alert('역할 설정에 실패했습니다.');
+            Modal.alert('역할 설정에 실패했습니다.');
           }
           addRoleBtn.disabled = false;
           addRoleBtn.textContent = '추가';
@@ -734,7 +816,7 @@ const App = {
           try {
             var data = JSON.parse(e.target.result);
             if (!data.players && !data.tournaments && !data.events) {
-              alert('유효한 백업 파일이 아닙니다.');
+              await Modal.alert('유효한 백업 파일이 아닙니다.');
               return;
             }
             var summary = [];
@@ -745,13 +827,13 @@ const App = {
             if (data.courts) summary.push('코트 ' + data.courts.length + '면');
             var msg = '다음 데이터를 복원합니다:\n' + summary.join(', ') +
               '\n\n현재 데이터가 모두 덮어씌워집니다. 계속하시겠습니까?';
-            if (!confirm(msg)) { fileInput.value = ''; return; }
+            if (!await Modal.confirm(msg)) { fileInput.value = ''; return; }
             await Storage.restoreBackup(data);
             fileInput.value = '';
-            alert('데이터가 복원되었습니다.');
+            await Modal.alert('데이터가 복원되었습니다.');
             self.renderSettings(container);
           } catch (err) {
-            alert('파일을 읽을 수 없습니다. 올바른 JSON 파일인지 확인해주세요.');
+            await Modal.alert('파일을 읽을 수 없습니다. 올바른 JSON 파일인지 확인해주세요.');
             fileInput.value = '';
           }
         };
@@ -768,7 +850,7 @@ const App = {
       if (!name) return;
       var courts = Storage.getCourts();
       if (courts.some(function(c) { return c.name === name; })) {
-        alert('이미 등록된 코트입니다.');
+        Modal.alert('이미 등록된 코트입니다.');
         return;
       }
       courts.push({ id: Storage.generateId(), name: name, slots: [] });
@@ -783,8 +865,8 @@ const App = {
 
     // 코트 삭제 (onclick 할당으로 중복 방지)
     container.querySelectorAll('.delete-court-btn').forEach(function(btn) {
-      btn.onclick = function() {
-        if (!confirm('이 코트를 삭제하시겠습니까?')) return;
+      btn.onclick = async function() {
+        if (!await Modal.confirm('이 코트를 삭제하시겠습니까?')) return;
         var courts = Storage.getCourts().filter(function(c) { return c.id !== btn.dataset.id; });
         Storage.saveCourts(courts);
         self.renderSettings(container);
@@ -827,7 +909,7 @@ const App = {
         }
         // 중복 이름 체크
         if (courts.some(function(c) { return c.id !== courtId && c.name === newName; })) {
-          alert('이미 등록된 코트 이름입니다.');
+          Modal.alert('이미 등록된 코트 이름입니다.');
           input.value = oldName;
           input.classList.add('hidden');
           if (span) span.classList.remove('hidden');
@@ -874,7 +956,7 @@ const App = {
         var endTime = row.querySelector('.slot-end-time').value;
         var color = row.querySelector('.slot-color').value;
         if (startTime >= endTime) {
-          alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+          Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
           return;
         }
         var courts = Storage.getCourts();
@@ -886,7 +968,7 @@ const App = {
           return s.startTime === startTime && s.endTime === endTime && (s.day == null ? null : s.day) === day;
         });
         if (dup) {
-          alert('같은 요일/시간대의 슬롯이 이미 등록되어 있습니다.');
+          Modal.alert('같은 요일/시간대의 슬롯이 이미 등록되어 있습니다.');
           return;
         }
         var slotData = { startTime: startTime, endTime: endTime, color: color };
@@ -1004,7 +1086,7 @@ const App = {
     }
 
     if (weekendDates.length === 0) {
-      alert('해당 월에 주말이 없습니다.');
+      Modal.alert('해당 월에 주말이 없습니다.');
       return;
     }
 
@@ -1025,7 +1107,7 @@ const App = {
     });
 
     if (templates.length === 0) {
-      alert('등록된 코트에 시간대 슬롯이 없습니다. 코트 관리에서 슬롯을 먼저 추가해주세요.');
+      Modal.alert('등록된 코트에 시간대 슬롯이 없습니다. 코트 관리에서 슬롯을 먼저 추가해주세요.');
       return;
     }
 
@@ -1064,7 +1146,7 @@ const App = {
     }
 
     if (newCount === 0) {
-      alert((month + 1) + '월 주말 정규 일정이 이미 모두 등록되어 있습니다.');
+      Modal.alert((month + 1) + '월 주말 정규 일정이 이미 모두 등록되어 있습니다.');
       return;
     }
 
@@ -1075,7 +1157,7 @@ const App = {
     });
 
     Storage.saveEvents(events);
-    alert((month + 1) + '월 주말 정규 일정 ' + newCount + '건이 등록되었습니다.');
+    Modal.alert((month + 1) + '월 주말 정규 일정 ' + newCount + '건이 등록되었습니다.');
   },
 
   handleRegularExerciseCheck(year, month, day) {
@@ -1148,14 +1230,14 @@ const App = {
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function() {
-        alert('클립보드에 복사되었습니다.');
+        Modal.alert('클립보드에 복사되었습니다.');
       }).catch(function() {
         fallbackCopy(text);
-        alert('클립보드에 복사되었습니다.');
+        Modal.alert('클립보드에 복사되었습니다.');
       });
     } else {
       fallbackCopy(text);
-      alert('클립보드에 복사되었습니다.');
+      Modal.alert('클립보드에 복사되었습니다.');
     }
   },
 
@@ -1196,14 +1278,14 @@ const App = {
     listEl.querySelectorAll('.delete-role-btn').forEach(function(btn) {
       btn.addEventListener('click', async function() {
         var email = btn.dataset.email;
-        if (!confirm(email + '의 역할을 삭제하시겠습니까?\n삭제 후 해당 계정은 "그 외" 사용자가 됩니다.')) return;
+        if (!await Modal.confirm(email + '의 역할을 삭제하시겠습니까?\n삭제 후 해당 계정은 "그 외" 사용자가 됩니다.')) return;
         btn.disabled = true;
         btn.textContent = '삭제 중...';
         var ok = await RolesConfig.removeRole(email);
         if (ok) {
           self._loadRoleList();
         } else {
-          alert('역할 삭제에 실패했습니다.');
+          Modal.alert('역할 삭제에 실패했습니다.');
           btn.disabled = false;
           btn.textContent = '삭제';
         }
@@ -1528,7 +1610,7 @@ const App = {
       const setCount = parseInt(container.querySelector('input[name="setCount"]:checked').value);
       const config = GAME_TYPES[gameType];
 
-      if (!name) { alert('대회명을 입력해주세요.'); return; }
+      if (!name) { Modal.alert('대회명을 입력해주세요.'); return; }
 
       let participants;
 
@@ -1537,7 +1619,7 @@ const App = {
         if (!participants) return;
       } else {
         const selected = Array.from(container.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
-        if (selected.length < 2) { alert('2명 이상 선택해주세요.'); return; }
+        if (selected.length < 2) { Modal.alert('2명 이상 선택해주세요.'); return; }
         participants = selected;
       }
 
@@ -1743,11 +1825,11 @@ const App = {
       const males = Array.from(container.querySelectorAll('.xd-male-cb:checked')).map(cb => cb.value);
       const females = Array.from(container.querySelectorAll('.xd-female-cb:checked')).map(cb => cb.value);
       if (males.length < 2 || females.length < 2) {
-        alert('혼합복식: 남자 2명, 여자 2명 이상 선택해주세요.');
+        Modal.alert('혼합복식: 남자 2명, 여자 2명 이상 선택해주세요.');
         return null;
       }
       if (males.length !== females.length) {
-        alert(`남녀 수가 같아야 합니다. (남 ${males.length}명, 여 ${females.length}명)`);
+        Modal.alert(`남녀 수가 같아야 합니다. (남 ${males.length}명, 여 ${females.length}명)`);
         return null;
       }
       const sm = this.shuffleArray(males);
@@ -1756,11 +1838,11 @@ const App = {
     } else {
       const selected = Array.from(container.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
       if (selected.length < 4) {
-        alert('복식: 최소 4명 이상 선택해주세요.');
+        Modal.alert('복식: 최소 4명 이상 선택해주세요.');
         return null;
       }
       if (selected.length % 2 !== 0) {
-        alert('복식: 짝수 인원을 선택해주세요.');
+        Modal.alert('복식: 짝수 인원을 선택해주세요.');
         return null;
       }
       const shuffled = this.shuffleArray(selected);
@@ -2206,14 +2288,14 @@ const App = {
       const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
 
       if (startTime >= endTime) {
-        alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
         return;
       }
 
       const totalPlayers = selectedMales.length + selectedFemales.length;
       const minPlayers = isSingles ? 2 : 4;
       if (totalPlayers < minPlayers) {
-        alert(`최소 ${minPlayers}명의 멤버를 선택해주세요.`);
+        Modal.alert(`최소 ${minPlayers}명의 멤버를 선택해주세요.`);
         return;
       }
 
@@ -2223,9 +2305,9 @@ const App = {
       const possibleTypes = Schedule.getPossibleTypes(selectedMales, selectedFemales, allowMixed, isSingles);
       if (possibleTypes.length === 0) {
         if (isSingles) {
-          alert('선택한 멤버 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
+          Modal.alert('선택한 멤버 구성으로 단식 경기를 만들 수 없습니다.\n남자단식: 남2명, 여자단식: 여2명 이상 필요\n또는 섞어단식 허용을 체크해주세요.');
         } else {
-          alert('선택한 멤버 구성으로 복식 경기를 만들 수 없습니다.\n혼합복식: 남2+여2, 남자복식: 남4, 여자복식: 여4 이상 필요\n또는 섞어복식 허용을 체크해주세요.');
+          Modal.alert('선택한 멤버 구성으로 복식 경기를 만들 수 없습니다.\n혼합복식: 남2+여2, 남자복식: 남4, 여자복식: 여4 이상 필요\n또는 섞어복식 허용을 체크해주세요.');
         }
         return;
       }
@@ -2243,7 +2325,7 @@ const App = {
         const slotsForValidation = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         const expectedTotal = slotsForValidation.length * courts;
         if (total !== expectedTotal) {
-          alert(`게임 종류 합계(${total})가 총 경기수(${expectedTotal})와 일치하지 않습니다.`);
+          Modal.alert(`게임 종류 합계(${total})가 총 경기수(${expectedTotal})와 일치하지 않습니다.`);
           return;
         }
       }
@@ -2253,7 +2335,7 @@ const App = {
         const slotsForTest = Schedule.calculateTimeSlots(startTime, endTime, warmupMin, 25);
         const testResult = Schedule.distributeTypesToSlots(typeDistribution, slotsForTest.length, courts, selectedMales.length, selectedFemales.length);
         if (!testResult) {
-          alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.\n\n예) 혼복+여복은 같은 시간에 배치 불가 (여자 6명 필요)');
+          Modal.alert('설정한 게임 종류 조합을 슬롯에 배분할 수 없습니다.\n인원 구성을 확인해주세요.\n\n예) 혼복+여복은 같은 시간에 배치 불가 (여자 6명 필요)');
           return;
         }
       }
@@ -2261,7 +2343,7 @@ const App = {
       const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, warmupMin, 25);
 
       if (timeSlots.length === 0) {
-        alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
+        Modal.alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
       }
 
