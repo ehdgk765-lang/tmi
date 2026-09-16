@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20260916-7';
+    var APP_VERSION = '20260916-8';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -219,6 +219,12 @@
           </div>
           <!-- 우측: 외부 링크 -->
           <div class="flex items-center gap-3 ml-auto">
+            <a href="manual.html" target="_blank" rel="noopener noreferrer" id="btn-manual" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-indigo-600 transition" title="사용 매뉴얼">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>Guide</span>
+            </a>
             <button id="btn-notice" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 transition" title="공지사항">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>

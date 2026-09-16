@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TMI CLUB - 사용 매뉴얼</title>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue: #2563eb;
+      --blue-light: #eff6ff;
+      --blue-50: #dbeafe;
+      --indigo: #4f46e5;
+      --indigo-light: #eef2ff;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --green: #059669;
+      --green-light: #ecfdf5;
+      --orange: #ea580c;
+      --orange-light: #fff7ed;
+      --red: #dc2626;
+      --red-light: #fef2f2;
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.06);
+    }
+
+    body {
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f0f9ff 100%);
+      color: var(--gray-800);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .hero {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #4f46e5 100%);
+      color: white;
+      padding: 48px 24px 56px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      position: relative;
+    }
+    .hero p {
+      margin-top: 8px;
+      font-size: 15px;
+      opacity: 0.85;
+      position: relative;
+    }
+    .hero .badge-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+      position: relative;
+    }
+    .hero .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+    }
+    .badge-admin { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3); }
+    .badge-member { background: rgba(96,165,250,0.2); border: 1px solid rgba(96,165,250,0.3); }
+
+    /* ── Container ── */
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 16px 80px;
+    }
+
+    /* ── Role Tabs ── */
+    .role-tabs {
+      display: flex;
+      gap: 0;
+      margin: -28px auto 0;
+      max-width: 360px;
+      position: relative;
+      z-index: 2;
+      background: white;
+      border-radius: 14px;
+      padding: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .role-tab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--gray-500);
+    }
+    .role-tab:hover { color: var(--gray-700); background: var(--gray-50); }
+    .role-tab.active-admin {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      box-shadow: 0 2px 8px rgba(239,68,68,0.3);
+    }
+    .role-tab.active-member {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+    }
+
+    /* ── Role Content ── */
+    .role-content { display: none; }
+    .role-content.active { display: block; }
+
+    /* ── Section ── */
+    .section {
+      margin-top: 28px;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 14px;
+      letter-spacing: -0.3px;
+    }
+    .section-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .icon-blue { background: var(--blue-light); }
+    .icon-green { background: var(--green-light); }
+    .icon-orange { background: var(--orange-light); }
+    .icon-purple { background: var(--purple-light); }
+    .icon-red { background: var(--red-light); }
+    .icon-indigo { background: var(--indigo-light); }
+
+    /* ── Card ── */
+    .card {
+      background: white;
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card + .card { margin-top: 12px; }
+
+    .card-header {
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .card-header:hover { background: var(--gray-50); }
+    .card-header h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gray-800);
+      flex: 1;
+    }
+    .card-header .tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .tag-admin { background: #fef2f2; color: #dc2626; }
+    .tag-member { background: #eff6ff; color: #2563eb; }
+    .tag-both { background: #f0fdf4; color: #059669; }
+    .tag-event-host { background: #faf5ff; color: #7c3aed; }
+
+    .card-header .chevron {
+      width: 20px;
+      height: 20px;
+      transition: transform 0.2s;
+      color: var(--gray-400);
+    }
+    .card-header.open .chevron { transform: rotate(180deg); }
+
+    .card-body {
+      display: none;
+      padding: 16px 18px 18px;
+    }
+    .card-body.open { display: block; }
+
+    .card-body p {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 10px;
+    }
+    .card-body p:last-child { margin-bottom: 0; }
+
+    /* ── Steps ── */
+    .steps {
+      counter-reset: step;
+      padding: 0;
+      list-style: none;
+    }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 10px 0 10px 40px;
+      font-size: 14px;
+      color: var(--gray-700);
+      border-left: 2px solid var(--gray-200);
+      margin-left: 13px;
+    }
+    .steps li:last-child { border-left-color: transparent; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: -13px;
+      top: 8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Feature List ── */
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+    .feature-list li {
+      padding: 6px 0;
+      font-size: 14px;
+      color: var(--gray-700);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .feature-list li::before {
+      content: '•';
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 16px;
+      line-height: 1.5;
+      flex-shrink: 0;
+    }
+
+    /* ── Highlight Box ── */
+    .highlight {
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 10px 0;
+      line-height: 1.6;
+    }
+    .highlight-blue { background: var(--blue-light); color: #1e40af; border: 1px solid #bfdbfe; }
+    .highlight-green { background: var(--green-light); color: #065f46; border: 1px solid #a7f3d0; }
+    .highlight-orange { background: var(--orange-light); color: #9a3412; border: 1px solid #fed7aa; }
+    .highlight-red { background: var(--red-light); color: #991b1b; border: 1px solid #fecaca; }
+    .highlight-purple { background: var(--purple-light); color: #5b21b6; border: 1px solid #ddd6fe; }
+
+    .highlight strong { font-weight: 700; }
+
+    /* ── Comparison Table ── */
+    .compare-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--gray-200);
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .compare-table th {
+      background: var(--gray-50);
+      padding: 10px 12px;
+      font-weight: 700;
+      text-align: left;
+      color: var(--gray-700);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .compare-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--gray-100);
+      color: var(--gray-600);
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table .check { color: var(--green); font-weight: 700; }
+    .compare-table .cross { color: var(--gray-300); }
+
+    /* ── Quick Nav ── */
+    .quick-nav {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .quick-nav a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+      transition: all 0.15s;
+    }
+    .quick-nav a:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+      box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+    }
+    .quick-nav a .icon { font-size: 16px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 32px 16px;
+      font-size: 12px;
+      color: var(--gray-400);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .hero { padding: 36px 16px 48px; }
+      .hero h1 { font-size: 24px; }
+      .section-title { font-size: 16px; }
+      .quick-nav { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── PDF 다운로드 버튼 ── */
+    .pdf-download-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--gray-200);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .pdf-download-bar .back-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-500);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.15s;
+    }
+    .pdf-download-bar .back-link:hover { color: var(--blue); }
+    .pdf-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 2px 6px rgba(239,68,68,0.25);
+    }
+    .pdf-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+    }
+    .pdf-btn:active { transform: scale(0.97); }
+    .pdf-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .pdf-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+    .pdf-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Print ── */
+    @media print {
+      .pdf-download-bar { display: none !important; }
+      .hero { background: #2563eb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .role-tabs { box-shadow: none; border: 1px solid #ddd; }
+      .card-body { display: block !important; }
+      .card-header .chevron { display: none; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="pdf-download-bar">
+    <a href="index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+      TMI CLUB
+    </a>
+    <button class="pdf-btn" id="pdf-download-btn" onclick="downloadPDF()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      PDF 다운로드
+    </button>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>TMI CLUB 사용 매뉴얼</h1>
+    <p>테니스 클럽 관리 웹앱 기능 안내</p>
+    <div class="badge-row">
+      <span class="badge badge-admin">&#x1f6e1; 관리자</span>
+      <span class="badge badge-member">&#x1f3be; 멤버</span>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Role Tabs -->
+    <div class="role-tabs">
+      <button class="role-tab active-admin" onclick="switchTab('admin')" id="tab-admin">관리자 매뉴얼</button>
+      <button class="role-tab" onclick="switchTab('member')" id="tab-member">멤버 매뉴얼</button>
+    </div>
+
+    <!-- ═══════════════════════════════════ -->
+    <!--          ADMIN MANUAL              -->
+    <!-- ═══════════════════════════════════ -->
+    <div class="role-content active" id="content-admin">
+
+      <!-- Quick Nav -->
+      <div class="quick-nav">
+        <a href="#a-login"><span class="icon">&#x1f511;</span> 로그인</a>
+        <a href="#a-calendar"><span class="icon">&#x1f4c5;</span> 일정 관리</a>
+        <a href="#a-players"><span class="icon">&#x1f465;</span> 멤버 관리</a>
+        <a href="#a-bracket"><span class="icon">&#x1f3c6;</span> 대진표</a>
+        <a href="#a-stats"><span class="icon">&#x1f4ca;</span> 통계</a>
+        <a href="#a-settings"><span class="icon">&#x2699;&#xfe0f;</span> 설정</a>
+      </div>
+
+      <!-- 1. 로그인 -->
+      <div class="section" id="a-login">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f511;</div>
+          로그인
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>관리자 로그인</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ol class="steps">
+              <li>앱 접속 후 <strong>"관리자"</strong> 탭을 선택합니다.</li>
+              <li>등록된 이메일과 비밀번호를 입력합니다.</li>
+              <li><strong>"로그인"</strong> 버튼을 눌러 접속합니다.</li>
+            </ol>
+            <div class="highlight highlight-blue">
+              <strong>ID 기억하기</strong>를 체크하면 다음 접속 시 이메일이 자동 입력됩니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 일정 관리 -->
+      <div class="section" id="a-calendar">
+        <div class="section-title">
+          <div class="section-icon icon-green">&#x1f4c5;</div>
+          일정 관리
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>일정 등록</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>캘린더에서 날짜를 터치하면 일정 등록 화면이 나타납니다.</p>
+            <ol class="steps">
+              <li>캘린더에서 원하는 <strong>날짜를 터치</strong>합니다.</li>
+              <li>일정 제목, 시작/종료 시간을 입력합니다.</li>
+              <li>참석 인원 제한(전체/남/여)을 설정합니다.</li>
+              <li>코트 정보, 호스트, 색상 등을 지정합니다.</li>
+              <li><strong>"등록"</strong> 버튼을 눌러 저장합니다.</li>
+            </ol>
+            <div class="highlight highlight-green">
+              <strong>호스트</strong>로 지정된 멤버는 해당 일정에서 생성한 대진표를 직접 편집할 수 있습니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>일정 수정 / 삭제</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>등록된 일정을 터치하면 상세 화면에서 수정하거나 삭제할 수 있습니다.</p>
+            <ul class="feature-list">
+              <li>일정 제목, 시간, 인원 제한 등 모든 항목 수정 가능</li>
+              <li>일정 삭제 시 확인 팝업이 표시됩니다</li>
+              <li>정산 정보(코트비, 공 종류, 게스트 수 등) 입력 가능</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>대관 엑셀 업로드</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>코트 대관 엑셀 파일을 업로드하여 일정을 일괄 등록할 수 있습니다.</p>
+            <ol class="steps">
+              <li>캘린더 상단의 <strong>업로드 아이콘</strong>을 터치합니다.</li>
+              <li>엑셀 파일(.xlsx)을 선택합니다.</li>
+              <li>현재 월에 해당하는 시트가 자동 인식됩니다.</li>
+              <li>주차별 등록/해제를 선택하여 일정을 생성합니다.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>일정 공유하기</h3>
+            <span class="tag tag-both">공통</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>일정 상세 화면에서 공유 링크를 생성하여 멤버들에게 전달할 수 있습니다. 링크를 받은 멤버가 접속하면 해당 일정으로 바로 이동합니다.</p>
+            <div class="highlight highlight-orange">
+              <strong>참고:</strong> 삭제된 일정의 공유 링크로 접속하면 자동으로 기본 화면으로 이동됩니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 멤버 관리 -->
+      <div class="section" id="a-players">
+        <div class="section-title">
+          <div class="section-icon icon-purple">&#x1f465;</div>
+          멤버 관리
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>멤버 등록</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"멤버 관리"</strong> 탭에서 클럽 멤버를 등록하고 관리합니다.</p>
+            <ol class="steps">
+              <li>이름을 입력하고 성별(남/여)을 선택합니다.</li>
+              <li><strong>"추가"</strong> 버튼을 눌러 등록합니다.</li>
+            </ol>
+            <div class="highlight highlight-blue">
+              <strong>엑셀 업로드:</strong> 이름, 성별 컬럼이 포함된 엑셀 파일(.xlsx, .csv)을 업로드하면 멤버를 일괄 등록할 수 있습니다. 중복 이름은 자동으로 건너뜁니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>멤버 수정 / 삭제</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ul class="feature-list">
+              <li><strong>이름 수정:</strong> 멤버 이름을 터치하면 수정 모드로 전환됩니다</li>
+              <li><strong>성별 변경:</strong> 남/여 배지를 터치하면 토글됩니다</li>
+              <li><strong>삭제:</strong> 개별 삭제 또는 체크박스로 여러 명 일괄 삭제 가능</li>
+              <li><strong>검색:</strong> 이름 입력란에 검색어를 입력하면 실시간 필터링 (한글 초성 검색 지원)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>회원 관리 (상세)</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>사이드 메뉴의 <strong>"회원 관리"</strong>에서 상세 회원 정보를 관리합니다.</p>
+            <ul class="feature-list">
+              <li><strong>회원 유형:</strong> 정회원 / 게스트 구분 설정</li>
+              <li><strong>참석 빈도:</strong> 주1회(토) / 주1회(일) / 주2회 설정</li>
+              <li><strong>조 배정:</strong> 멤버를 그룹(조)에 배정</li>
+              <li><strong>회비 관리:</strong> 월별 납부 현황 관리 (12개월 그리드)</li>
+              <li><strong>메모:</strong> 회비 셀을 길게 누르면 메모를 입력할 수 있습니다</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>조(그룹) 관리</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"회원 관리"</strong> &gt; <strong>"조 관리"</strong> 탭에서 그룹을 만들고 멤버를 배정합니다.</p>
+            <ul class="feature-list">
+              <li>조 이름과 요일을 지정하여 새 그룹 생성</li>
+              <li>그룹별 멤버 추가/제거</li>
+              <li>그룹 이름 수정 (인라인 편집)</li>
+              <li>그룹 삭제</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 대진표 -->
+      <div class="section" id="a-bracket">
+        <div class="section-title">
+          <div class="section-icon icon-orange">&#x1f3c6;</div>
+          대진표 관리
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>대진표 자동 생성</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"대진표 작성"</strong> 탭에서 대진표를 자동 생성합니다.</p>
+            <ol class="steps">
+              <li>대진표 이름을 입력합니다.</li>
+              <li>경기 방식을 선택합니다:
+                <br>&nbsp;&nbsp;- <strong>남자 복식(MD)</strong>, <strong>여자 복식(WD)</strong>, <strong>혼합 복식(XD)</strong>, <strong>남자 단식(MS)</strong>, <strong>여자 단식(WS)</strong>, <strong>자유 복식(FD)</strong>
+              </li>
+              <li>참여할 멤버를 체크하여 선택합니다.</li>
+              <li>세트 수(1/3/5세트)를 설정합니다.</li>
+              <li><strong>"생성"</strong> 버튼을 누르면 자동으로 대진이 편성됩니다.</li>
+            </ol>
+            <div class="highlight highlight-green">
+              팀이 중복되지 않도록 자동 배치됩니다. 참여 인원에 따라 여러 라운드(시간대)로 나뉩니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>대진표 편집</h3>
+            <span class="tag tag-admin">관리자</span>
+            <span class="tag tag-event-host">호스트</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>생성된 대진표에서 다양한 편집이 가능합니다.</p>
+            <ul class="feature-list">
+              <li><strong>대진표 이름 수정:</strong> 제목을 터치하여 변경</li>
+              <li><strong>멤버 교체:</strong> 매치 내 멤버를 터치하면 다른 멤버로 교체 가능</li>
+              <li><strong>매치 추가:</strong> 라운드에 새 매치를 추가</li>
+              <li><strong>매치 삭제:</strong> 불필요한 매치 제거</li>
+              <li><strong>매치 순서 변경:</strong> 드래그하여 매치 순서 조정</li>
+              <li><strong>경기 방식 변경:</strong> 대진표 전체 경기 방식 변경</li>
+            </ul>
+            <div class="highlight highlight-purple">
+              <strong>호스트 편집 권한:</strong> 일정에서 호스트로 지정된 멤버도 해당 일정의 대진표를 편집할 수 있습니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>커스텀 대진표 (토너먼트/리그)</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"대회 만들기"</strong> 탭에서 토너먼트 또는 리그 형식의 대진표를 만듭니다.</p>
+            <p><strong>토너먼트 (싱글 엘리미네이션):</strong></p>
+            <ul class="feature-list">
+              <li>4, 8, 16, 32강 브래킷 지원</li>
+              <li>단식/복식 모두 지원</li>
+              <li>멤버를 수동으로 원하는 위치에 배치</li>
+              <li>BYE(부전승) 자동 처리</li>
+            </ul>
+            <p style="margin-top:10px"><strong>리그 (라운드 로빈):</strong></p>
+            <ul class="feature-list">
+              <li>참가자 전원 라운드 로빈 방식</li>
+              <li>자동 순위표 (승/무/패, 승점, 포인트)</li>
+              <li>라운드별 경기 일정 자동 생성</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>대진표 삭제</h3>
+            <span class="tag tag-admin">관리자</span>
+            <span class="tag tag-event-host">호스트</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"대진표"</strong> 탭의 카드 목록에서 삭제 버튼을 눌러 대진표를 삭제할 수 있습니다. 삭제 전 확인 팝업이 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. 스코어 입력 -->
+      <div class="section">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f3be;</div>
+          스코어 입력
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>경기 스코어 입력 / 수정</h3>
+            <span class="tag tag-both">공통</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ol class="steps">
+              <li>대진표에서 경기 카드의 <strong>스코어 영역</strong>을 터치합니다.</li>
+              <li>세트별 점수를 입력합니다 (세트 수는 대진표 설정에 따름).</li>
+              <li><strong>"저장"</strong> 버튼을 눌러 스코어를 기록합니다.</li>
+            </ol>
+            <div class="highlight highlight-blue">
+              <strong>관리자:</strong> 모든 경기의 스코어를 입력/수정할 수 있습니다.<br>
+              <strong>멤버:</strong> 본인이 참여한 경기의 스코어만 입력할 수 있습니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. 통계 -->
+      <div class="section" id="a-stats">
+        <div class="section-title">
+          <div class="section-icon icon-indigo">&#x1f4ca;</div>
+          통계
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>통계 조회</h3>
+            <span class="tag tag-both">공통</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"통계"</strong> 탭에서 다양한 통계를 확인할 수 있습니다.</p>
+            <ul class="feature-list">
+              <li><strong>월별 통계:</strong> 선택한 월의 메달 랭킹(금/은/동)과 개인 전적</li>
+              <li><strong>전체 통계:</strong> 누적 메달 랭킹과 전체 전적</li>
+              <li><strong>조별 통계:</strong> 그룹별 순위, 멤버별 성적</li>
+              <li><strong>성별 필터:</strong> 전체 / 남자 / 여자별 조회</li>
+            </ul>
+            <p>표시되는 지표: 경기 수, 승/패/무, 승점, 포인트, 경기 유형별(MS/WS/MD/WD/XD/FD) 전적</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. 정산 -->
+      <div class="section">
+        <div class="section-title">
+          <div class="section-icon icon-red">&#x1f4b0;</div>
+          정산
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>정산 현황</h3>
+            <span class="tag tag-admin">관리자</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>사이드 메뉴의 <strong>"정산"</strong>에서 일정별 비용 정산 내역을 확인합니다.</p>
+            <ul class="feature-list">
+              <li><strong>호스트별 요약:</strong> 호스트명, 주최 횟수, 총 코트비, 총 청구 금액</li>
+              <li><strong>월별 일정 목록:</strong> 각 일정의 상세 정산 정보 (코트비, 공 종류/수량, 게스트 수)</li>
+              <li>월별로 접고 펼칠 수 있는 카드형 UI</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. 설정 -->
+      <div class="section" id="a-settings">
+        <div class="section-title">
+          <div class="section-icon icon-purple">&#x2699;&#xfe0f;</div>
+          설정
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>다크 모드</h3>
+            <span class="tag tag-both">공통</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>헤더 우측 상단의 <strong>해/달 아이콘</strong>을 터치하면 라이트/다크 모드를 전환할 수 있습니다. 설정은 기기에 저장되어 다음 접속 시에도 유지됩니다.</p>
+            <div class="highlight highlight-blue">
+              기기의 OS 다크모드 설정에 따라 자동으로 적용되며, 수동으로 변경할 수도 있습니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>홈 화면에 추가 (PWA)</h3>
+            <span class="tag tag-both">공통</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>앱을 홈 화면에 추가하면 일반 앱처럼 바로 실행할 수 있습니다.</p>
+            <p><strong>iOS (Safari):</strong></p>
+            <ol class="steps">
+              <li>Safari에서 앱에 접속합니다.</li>
+              <li>하단 공유 버튼을 터치합니다.</li>
+              <li><strong>"홈 화면에 추가"</strong>를 선택합니다.</li>
+            </ol>
+            <p style="margin-top:10px"><strong>Android (Chrome):</strong></p>
+            <ol class="steps">
+              <li>Chrome에서 앱에 접속합니다.</li>
+              <li>설치 배너가 나타나면 <strong>"설치"</strong>를 터치합니다.</li>
+              <li>또는 메뉴 &gt; <strong>"홈 화면에 추가"</strong>를 선택합니다.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- 권한 비교표 -->
+      <div class="section">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f4cb;</div>
+          관리자 권한 요약
+        </div>
+        <div class="card">
+          <div class="card-body open">
+            <table class="compare-table">
+              <tr><th>기능</th><th>관리자</th><th>멤버</th></tr>
+              <tr><td>일정 등록/수정/삭제</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>일정 참석 입력</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+              <tr><td>대관 엑셀 업로드</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>멤버 등록/수정/삭제</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>회원 상세 관리</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>대진표 생성</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>대진표 편집 (멤버 교체 등)</td><td class="check">&#10003;</td><td class="cross">호스트만</td></tr>
+              <tr><td>대회 만들기 (토너먼트/리그)</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>모든 경기 스코어 입력</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>본인 경기 스코어 입력</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+              <tr><td>통계 조회</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+              <tr><td>정산 조회</td><td class="check">&#10003;</td><td class="cross">&mdash;</td></tr>
+              <tr><td>다크모드 전환</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════ -->
+    <!--          MEMBER MANUAL             -->
+    <!-- ═══════════════════════════════════ -->
+    <div class="role-content" id="content-member">
+
+      <!-- Quick Nav -->
+      <div class="quick-nav">
+        <a href="#m-login"><span class="icon">&#x1f511;</span> 로그인</a>
+        <a href="#m-calendar"><span class="icon">&#x1f4c5;</span> 일정</a>
+        <a href="#m-bracket"><span class="icon">&#x1f3c6;</span> 대진표</a>
+        <a href="#m-score"><span class="icon">&#x1f3be;</span> 스코어</a>
+        <a href="#m-stats"><span class="icon">&#x1f4ca;</span> 통계</a>
+        <a href="#m-etc"><span class="icon">&#x2699;&#xfe0f;</span> 기타</a>
+      </div>
+
+      <!-- 1. 로그인 -->
+      <div class="section" id="m-login">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f511;</div>
+          로그인
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>멤버 로그인</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ol class="steps">
+              <li>앱 접속 후 <strong>"멤버"</strong> 탭을 선택합니다.</li>
+              <li>등록된 이메일과 비밀번호를 입력합니다.</li>
+              <li><strong>본인 이름</strong>을 입력합니다 (관리자가 등록한 멤버 목록에서 확인).</li>
+              <li><strong>"로그인"</strong> 버튼을 눌러 접속합니다.</li>
+            </ol>
+            <div class="highlight highlight-orange">
+              <strong>참고:</strong> 이름은 관리자가 등록한 이름과 정확히 일치해야 합니다. 이름이 등록되지 않은 경우 관리자에게 문의하세요.
+            </div>
+            <div class="highlight highlight-blue">
+              <strong>이름 기억하기</strong>를 체크하면 다음 로그인 시 이름이 자동 입력됩니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 일정 -->
+      <div class="section" id="m-calendar">
+        <div class="section-title">
+          <div class="section-icon icon-green">&#x1f4c5;</div>
+          일정
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>일정 확인</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"일정"</strong> 탭의 캘린더에서 등록된 일정을 확인할 수 있습니다.</p>
+            <ul class="feature-list">
+              <li>날짜에 표시된 <strong>색상 라벨</strong>을 터치하면 일정 상세를 볼 수 있습니다</li>
+              <li>좌우 화살표로 <strong>월 이동</strong>이 가능합니다</li>
+              <li>일정 상세에서 시간, 장소, 참석자 목록을 확인할 수 있습니다</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>참석 입력</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ol class="steps">
+              <li>캘린더에서 일정을 터치하여 상세 화면을 엽니다.</li>
+              <li><strong>"참석"</strong> 버튼을 눌러 참석을 등록합니다.</li>
+              <li>참석을 취소하려면 본인 이름 옆의 <strong>취소</strong>를 터치합니다.</li>
+            </ol>
+            <div class="highlight highlight-green">
+              인원 제한이 있는 일정에서 정원이 찬 경우 <strong>대기열</strong>에 등록됩니다. 다른 멤버가 취소하면 자동으로 참석 처리됩니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 대진표 -->
+      <div class="section" id="m-bracket">
+        <div class="section-title">
+          <div class="section-icon icon-orange">&#x1f3c6;</div>
+          대진표
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>대진표 보기</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"대진표"</strong> 탭에서 진행 중인 대진표를 확인합니다.</p>
+            <ul class="feature-list">
+              <li>대진표 카드를 터치하면 상세 대진표가 표시됩니다</li>
+              <li><strong>본인이 참여한 경기</strong>는 파란색 하이라이트로 표시됩니다</li>
+              <li>라운드(시간대)별로 경기가 구분되어 표시됩니다</li>
+              <li>토너먼트 형식은 브래킷(대진) 그래프로 표시됩니다</li>
+              <li>리그 형식은 순위표와 라운드별 경기 목록으로 표시됩니다</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>호스트 편집 권한</h3>
+            <span class="tag tag-event-host">호스트</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>일정의 <strong>호스트</strong>로 지정된 경우, 해당 일정에서 만든 대진표를 편집할 수 있습니다.</p>
+            <ul class="feature-list">
+              <li>대진표 이름 수정</li>
+              <li>멤버 교체 (다른 멤버로 변경)</li>
+              <li>매치 추가/삭제</li>
+              <li>매치 순서 변경 (드래그)</li>
+              <li>경기 방식 변경</li>
+              <li>모든 경기 스코어 입력</li>
+            </ul>
+            <div class="highlight highlight-purple">
+              호스트 지정은 관리자가 일정 등록 시 설정합니다. 호스트 여부는 일정 상세에서 확인할 수 있습니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 스코어 -->
+      <div class="section" id="m-score">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f3be;</div>
+          스코어 입력
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>내 경기 스코어 입력</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <ol class="steps">
+              <li>대진표에서 <strong>본인이 참여한 경기</strong>를 찾습니다 (파란색 하이라이트).</li>
+              <li>경기 카드의 <strong>스코어 영역</strong>을 터치합니다.</li>
+              <li>세트별 점수를 입력합니다.</li>
+              <li><strong>"저장"</strong> 버튼을 눌러 기록합니다.</li>
+            </ol>
+            <div class="highlight highlight-orange">
+              <strong>참고:</strong> 본인이 참여하지 않은 경기의 스코어는 입력할 수 없습니다. 수정이 필요한 경우 관리자 또는 호스트에게 요청하세요.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. 통계 -->
+      <div class="section" id="m-stats">
+        <div class="section-title">
+          <div class="section-icon icon-indigo">&#x1f4ca;</div>
+          통계
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>내 전적 확인</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p><strong>"통계"</strong> 탭에서 개인 전적과 클럽 랭킹을 확인합니다.</p>
+            <ul class="feature-list">
+              <li><strong>월별 통계:</strong> 이번 달 메달(금/은/동) 수와 전적</li>
+              <li><strong>전체 통계:</strong> 누적 성적과 순위</li>
+              <li><strong>조별 통계:</strong> 소속 조의 순위와 멤버별 성적</li>
+              <li><strong>본인 이름</strong>은 목록에서 하이라이트되어 쉽게 찾을 수 있습니다</li>
+            </ul>
+            <p>확인 가능한 지표: 경기 수, 승/패/무, 승점, 포인트, 경기 유형별 전적</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. 기타 -->
+      <div class="section" id="m-etc">
+        <div class="section-title">
+          <div class="section-icon icon-purple">&#x2699;&#xfe0f;</div>
+          기타 기능
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>다크 모드</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>헤더 우측의 <strong>해/달 아이콘</strong>을 터치하여 다크 모드를 전환할 수 있습니다. 기기의 OS 설정에 따라 자동 적용되며, 수동으로 변경 가능합니다.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>홈 화면에 추가 (PWA)</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>앱을 홈 화면에 추가하면 일반 앱처럼 사용할 수 있습니다.</p>
+            <p><strong>iPhone/iPad:</strong> Safari &gt; 공유 버튼 &gt; "홈 화면에 추가"</p>
+            <p><strong>Android:</strong> Chrome 설치 배너 또는 메뉴 &gt; "홈 화면에 추가"</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h3>로그아웃</h3>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+          <div class="card-body">
+            <p>헤더의 이름 배지 옆 <strong>로그아웃 아이콘</strong>을 터치하면 로그아웃됩니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 멤버 권한 요약 -->
+      <div class="section">
+        <div class="section-title">
+          <div class="section-icon icon-blue">&#x1f4cb;</div>
+          멤버 기능 요약
+        </div>
+        <div class="card">
+          <div class="card-body open">
+            <table class="compare-table">
+              <tr><th>기능</th><th>가능 여부</th></tr>
+              <tr><td>일정 확인</td><td class="check">&#10003;</td></tr>
+              <tr><td>일정 참석/취소</td><td class="check">&#10003;</td></tr>
+              <tr><td>일정 등록/수정/삭제</td><td class="cross">&mdash;</td></tr>
+              <tr><td>대진표 보기</td><td class="check">&#10003;</td></tr>
+              <tr><td>본인 경기 스코어 입력</td><td class="check">&#10003;</td></tr>
+              <tr><td>다른 경기 스코어 입력</td><td class="cross">&mdash;</td></tr>
+              <tr><td>호스트 대진표 편집</td><td class="check">&#10003; (호스트인 경우)</td></tr>
+              <tr><td>통계 조회</td><td class="check">&#10003;</td></tr>
+              <tr><td>다크모드 전환</td><td class="check">&#10003;</td></tr>
+              <tr><td>멤버 관리</td><td class="cross">&mdash;</td></tr>
+              <tr><td>대진표 생성</td><td class="cross">&mdash;</td></tr>
+              <tr><td>정산 조회</td><td class="cross">&mdash;</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      TMI CLUB &middot; 테니스 클럽 관리 웹앱
+    </div>
+  </div>
+
+  <script>
+    function switchTab(role) {
+      document.querySelectorAll('.role-content').forEach(function(el) { el.classList.remove('active'); });
+      document.querySelectorAll('.role-tab').forEach(function(el) {
+        el.classList.remove('active-admin', 'active-member');
+      });
+
+      document.getElementById('content-' + role).classList.add('active');
+      var tab = document.getElementById('tab-' + role);
+      tab.classList.add(role === 'admin' ? 'active-admin' : 'active-member');
+    }
+
+    function toggleCard(header) {
+      var body = header.nextElementSibling;
+      var isOpen = body.classList.contains('open');
+      body.classList.toggle('open');
+      header.classList.toggle('open');
+    }
+
+    // 모든 첫 번째 카드 자동 펼치기
+    document.querySelectorAll('.section').forEach(function(section) {
+      var firstHeader = section.querySelector('.card-header');
+      if (firstHeader) {
+        firstHeader.classList.add('open');
+        firstHeader.nextElementSibling.classList.add('open');
+      }
+    });
+
+    // PDF 다운로드
+    function downloadPDF() {
+      var btn = document.getElementById('pdf-download-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="pdf-spinner"></div> 생성 중...';
+
+      // 모든 카드 펼치기
+      document.querySelectorAll('.card-body').forEach(function(b) { b.classList.add('open'); });
+      document.querySelectorAll('.card-header').forEach(function(h) { h.classList.add('open'); });
+      // 두 탭 모두 표시
+      document.querySelectorAll('.role-content').forEach(function(el) { el.classList.add('active'); });
+      // 다운로드 바, 퀵네비 숨기기
+      var bar = document.querySelector('.pdf-download-bar');
+      var navs = document.querySelectorAll('.quick-nav');
+      var tabs = document.querySelector('.role-tabs');
+      bar.style.display = 'none';
+      navs.forEach(function(n) { n.style.display = 'none'; });
+      tabs.style.display = 'none';
+
+      // 구분선 추가
+      var divider = document.createElement('div');
+      divider.id = 'pdf-divider';
+      divider.style.cssText = 'page-break-before:always;border-top:2px solid #e5e7eb;margin:32px 0 0;padding-top:4px;';
+      var memberContent = document.getElementById('content-member');
+      memberContent.parentNode.insertBefore(divider, memberContent);
+
+      // 관리자/멤버 타이틀 표시용
+      var adminLabel = document.createElement('h2');
+      adminLabel.id = 'pdf-admin-label';
+      adminLabel.style.cssText = 'font-size:20px;font-weight:800;color:#dc2626;margin:20px 0 4px;text-align:center;';
+      adminLabel.textContent = '[ 관리자 매뉴얼 ]';
+      var adminContent = document.getElementById('content-admin');
+      adminContent.parentNode.insertBefore(adminLabel, adminContent);
+
+      var memberLabel = document.createElement('h2');
+      memberLabel.id = 'pdf-member-label';
+      memberLabel.style.cssText = 'font-size:20px;font-weight:800;color:#2563eb;margin:8px 0 4px;text-align:center;';
+      memberLabel.textContent = '[ 멤버 매뉴얼 ]';
+      memberContent.parentNode.insertBefore(memberLabel, memberContent);
+
+      var container = document.querySelector('.container');
+      var opt = {
+        margin: [8, 6, 8, 6],
+        filename: 'TMI_CLUB_매뉴얼.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      html2pdf().set(opt).from(document.body).save().then(function() {
+        // 원복
+        bar.style.display = '';
+        navs.forEach(function(n) { n.style.display = ''; });
+        tabs.style.display = '';
+        document.getElementById('pdf-divider').remove();
+        document.getElementById('pdf-admin-label').remove();
+        document.getElementById('pdf-member-label').remove();
+        // 현재 탭만 표시
+        document.querySelectorAll('.role-content').forEach(function(el) { el.classList.remove('active'); });
+        var activeTab = document.querySelector('.role-tab.active-admin') ? 'admin' : 'member';
+        document.getElementById('content-' + activeTab).classList.add('active');
+        btn.disabled = false;
+        btn.innerHTML = '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> PDF 다운로드';
+      });
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+
+</body>
+</html>
