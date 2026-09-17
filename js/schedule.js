@@ -508,8 +508,9 @@ const Schedule = {
       s.matchPoints = s.wins * 3 + s.draws * 1;
     });
 
-    // 현재 멤버 목록에 있는 선수만 표시
+    // 현재 멤버 목록 + 게스트 포함
     const currentNames = new Set(Storage.getPlayers().map(p => p.name));
+    if (tournament.guests) tournament.guests.forEach(g => currentNames.add(g));
     const filtered = Object.values(stats).filter(s => currentNames.has(s.name));
 
     return filtered.sort((a, b) => b.scorePoints - a.scorePoints || b.matchPoints - a.matchPoints || b.wins - a.wins || b.games - a.games);
