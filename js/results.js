@@ -61,13 +61,13 @@ const Results = {
           <div class="bg-blue-50 rounded-xl px-3 py-2 text-center">
             ${t1Team ? `<div class="font-bold text-blue-700 text-sm">${this.escapeHtml(t1Team)}</div>
               <div class="text-blue-700 text-[11px] mt-0.5 opacity-70">${this.escapeHtml(player1Name)}</div>` :
-              `<span class="font-semibold text-blue-700 text-xs sm:text-sm">${this.formatTeamHtml(player1Name, tournament.isCustom)}</span>`}
+              `<span class="font-semibold text-blue-700 text-xs sm:text-sm">${this.formatTeamHtml(player1Name, tournament.isCustom, tournament)}</span>`}
           </div>
           <div class="text-center text-xs text-gray-400 font-medium">vs</div>
           <div class="bg-violet-50 rounded-xl px-3 py-2 text-center">
             ${t2Team ? `<div class="font-bold text-violet-700 text-sm">${this.escapeHtml(t2Team)}</div>
               <div class="text-violet-600 text-[11px] mt-0.5 opacity-70">${this.escapeHtml(player2Name)}</div>` :
-              `<span class="font-semibold text-violet-700 text-xs sm:text-sm">${this.formatTeamHtml(player2Name, tournament.isCustom)}</span>`}
+              `<span class="font-semibold text-violet-700 text-xs sm:text-sm">${this.formatTeamHtml(player2Name, tournament.isCustom, tournament)}</span>`}
           </div>
         </div>
         <div class="space-y-3 mb-5">${setsHTML}</div>
@@ -202,16 +202,18 @@ const Results = {
   },
 
   // 팀 문자열("A / B")을 HTML로 변환
-  formatTeamHtml(teamStr, isCustom) {
+  formatTeamHtml(teamStr, isCustom, tournament) {
     const allPlayers = Storage.getPlayers();
     const names = teamStr.split(' / ');
     return names.map(name => {
       const pd = allPlayers.find(p => p.name === name);
       let badge = '';
-      if (isCustom && pd) {
-        badge = `<span class="ml-0.5">${genderBadge(pd.gender, 'text')}</span>`;
+      if (isCustom) {
+        const gender = pd ? pd.gender : (tournament?.males?.includes(name) ? 'M' : tournament?.females?.includes(name) ? 'F' : null);
+        if (gender) badge = `<span class="ml-0.5">${genderBadge(gender, 'text')}</span>`;
       }
-      return `${this.escapeHtml(name)}${badge}`;
+      const guestBadge = tournament?.guests?.includes(name) ? '<span class="ml-0.5 text-[10px] px-1 py-0.5 rounded font-medium bg-amber-100 text-amber-700">게</span>' : '';
+      return `${this.escapeHtml(name)}${badge}${guestBadge}`;
     }).join(' <span class="text-gray-300 mx-0.5">/</span> ');
   },
 

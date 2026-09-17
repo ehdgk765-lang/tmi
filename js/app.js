@@ -2638,19 +2638,33 @@ const App = {
           </div>
         </div>
 
+        <!-- 게스트 추가 -->
+        <div class="bg-amber-50/80 border border-amber-200 rounded-xl p-3">
+          <label class="block text-xs font-semibold text-gray-700 mb-1.5">게스트 추가</label>
+          <div class="flex gap-1.5">
+            <input type="text" id="guest-name-input" placeholder="이름" autocomplete="off"
+              class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+            <select id="guest-gender-select" class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs">
+              <option value="male">남</option>
+              <option value="female">여</option>
+            </select>
+            <button type="button" id="guest-add-btn"
+              class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 active:scale-95 transition">추가</button>
+          </div>
+        </div>
+
         <!-- 남자 멤버 선택 -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">
             남자 멤버 <span id="male-count" class="text-blue-700 font-normal">(0/${males.length}명)</span>
           </label>
-          ${males.length === 0 ? '<p class="text-xs text-gray-400">등록된 남자 멤버가 없습니다.</p>' : `
           <input type="text" autocomplete="off" id="sch-male-search" placeholder="이름 검색..."
             class="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-xs mb-1.5">
           <div class="flex justify-between items-center mb-1">
             <span class="text-xs text-gray-500">${males.length}명 중 선택</span>
             <button type="button" id="sch-male-all-btn" class="text-xs text-blue-700 font-medium hover:underline">전체 선택</button>
           </div>
-          <div class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
+          <div id="male-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
             ${males.map(p => {
               const tn = _teamMap[p.name];
               return `
@@ -2661,7 +2675,7 @@ const App = {
                 ${tn ? `<span class="sch-team-badge text-[10px] px-1 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
               </label>`;
             }).join('')}
-          </div>`}
+          </div>
         </div>
 
         <!-- 여자 멤버 선택 -->
@@ -2669,14 +2683,13 @@ const App = {
           <label class="block text-xs font-semibold text-gray-700 mb-1">
             여자 멤버 <span id="female-count" class="text-blue-700 font-normal">(0/${females.length}명)</span>
           </label>
-          ${females.length === 0 ? '<p class="text-xs text-gray-400">등록된 여자 멤버가 없습니다.</p>' : `
           <input type="text" autocomplete="off" id="sch-female-search" placeholder="이름 검색..."
             class="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-xs mb-1.5">
           <div class="flex justify-between items-center mb-1">
             <span class="text-xs text-gray-500">${females.length}명 중 선택</span>
             <button type="button" id="sch-female-all-btn" class="text-xs text-blue-700 font-medium hover:underline">전체 선택</button>
           </div>
-          <div class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
+          <div id="female-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
             ${females.map(p => {
               const tn = _teamMap[p.name];
               return `
@@ -2687,7 +2700,7 @@ const App = {
                 ${tn ? `<span class="sch-team-badge text-[10px] px-1 py-0.5 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200 hidden">${Results.escapeHtml(tn)}</span>` : ''}
               </label>`;
             }).join('')}
-          </div>`}
+          </div>
         </div>
 
         <!-- 미리보기 정보 -->
@@ -2702,15 +2715,61 @@ const App = {
 
     const updateCounts = () => {
       const maleChecked = container.querySelectorAll('.male-cb:checked').length;
+      const maleTotal = container.querySelectorAll('.male-cb').length;
       const femaleChecked = container.querySelectorAll('.female-cb:checked').length;
-      container.querySelector('#male-count').textContent = `(${maleChecked}/${males.length}명 선택)`;
-      container.querySelector('#female-count').textContent = `(${femaleChecked}/${females.length}명 선택)`;
+      const femaleTotal = container.querySelectorAll('.female-cb').length;
+      container.querySelector('#male-count').textContent = `(${maleChecked}/${maleTotal}명 선택)`;
+      container.querySelector('#female-count').textContent = `(${femaleChecked}/${femaleTotal}명 선택)`;
       this.updateSchedulePreview(container);
     };
 
     container.querySelectorAll('.male-cb, .female-cb').forEach(cb => {
       cb.onchange = updateCounts;
     });
+
+    // 게스트 추가
+    const guestAddBtn = container.querySelector('#guest-add-btn');
+    const guestNameInput = container.querySelector('#guest-name-input');
+    const guestGenderSelect = container.querySelector('#guest-gender-select');
+    if (guestAddBtn) {
+      const addGuest = () => {
+        const name = guestNameInput.value.trim();
+        if (!name) { guestNameInput.focus(); return; }
+        const allValues = Array.from(container.querySelectorAll('.male-cb, .female-cb')).map(cb => cb.value);
+        if (allValues.includes(name)) {
+          Modal.alert(`"${name}" 은(는) 이미 목록에 있습니다.`);
+          return;
+        }
+        const isMale = guestGenderSelect.value === 'male';
+        const prefix = isMale ? 'male' : 'female';
+        const genderName = isMale ? 'males' : 'females';
+        const genderBadgeCls = isMale ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700';
+        const genderLabel = isMale ? '남' : '여';
+        const listDiv = container.querySelector(`#${prefix}-list`);
+        if (!listDiv) return;
+        const label = document.createElement('label');
+        label.className = `sch-${prefix}-item guest-item flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer transition`;
+        label.dataset.name = name.toLowerCase();
+        label.innerHTML = `
+          <input type="checkbox" name="${genderName}" value="${Results.escapeHtml(name)}" class="${prefix}-cb w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700" checked>
+          <span class="ml-2 text-xs text-gray-800">${Results.escapeHtml(name)}</span>
+          <span class="ml-1.5 text-[10px] px-1 py-0.5 rounded font-medium ${genderBadgeCls}">${genderLabel}</span>
+          <span class="ml-1 text-[10px] px-1 py-0.5 rounded font-medium bg-amber-100 text-amber-700">게스트</span>
+          <button type="button" class="guest-remove-btn ml-auto text-gray-400 hover:text-red-500 text-xs" title="제거">✕</button>`;
+        label.querySelector('.guest-remove-btn').onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          label.remove();
+          updateCounts();
+        };
+        label.querySelector(`.${prefix}-cb`).onchange = updateCounts;
+        listDiv.prepend(label);
+        guestNameInput.value = '';
+        guestNameInput.focus();
+        updateCounts();
+      };
+      guestAddBtn.onclick = addGuest;
+      guestNameInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addGuest(); } };
+    }
 
     // 팀전 체크박스: 팀 배지 토글
     const teamModeCb = container.querySelector('#sch-team-mode');
@@ -2724,13 +2783,12 @@ const App = {
 
     const bindScheduleList = (prefix, cbClass) => {
       const search = container.querySelector(`#sch-${prefix}-search`);
-      const items = container.querySelectorAll(`.sch-${prefix}-item`);
       const allBtn = container.querySelector(`#sch-${prefix}-all-btn`);
       if (!search || !allBtn) return;
 
       search.oninput = () => {
         const q = search.value.trim();
-        items.forEach(item => {
+        container.querySelectorAll(`.sch-${prefix}-item`).forEach(item => {
           item.style.display = (!q || matchesKoreanSearch(item.dataset.name, q)) ? '' : 'none';
         });
       };
@@ -2738,7 +2796,7 @@ const App = {
       let allSelected = false;
       allBtn.onclick = () => {
         allSelected = !allSelected;
-        items.forEach(item => {
+        container.querySelectorAll(`.sch-${prefix}-item`).forEach(item => {
           if (item.style.display !== 'none') {
             item.querySelector(`.${cbClass}`).checked = allSelected;
           }
@@ -2794,6 +2852,7 @@ const App = {
       const warmupMin = parseInt(container.querySelector('input[name="warmup-time"]:checked')?.value) || 15;
       const selectedMales = Array.from(container.querySelectorAll('.male-cb:checked')).map(cb => cb.value);
       const selectedFemales = Array.from(container.querySelectorAll('.female-cb:checked')).map(cb => cb.value);
+      const guests = Array.from(container.querySelectorAll('.guest-item input:checked')).map(cb => cb.value);
       const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
 
       if (startTime >= endTime) {
@@ -2880,6 +2939,7 @@ const App = {
         completedAt: null,
         timeSlots,
         typeDistribution,
+        guests,
       };
 
       const tournaments = Storage.getTournaments();
