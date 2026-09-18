@@ -954,6 +954,108 @@ const Storage = {
     return { changed: false, result: false };
   },
 
+  // ─── 이벤트 게스트 참석자 추가/제거 ───
+
+  async addGuestParticipant(eventId, guestName, gender) {
+    var self = this;
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (!ev) return false;
+    if (!ev.guests) ev.guests = [];
+    if (!ev.participants) ev.participants = [];
+    if (!ev.waitlist) ev.waitlist = [];
+    // 중복 체크
+    if (ev.participants.indexOf(guestName) >= 0 || ev.waitlist.indexOf(guestName) >= 0) return false;
+    // 정원 체크
+    var maxP = ev.maxParticipants || 0;
+    var isFull = maxP > 0 && ev.participants.length >= maxP;
+    var isGenderFull = false;
+    if (!isFull && gender === 'M' && ev.maxMale > 0) {
+      var mc = 0;
+      for (var i = 0; i < ev.participants.length; i++) { if (self._getPlayerGender(ev.participants[i]) === 'M' || (ev.guests || []).some(function(g) { return g.name === ev.participants[i] && g.gender === 'M'; })) mc++; }
+      if (mc >= ev.maxMale) isGenderFull = true;
+    }
+    if (!isFull && gender === 'F' && ev.maxFemale > 0) {
+      var fc = 0;
+      for (var j = 0; j < ev.participants.length; j++) { if (self._getPlayerGender(ev.participants[j]) === 'F' || (ev.guests || []).some(function(g) { return g.name === ev.participants[j] && g.gender === 'F'; })) fc++; }
+      if (fc >= ev.maxFemale) isGenderFull = true;
+    }
+    var toWaitlist = isFull || isGenderFull;
+    // 로컬 적용
+    ev.guests.push({ name: guestName, gender: gender });
+    if (toWaitlist) {
+      ev.waitlist.push(guestName);
+    } else {
+      ev.participants.push(guestName);
+    }
+    // RTDB 동기화
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (rtdbRef) {
+      try {
+        await rtdbRef.transaction(function(current) {
+          if (!current) current = { participants: [], waitlist: [], participantTimes: {} };
+          var participants = self._rtdbToArray(current.participants);
+          var waitlist = self._rtdbToArray(current.waitlist);
+          var guests = current.guests || [];
+          guests.push({ name: guestName, gender: gender });
+          if (toWaitlist) {
+            if (waitlist.indexOf(guestName) < 0) waitlist.push(guestName);
+          } else {
+            if (participants.indexOf(guestName) < 0) participants.push(guestName);
+          }
+          current.participants = participants;
+          current.waitlist = waitlist;
+          current.guests = guests;
+          return current;
+        });
+      } catch (err) {
+        console.error('addGuestParticipant RTDB error:', err);
+      }
+    }
+    return toWaitlist ? 'waitlist' : true;
+  },
+
+  async removeGuestParticipant(eventId, guestName) {
+    var self = this;
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (!ev) return false;
+    if (!ev.guests) ev.guests = [];
+    // 로컬 적용: guests에서 제거
+    ev.guests = ev.guests.filter(function(g) { return g.name !== guestName; });
+    // participants에서도 제거
+    if (ev.participants) {
+      var idx = ev.participants.indexOf(guestName);
+      if (idx >= 0) ev.participants.splice(idx, 1);
+    }
+    // waitlist에서도 제거
+    if (ev.waitlist) {
+      var wIdx = ev.waitlist.indexOf(guestName);
+      if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+    }
+    // RTDB 동기화
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (rtdbRef) {
+      try {
+        await rtdbRef.transaction(function(current) {
+          if (!current) return current;
+          var participants = self._rtdbToArray(current.participants);
+          var waitlist = self._rtdbToArray(current.waitlist);
+          var guests = current.guests || [];
+          var pIdx = participants.indexOf(guestName);
+          if (pIdx >= 0) participants.splice(pIdx, 1);
+          var wIdx2 = waitlist.indexOf(guestName);
+          if (wIdx2 >= 0) waitlist.splice(wIdx2, 1);
+          current.participants = participants;
+          current.waitlist = waitlist;
+          current.guests = guests.filter(function(g) { return g.name !== guestName; });
+          return current;
+        });
+      } catch (err) {
+        console.error('removeGuestParticipant RTDB error:', err);
+      }
+    }
+    return true;
+  },
+
   // ─── 멤버 삭제 (Transaction: players + events 원자적 수정) ───
 
   async deleteMember(memberName) {
@@ -1793,6 +1895,7 @@ const Storage = {
           ev.participants = self._rtdbToArray(att.participants);
           ev.waitlist = self._rtdbToArray(att.waitlist);
           ev.participantTimes = att.participantTimes || {};
+          ev.guests = att.guests || [];
           if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
           if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         }

@@ -231,6 +231,10 @@ const Calendar = {
       var _allPlayers = Storage.getPlayers();
       var _genderMap = {};
       for (var pi = 0; pi < _allPlayers.length; pi++) { _genderMap[_allPlayers[pi].name] = _allPlayers[pi].gender; }
+      // 게스트 성별도 맵에 추가
+      var _evGuests = ev.guests || [];
+      var _guestNames = {};
+      for (var gi = 0; gi < _evGuests.length; gi++) { _genderMap[_evGuests[gi].name] = _evGuests[gi].gender; _guestNames[_evGuests[gi].name] = true; }
 
       var attendInfo = '';
       if (maxP > 0 || participants.length > 0) {
@@ -265,7 +269,8 @@ const Calendar = {
           namesList += '<div class="cal-names-wrap">';
           namesList += '<span class="cal-participant-label text-blue-500 mr-0.5">남' + maleNames.length + '</span>';
           for (var mi = 0; mi < maleNames.length; mi++) {
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-blue-50 text-blue-700 m-px">' + this._escapeHtml(maleNames[mi]) + '</span>';
+            var _mGuestTag = _guestNames[maleNames[mi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
+            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-blue-50 text-blue-700 m-px">' + this._escapeHtml(maleNames[mi]) + _mGuestTag + '</span>';
           }
           namesList += '</div>';
         }
@@ -273,7 +278,8 @@ const Calendar = {
           namesList += '<div class="cal-names-wrap">';
           namesList += '<span class="cal-participant-label text-pink-500 mr-0.5">여' + femaleNames.length + '</span>';
           for (var fi = 0; fi < femaleNames.length; fi++) {
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-pink-50 text-pink-700 m-px">' + this._escapeHtml(femaleNames[fi]) + '</span>';
+            var _fGuestTag = _guestNames[femaleNames[fi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
+            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-pink-50 text-pink-700 m-px">' + this._escapeHtml(femaleNames[fi]) + _fGuestTag + '</span>';
           }
           namesList += '</div>';
         }
@@ -1334,18 +1340,26 @@ const Calendar = {
     var allPlayers = Storage.getPlayers();
     var participants = ev.participants || [];
     var waitlist = ev.waitlist || [];
+    var guests = ev.guests || [];
+    var guestNameSet = {};
+    guests.forEach(function(g) { guestNameSet[g.name] = g.gender; });
     var genderMap = {};
     allPlayers.forEach(function(p) { genderMap[p.name] = p.gender; });
+    // 게스트 성별도 genderMap에 추가
+    guests.forEach(function(g) { genderMap[g.name] = g.gender; });
 
     // 현재 참석자 목록 HTML
     var buildCurrentItem = function(name, type, order) {
       var g = genderMap[name];
+      var isGuest = !!guestNameSet[name];
       var gCls = g === 'F' ? 'bg-pink-50 text-pink-700' : 'bg-blue-50 text-blue-700';
+      var guestBadge = isGuest ? '<span class="text-[10px] px-1 py-0.5 rounded font-medium bg-amber-100 text-amber-700">게</span>' : '';
       return '<div class="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-gray-50">' +
         (order ? '<span class="text-xs text-yellow-600 font-medium w-5">' + order + '</span>' : '') +
         '<span class="text-sm text-gray-700 flex-1">' + self._escapeHtml(name) + '</span>' +
+        guestBadge +
         '<span class="text-xs px-1.5 py-0.5 rounded ' + gCls + '">' + (g === 'F' ? '여' : '남') + '</span>' +
-        '<button type="button" class="ap-remove-btn text-gray-300 hover:text-red-500 transition" data-name="' + self._escapeAttr(name) + '" data-type="' + type + '" title="제거">' +
+        '<button type="button" class="ap-remove-btn text-gray-300 hover:text-red-500 transition" data-name="' + self._escapeAttr(name) + '" data-type="' + (isGuest ? 'guest' : type) + '" title="제거">' +
           '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
         '</button>' +
       '</div>';
@@ -1394,6 +1408,18 @@ const Calendar = {
               '<div class="text-xs font-semibold text-gray-600 mb-1">참석자 <span class="text-gray-400 font-normal">(' + participants.length + '명)</span></div>' +
               '<div class="space-y-0.5">' + currentItems + '</div>' +
             '</div>' : '') +
+          // 게스트 추가
+          '<div class="border-t border-gray-100 pt-3">' +
+            '<div class="text-xs font-semibold text-gray-600 mb-1.5">게스트 추가</div>' +
+            '<div class="flex gap-1.5">' +
+              '<input type="text" id="ap-guest-name" placeholder="이름" autocomplete="off" class="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-amber-500 transition">' +
+              '<select id="ap-guest-gender" class="px-2 py-1.5 border border-gray-200 rounded-lg text-sm">' +
+                '<option value="M">남</option>' +
+                '<option value="F">여</option>' +
+              '</select>' +
+              '<button type="button" id="ap-guest-add-btn" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 active:scale-95 transition">추가</button>' +
+            '</div>' +
+          '</div>' +
           // 멤버 추가
           (available.length > 0 ?
             '<div class="border-t border-gray-100 pt-3">' +
@@ -1475,9 +1501,12 @@ const Calendar = {
       btn.onclick = async function() {
         var name = this.dataset.name;
         var type = this.dataset.type;
-        if (!await Modal.confirm(name + ' 님을 ' + (type === 'waitlist' ? '대기 목록' : '참석자') + '에서 제거하시겠습니까?')) return;
+        var label = type === 'waitlist' ? '대기 목록' : '참석자';
+        if (!await Modal.confirm(name + ' 님을 ' + label + '에서 제거하시겠습니까?')) return;
         btn.disabled = true;
-        if (type === 'waitlist') {
+        if (type === 'guest') {
+          await Storage.removeGuestParticipant(ev.id, name);
+        } else if (type === 'waitlist') {
           await Storage.toggleWaitlist(ev.id, name);
         } else {
           await Storage.toggleAttendance(ev.id, name);
@@ -1485,6 +1514,32 @@ const Calendar = {
         refreshModal();
       };
     });
+
+    // 게스트 추가 버튼
+    var guestAddBtn = modal.querySelector('#ap-guest-add-btn');
+    var guestNameInput = modal.querySelector('#ap-guest-name');
+    var guestGenderSelect = modal.querySelector('#ap-guest-gender');
+    if (guestAddBtn) {
+      var doAddGuest = async function() {
+        var name = guestNameInput.value.trim();
+        if (!name) { guestNameInput.focus(); return; }
+        // 중복 체크
+        if (participants.indexOf(name) >= 0 || waitlist.indexOf(name) >= 0) {
+          Modal.alert('"' + name + '" 은(는) 이미 목록에 있습니다.');
+          return;
+        }
+        var gender = guestGenderSelect.value;
+        guestAddBtn.disabled = true;
+        guestAddBtn.textContent = '추가 중...';
+        var result = await Storage.addGuestParticipant(ev.id, name, gender);
+        if (result === 'waitlist' && typeof Modal !== 'undefined' && Modal.toast) {
+          Modal.toast(name + ' 님이 대기 목록에 추가되었습니다 (정원 초과)', 'info');
+        }
+        refreshModal();
+      };
+      guestAddBtn.onclick = doAddGuest;
+      guestNameInput.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); doAddGuest(); } };
+    }
 
     // 추가 버튼
     var submitBtn = modal.querySelector('.ap-submit');
@@ -1521,12 +1576,15 @@ const Calendar = {
   _showBracketModal(ev) {
     var self = this;
     var participants = ev.participants || [];
+    var evGuests = ev.guests || [];
     var allPlayers = Storage.getPlayers();
     var genderMap = {};
     allPlayers.forEach(function(p) { genderMap[p.name] = p.gender; });
+    evGuests.forEach(function(g) { genderMap[g.name] = g.gender; });
 
     var males = participants.filter(function(n) { return genderMap[n] === 'M'; });
     var females = participants.filter(function(n) { return genderMap[n] === 'F'; });
+    var guestNames = evGuests.map(function(g) { return g.name; }).filter(function(n) { return participants.indexOf(n) >= 0; });
 
     // 시간 옵션 생성 (05:00 ~ 23:30, 30분 단위)
     var timeOptions = '';
@@ -1558,6 +1616,7 @@ const Calendar = {
           '<span class="text-sm font-medium text-blue-600">남 ' + males.length + '명</span>' +
           '<span class="text-sm font-medium text-pink-600">여 ' + females.length + '명</span>' +
           '<span class="text-sm text-gray-500">총 ' + participants.length + '명</span>' +
+          (guestNames.length > 0 ? '<span class="text-sm font-medium text-amber-600">(게 ' + guestNames.length + ')</span>' : '') +
         '</div>' +
         // 일정 정보 (코트/시간 요약)
         (hasEventCourts || hasEventTime ?
@@ -1937,6 +1996,7 @@ const Calendar = {
         completedAt: null,
         timeSlots: timeSlots,
         eventId: ev.id || null,
+        guests: guestNames.length > 0 ? guestNames : undefined,
       };
 
       var tournaments = Storage.getTournaments();
