@@ -2353,7 +2353,7 @@ const Schedule = {
       };
 
       return `
-        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full p-5 max-h-[85vh] overflow-y-auto">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-md w-full p-3 sm:p-5 max-h-[85vh] overflow-y-auto">
           <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
           <h3 class="text-lg font-bold text-center mb-4">대진 추가</h3>
           <div class="space-y-4">
@@ -2599,7 +2599,7 @@ const Schedule = {
     picker.className = 'am-player-picker fixed inset-0 z-[60] flex items-end sm:items-center justify-center';
     picker.style.backgroundColor = 'rgba(0,0,0,0.5)';
     picker.innerHTML = `
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full p-4 max-h-[70vh] flex flex-col">
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-4 max-h-[70vh] flex flex-col">
         <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
         <h3 class="text-lg font-bold text-center mb-3">${pickerTitle}</h3>
         <div class="mb-3">
@@ -2710,7 +2710,7 @@ const Schedule = {
     picker.className = 'am-player-picker fixed inset-0 z-[60] flex items-end sm:items-center justify-center';
     picker.style.backgroundColor = 'rgba(0,0,0,0.5)';
     picker.innerHTML = `
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full p-4 max-h-[70vh] flex flex-col">
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-4 max-h-[70vh] flex flex-col">
         <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
         <h3 class="text-lg font-bold text-center mb-3">${pickerTitle}</h3>
         <div class="mb-3">
@@ -2783,7 +2783,7 @@ const Schedule = {
     modal.className = 'change-gametype-modal fixed inset-0 z-50 flex items-end sm:items-center justify-center';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML = `
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full p-5">
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-5">
         <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
         <h3 class="text-lg font-bold text-center mb-4">경기 종류 변경</h3>
         <div class="grid grid-cols-2 gap-2 mb-4">

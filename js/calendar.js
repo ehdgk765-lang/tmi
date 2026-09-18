@@ -250,7 +250,7 @@ const Calendar = {
         }
         attendInfo = '<div class="text-xs text-gray-500 mt-1.5 flex items-center gap-1">' +
           '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' +
-          '<span class="truncate">' + participants.length + (maxP > 0 ? '/' + maxP : '') + '명 참석' +
+          '<span class="whitespace-nowrap">' + participants.length + (maxP > 0 ? '/' + maxP : '') + '명 참석' +
           genderInfo +
           '</span>' +
         '</div>';
@@ -322,13 +322,13 @@ const Calendar = {
       var attendBtn = '';
       if (isClub && memberName) {
         if (isAttending) {
-          attendBtn = '<button class="cal-cancel-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-500 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">참석 취소</button>';
+          attendBtn = '<button class="cal-cancel-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-500 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition whitespace-nowrap" data-id="' + ev.id + '">참석 취소</button>';
         } else if (isWaiting) {
-          attendBtn = '<button class="cal-cancel-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-yellow-300 text-yellow-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition" data-id="' + ev.id + '">대기 취소</button>';
+          attendBtn = '<button class="cal-cancel-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border border-yellow-300 text-yellow-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition whitespace-nowrap" data-id="' + ev.id + '">대기 취소</button>';
         } else if (!isFull && !isGenderFull) {
-          attendBtn = '<button class="cal-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" data-id="' + ev.id + '">참석</button>';
+          attendBtn = '<button class="cal-attend-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition whitespace-nowrap" data-id="' + ev.id + '">참석</button>';
         } else {
-          attendBtn = '<button class="cal-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-yellow-500 text-yellow-900 hover:bg-yellow-600 transition" data-id="' + ev.id + '">대기 신청</button>';
+          attendBtn = '<button class="cal-waitlist-btn mt-2 w-full py-1.5 text-xs font-semibold rounded-lg bg-yellow-500 text-yellow-900 hover:bg-yellow-600 transition whitespace-nowrap" data-id="' + ev.id + '">대기 신청</button>';
         }
       }
 
@@ -336,7 +336,7 @@ const Calendar = {
       var addParticipantBtn = '';
       var isEventHost = memberName && ev.host === memberName;
       if (isAdmin || isEventHost) {
-        addParticipantBtn = '<button class="cal-add-participant-btn mt-1.5 w-full py-1.5 text-xs font-semibold rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition flex items-center justify-center gap-1" data-id="' + ev.id + '">' +
+        addParticipantBtn = '<button class="cal-add-participant-btn mt-1.5 w-full py-1.5 text-xs font-semibold rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition flex items-center justify-center gap-1 whitespace-nowrap" data-id="' + ev.id + '">' +
           '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>' +
           '참석자 관리</button>';
       }
@@ -639,9 +639,9 @@ const Calendar = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.innerHTML =
       '<div class="absolute inset-0 bg-black/40" id="cal-modal-overlay"></div>' +
-      '<div class="cal-modal-inner relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm overflow-y-auto">' +
+      '<div class="cal-modal-inner relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm overflow-y-auto">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden"></div>' +
-        '<div class="p-4 space-y-2.5">' +
+        '<div class="p-3 sm:p-4 space-y-2.5">' +
         '<h3 class="text-base font-bold text-gray-800">' + (isEdit ? '일정 수정' : '일정 추가') + '</h3>' +
         // 제목
         '<input type="text" autocomplete="off" id="event-title" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-700 transition" placeholder="일정 제목" value="' + this._escapeAttr(ev.title) + '">' +
@@ -1394,15 +1394,15 @@ const Calendar = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML =
-      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" style="max-height:85vh">' +
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm flex flex-col" style="max-height:85vh">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0"></div>' +
         // 헤더 (고정)
-        '<div class="px-4 pt-3 pb-2 flex-shrink-0">' +
+        '<div class="px-3 sm:px-4 pt-3 pb-2 flex-shrink-0">' +
           '<h3 class="text-base font-bold text-gray-800 text-center">참석자 관리</h3>' +
           '<div class="text-xs text-gray-500 text-center mt-0.5">' + self._escapeHtml(ev.title) + '</div>' +
         '</div>' +
         // 스크롤 영역
-        '<div class="flex-1 overflow-y-auto px-4 space-y-3 min-h-0">' +
+        '<div class="flex-1 overflow-y-auto px-3 sm:px-4 space-y-3 min-h-0">' +
           // 현재 참석자
           (currentItems ?
             '<div>' +
@@ -1412,13 +1412,13 @@ const Calendar = {
           // 게스트 추가
           '<div class="border-t border-gray-100 pt-3">' +
             '<div class="text-xs font-semibold text-gray-600 mb-1.5">게스트 추가</div>' +
-            '<div class="flex gap-1.5">' +
-              '<input type="text" id="ap-guest-name" placeholder="이름" autocomplete="off" class="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-amber-500 transition">' +
-              '<select id="ap-guest-gender" class="px-2 py-1.5 border border-gray-200 rounded-lg text-sm">' +
+            '<div class="flex gap-1">' +
+              '<input type="text" id="ap-guest-name" placeholder="이름" autocomplete="off" class="min-w-0 flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-amber-500 transition">' +
+              '<select id="ap-guest-gender" class="px-1.5 py-1.5 border border-gray-200 rounded-lg text-sm flex-shrink-0">' +
                 '<option value="M">남</option>' +
                 '<option value="F">여</option>' +
               '</select>' +
-              '<button type="button" id="ap-guest-add-btn" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 active:scale-95 transition">추가</button>' +
+              '<button type="button" id="ap-guest-add-btn" class="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 active:scale-95 transition flex-shrink-0 whitespace-nowrap">추가</button>' +
             '</div>' +
           '</div>' +
           // 멤버 추가
@@ -1433,7 +1433,7 @@ const Calendar = {
             '</div>' : '') +
         '</div>' +
         // 하단 버튼 (고정)
-        '<div class="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
+        '<div class="px-3 sm:px-4 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
           '<button type="button" class="ap-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">닫기</button>' +
           (available.length > 0 ? '<button type="button" class="ap-submit flex-1 py-2.5 bg-blue-500 text-white rounded-xl text-sm font-semibold hover:bg-blue-600 transition">추가</button>' : '') +
         '</div>' +
@@ -1608,7 +1608,7 @@ const Calendar = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML =
-      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4 overflow-y-auto" style="max-height:90vh">' +
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-3 sm:p-5 space-y-4 overflow-y-auto" style="max-height:90vh">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden"></div>' +
         '<h3 class="text-lg font-bold text-gray-800 text-center">대진표 생성</h3>' +
         '<input type="text" autocomplete="off" id="bm-name" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:border-blue-500 transition" value="' + this._escapeAttr(ev.title + ' 대진표') + '">' +
@@ -2100,7 +2100,7 @@ const Calendar = {
     modal.id = 'settlement-modal';
     modal.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center';
     modal.innerHTML =
-      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:90vh">' +
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md flex flex-col" style="max-height:90vh">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0"></div>' +
 
         // 헤더
@@ -2505,20 +2505,20 @@ const Calendar = {
     modal.id = 'settlement-modal';
     modal.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center';
     modal.innerHTML =
-      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:90vh">' +
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md flex flex-col" style="max-height:90vh">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0"></div>' +
-        '<div class="px-4 pt-3 pb-2 flex-shrink-0 border-b border-gray-100">' +
+        '<div class="px-3 sm:px-4 pt-3 pb-2 flex-shrink-0 border-b border-gray-100">' +
           '<h3 class="text-base font-bold text-gray-800 text-center">' + month + '월 코트 지원비 정산서</h3>' +
           '<div class="text-xs text-gray-400 text-center mt-0.5">' + self._escapeHtml(ev.title) + '</div>' +
           savedMeta +
         '</div>' +
-        '<div class="flex-1 overflow-y-auto px-4 py-3 min-h-0">' +
+        '<div class="flex-1 overflow-y-auto px-3 sm:px-4 py-3 min-h-0">' +
           (saved
             ? '<pre class="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100" style="font-family:inherit">' + self._escapeHtml(text) + '</pre>'
             : '<div class="text-center py-8 text-gray-400 text-sm">아직 작성된 정산서가 없습니다.</div>'
           ) +
         '</div>' +
-        '<div class="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
+        '<div class="px-3 sm:px-4 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">' +
           '<button class="stl-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition">닫기</button>' +
           (saved ? '<button class="stl-copy flex-1 py-2.5 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition">복사</button>' : '') +
         '</div>' +

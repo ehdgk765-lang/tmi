@@ -324,7 +324,7 @@ const CustomBracket = {
     picker.className = 'cb-player-picker fixed inset-0 z-50 flex items-end sm:items-center justify-center';
     picker.style.backgroundColor = 'rgba(0,0,0,0.5)';
     picker.innerHTML = `
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full p-4 max-h-[70vh] flex flex-col">
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-4 max-h-[70vh] flex flex-col">
         <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
         <h3 class="text-lg font-bold text-center mb-3">멤버 선택</h3>
 
@@ -411,7 +411,7 @@ const CustomBracket = {
       const allUsed = new Set([...usedNames, ...pickedSet]);
 
       return `
-        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full p-4 max-h-[70vh] flex flex-col">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-4 max-h-[70vh] flex flex-col">
           <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
           <h3 class="text-lg font-bold text-center mb-3">복식 팀 구성</h3>
 

@@ -205,7 +205,7 @@ const App = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.innerHTML =
       '<div class="absolute inset-0 bg-black/50"></div>' +
-      '<div class="member-name-inner relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 overflow-y-auto">' +
+      '<div class="member-name-inner relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm p-4 sm:p-6 space-y-4 overflow-y-auto">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden"></div>' +
         '<button id="member-name-close" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="닫기">' +
           '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +

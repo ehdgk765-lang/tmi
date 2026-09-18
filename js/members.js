@@ -477,7 +477,7 @@ const Members = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.innerHTML =
       '<div class="absolute inset-0 bg-black/50" id="dues-memo-backdrop"></div>' +
-      '<div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-3">' +
+      '<div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm p-3 sm:p-5 space-y-3">' +
         '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden"></div>' +
         '<h3 class="text-sm font-bold text-gray-800">' + self._escapeHtml(player.name) + ' - ' + label + ' 회비</h3>' +
         '<div class="flex items-center gap-3">' +

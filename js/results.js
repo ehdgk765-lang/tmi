@@ -54,7 +54,7 @@ const Results = {
     }
 
     modal.innerHTML = `
-      <div class="score-modal-inner bg-white/95 backdrop-blur-md rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-blue-100/30 max-w-sm w-full p-5 sm:p-6 overflow-y-auto">
+      <div class="score-modal-inner bg-white/95 backdrop-blur-md rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-blue-100/30 sm:max-w-sm w-full p-3 sm:p-6 overflow-y-auto">
         <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
         <h3 class="text-lg font-bold text-center mb-4">스코어 입력</h3>
         <div class="space-y-1.5 mb-4">

@@ -645,6 +645,14 @@ html.dark .custom-modal-box .text-blue-500 {
     max-width: calc(100vw - 1rem) !important;
   }
 
+  /* 바텀 시트형 모달: 가로 오버플로우 방지 */
+  .fixed.inset-0 > [class*="bg-white"],
+  .fixed.inset-0 > div > [class*="bg-white"] {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
   /* 캘린더 참석자 이름 반응형 */
   .cal-participant-name {
     font-size: 11px;
@@ -674,7 +682,7 @@ html.dark .custom-modal-box .text-blue-500 {
   display: none;
 }
 
-/* 매우 작은 화면 (320px) */
+/* 매우 작은 화면 (380px 이하) */
 @media (max-width: 380px) {
   .bracket-round {
     min-width: 130px !important;
@@ -687,6 +695,54 @@ html.dark .custom-modal-box .text-blue-500 {
     font-size: 11px !important;
     padding-left: 2px !important;
     padding-right: 2px !important;
+  }
+
+  /* 일정 카드: 액션 버튼 축소 */
+  .cal-share-btn,
+  .cal-bracket-btn,
+  .cal-settlement-btn,
+  .cal-edit-btn,
+  .cal-delete-btn {
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+  }
+  .cal-share-btn svg,
+  .cal-bracket-btn svg,
+  .cal-settlement-btn svg,
+  .cal-edit-btn svg,
+  .cal-delete-btn svg {
+    width: 0.75rem !important;
+    height: 0.75rem !important;
+  }
+
+  /* 일정 카드: 참석/대기 버튼 폰트 축소 */
+  .cal-attend-btn,
+  .cal-cancel-attend-btn,
+  .cal-waitlist-btn,
+  .cal-cancel-waitlist-btn,
+  .cal-add-participant-btn {
+    font-size: 11px !important;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  /* 일정 카드: 참석자 이름 뱃지 축소 */
+  .cal-participant-name {
+    font-size: 10px !important;
+    padding: 0 3px !important;
+  }
+  .cal-participant-label {
+    font-size: 10px !important;
+  }
+  .cal-names-wrap {
+    line-height: 1.6;
+  }
+
+  /* 멤버 관리: 토글 버튼 축소 */
+  .member-type-btn,
+  .member-freq-btn {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
   }
 }
 
