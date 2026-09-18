@@ -332,9 +332,10 @@ const Calendar = {
         }
       }
 
-      // 관리자용 참석자 추가 버튼
+      // 관리자/호스트용 참석자 관리 버튼
       var addParticipantBtn = '';
-      if (isAdmin) {
+      var isEventHost = memberName && ev.host === memberName;
+      if (isAdmin || isEventHost) {
         addParticipantBtn = '<button class="cal-add-participant-btn mt-1.5 w-full py-1.5 text-xs font-semibold rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition flex items-center justify-center gap-1" data-id="' + ev.id + '">' +
           '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>' +
           '참석자 관리</button>';
