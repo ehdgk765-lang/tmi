@@ -357,6 +357,7 @@ const Storage = {
           updatedEv.participants = self._data.events[i].participants || [];
           updatedEv.waitlist = self._data.events[i].waitlist || [];
           updatedEv.participantTimes = self._data.events[i].participantTimes || {};
+          updatedEv.guests = self._data.events[i].guests || [];
           self._data.events[i] = updatedEv;
         }
         self._sortEvents(self._data.events);
@@ -377,10 +378,15 @@ const Storage = {
               participants: self._rtdbToArray(current.participants),
               waitlist: self._rtdbToArray(current.waitlist),
               participantTimes: current.participantTimes || {},
+              guests: current.guests || [],
               maxParticipants: updatedFields.maxParticipants !== undefined ? (updatedFields.maxParticipants || 0) : (current.maxParticipants || 0),
               maxMale: updatedFields.maxMale !== undefined ? (updatedFields.maxMale || 0) : (current.maxMale || 0),
               maxFemale: updatedFields.maxFemale !== undefined ? (updatedFields.maxFemale || 0) : (current.maxFemale || 0)
             };
+            // 게스트 성별 맵
+            var _ggMap = {};
+            (att.guests || []).forEach(function(g) { _ggMap[g.name] = g.gender; });
+            var _getG = function(n) { return self._getPlayerGender(n) || (_ggMap[n] === 'M' ? 'M' : _ggMap[n] === 'F' ? 'F' : null); };
             // 대기자 자동 승격: 빈 자리가 생겼으면 대기자를 참석으로 이동
             var promoted = true;
             while (promoted && att.waitlist.length > 0) {
@@ -388,19 +394,19 @@ const Storage = {
               if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) break;
               for (var wi = 0; wi < att.waitlist.length; wi++) {
                 var wName = att.waitlist[wi];
-                var wGender = self._getPlayerGender(wName);
+                var wGender = _getG(wName);
                 var canPromote = true;
                 if (wGender === 'M' && att.maxMale > 0) {
                   var mc = 0;
                   for (var mi = 0; mi < att.participants.length; mi++) {
-                    if (self._getPlayerGender(att.participants[mi]) === 'M') mc++;
+                    if (_getG(att.participants[mi]) === 'M') mc++;
                   }
                   if (mc >= att.maxMale) canPromote = false;
                 }
                 if (wGender === 'F' && att.maxFemale > 0) {
                   var fc = 0;
                   for (var fi = 0; fi < att.participants.length; fi++) {
-                    if (self._getPlayerGender(att.participants[fi]) === 'F') fc++;
+                    if (_getG(att.participants[fi]) === 'F') fc++;
                   }
                   if (fc >= att.maxFemale) canPromote = false;
                 }
@@ -509,6 +515,7 @@ const Storage = {
           updatedEv.participants = self._data.events[i].participants || [];
           updatedEv.waitlist = self._data.events[i].waitlist || [];
           updatedEv.participantTimes = self._data.events[i].participantTimes || {};
+          updatedEv.guests = self._data.events[i].guests || [];
           self._data.events[i] = updatedEv;
         }
         self._eJson[String(eventId)] = newJson;
@@ -564,6 +571,7 @@ const Storage = {
 
     // 로컬 적용 → action('add'/'remove') 확정
     var localResult = this._applyToggleAttendance(this._data.events, eventId, memberName, false, attendTime);
+    if (!localResult.changed) return localResult.result; // 정원 초과 등 실패 시 RTDB 트랜잭션 스킵
     var action = localResult.action; // 트랜잭션 재시도에도 동일 동작 보장
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     var maxP = ev ? ev.maxParticipants || 0 : 0; // primitive 스냅샷
@@ -577,11 +585,12 @@ const Storage = {
           participants: self._rtdbToArray(current.participants),
           waitlist: self._rtdbToArray(current.waitlist),
           participantTimes: current.participantTimes || {},
+          guests: current.guests || [],
           maxParticipants: current.maxParticipants || 0,
           maxMale: current.maxMale || 0,
           maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+          participants: [], waitlist: [], participantTimes: {}, guests: [], maxParticipants: maxP,
           maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -630,11 +639,12 @@ const Storage = {
         participants: self._rtdbToArray(current.participants),
         waitlist: self._rtdbToArray(current.waitlist),
         participantTimes: current.participantTimes || {},
+        guests: current.guests || [],
         maxParticipants: current.maxParticipants || 0,
         maxMale: current.maxMale || 0,
         maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+        participants: [], waitlist: [], participantTimes: {}, guests: [], maxParticipants: maxP,
         maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -662,6 +672,7 @@ const Storage = {
   // 참석 토글 핵심 로직 (events 배열을 직접 수정)
   // 반환값에 action('add'/'remove') 포함 → RTDB 트랜잭션에서 명시적 동작 수행용
   _applyToggleAttendance(events, eventId, memberName, saveLocal, attendTime) {
+    var self = this;
     for (var i = 0; i < events.length; i++) {
       if (events[i].id === eventId) {
         var ev = events[i];
@@ -677,23 +688,26 @@ const Storage = {
           delete ev.participantTimes[memberName];
           // 대기자 승격: 성별 정원을 지키는 첫 번째 대기자 찾기
           if (ev.waitlist.length > 0) {
+            var _ggMap = {};
+            (ev.guests || []).forEach(function(g) { _ggMap[g.name] = g.gender; });
+            var _getG = function(n) { return self._getPlayerGender(n) || (_ggMap[n] === 'M' ? 'M' : _ggMap[n] === 'F' ? 'F' : null); };
             var hasGenderLimit = (ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0;
             var promotedIdx = -1;
             for (var wi = 0; wi < ev.waitlist.length; wi++) {
               var canPromote = true;
               if (hasGenderLimit) {
-                var wGender = this._getPlayerGender(ev.waitlist[wi]);
+                var wGender = _getG(ev.waitlist[wi]);
                 if (wGender === 'M' && (ev.maxMale || 0) > 0) {
                   var mc = 0;
                   for (var mi = 0; mi < ev.participants.length; mi++) {
-                    if (this._getPlayerGender(ev.participants[mi]) === 'M') mc++;
+                    if (_getG(ev.participants[mi]) === 'M') mc++;
                   }
                   if (mc >= ev.maxMale) canPromote = false;
                 }
                 if (wGender === 'F' && (ev.maxFemale || 0) > 0) {
                   var fc = 0;
                   for (var fi = 0; fi < ev.participants.length; fi++) {
-                    if (this._getPlayerGender(ev.participants[fi]) === 'F') fc++;
+                    if (_getG(ev.participants[fi]) === 'F') fc++;
                   }
                   if (fc >= ev.maxFemale) canPromote = false;
                 }
@@ -711,19 +725,22 @@ const Storage = {
           if (ev.maxParticipants > 0 && ev.participants.length >= ev.maxParticipants) {
             return { changed: false, result: 'full' };
           }
-          // 성별 정원 체크
+          // 성별 정원 체크 (게스트 성별 포함)
+          var _ggMap2 = {};
+          (ev.guests || []).forEach(function(g) { _ggMap2[g.name] = g.gender; });
+          var _getG2 = function(n) { return self._getPlayerGender(n) || (_ggMap2[n] === 'M' ? 'M' : _ggMap2[n] === 'F' ? 'F' : null); };
           var gender = this._getPlayerGender(memberName);
           if (gender === 'M' && (ev.maxMale || 0) > 0) {
             var mc = 0;
             for (var mci = 0; mci < ev.participants.length; mci++) {
-              if (this._getPlayerGender(ev.participants[mci]) === 'M') mc++;
+              if (_getG2(ev.participants[mci]) === 'M') mc++;
             }
             if (mc >= ev.maxMale) return { changed: false, result: 'gender_full' };
           }
           if (gender === 'F' && (ev.maxFemale || 0) > 0) {
             var fc = 0;
             for (var fci = 0; fci < ev.participants.length; fci++) {
-              if (this._getPlayerGender(ev.participants[fci]) === 'F') fc++;
+              if (_getG2(ev.participants[fci]) === 'F') fc++;
             }
             if (fc >= ev.maxFemale) return { changed: false, result: 'gender_full' };
           }
@@ -761,6 +778,12 @@ const Storage = {
     if (!att.waitlist) att.waitlist = [];
     if (!att.participantTimes) att.participantTimes = {};
 
+    // 게스트 성별 맵 생성
+    var _ggMap = {};
+    var self = this;
+    (att.guests || []).forEach(function(g) { _ggMap[g.name] = g.gender; });
+    var _getG = function(n) { return self._getPlayerGender(n) || (_ggMap[n] === 'M' ? 'M' : _ggMap[n] === 'F' ? 'F' : null); };
+
     if (action === 'remove') {
       var idx = att.participants.indexOf(memberName);
       if (idx >= 0) {
@@ -773,18 +796,18 @@ const Storage = {
           for (var wi = 0; wi < att.waitlist.length; wi++) {
             var canPromote = true;
             if (hasGenderLimit) {
-              var wGender = this._getPlayerGender(att.waitlist[wi]);
+              var wGender = _getG(att.waitlist[wi]);
               if (wGender === 'M' && (att.maxMale || 0) > 0) {
                 var mc = 0;
                 for (var mi = 0; mi < att.participants.length; mi++) {
-                  if (this._getPlayerGender(att.participants[mi]) === 'M') mc++;
+                  if (_getG(att.participants[mi]) === 'M') mc++;
                 }
                 if (mc >= att.maxMale) canPromote = false;
               }
               if (wGender === 'F' && (att.maxFemale || 0) > 0) {
                 var fc = 0;
                 for (var fi = 0; fi < att.participants.length; fi++) {
-                  if (this._getPlayerGender(att.participants[fi]) === 'F') fc++;
+                  if (_getG(att.participants[fi]) === 'F') fc++;
                 }
                 if (fc >= att.maxFemale) canPromote = false;
               }
@@ -804,19 +827,19 @@ const Storage = {
       // action === 'add'
       if (att.participants.indexOf(memberName) >= 0) return 'already'; // 이미 있으면 무시 (멱등)
       if (att.maxParticipants > 0 && att.participants.length >= att.maxParticipants) return 'full';
-      // 성별 정원 체크
+      // 성별 정원 체크 (게스트 성별 포함)
       var gender = this._getPlayerGender(memberName);
       if (gender === 'M' && (att.maxMale || 0) > 0) {
         var maleCount = 0;
         for (var gi = 0; gi < att.participants.length; gi++) {
-          if (this._getPlayerGender(att.participants[gi]) === 'M') maleCount++;
+          if (_getG(att.participants[gi]) === 'M') maleCount++;
         }
         if (maleCount >= att.maxMale) return 'gender_full';
       }
       if (gender === 'F' && (att.maxFemale || 0) > 0) {
         var femaleCount = 0;
         for (var gi2 = 0; gi2 < att.participants.length; gi2++) {
-          if (this._getPlayerGender(att.participants[gi2]) === 'F') femaleCount++;
+          if (_getG(att.participants[gi2]) === 'F') femaleCount++;
         }
         if (femaleCount >= att.maxFemale) return 'gender_full';
       }
@@ -1014,11 +1037,46 @@ const Storage = {
     return toWaitlist ? 'waitlist' : true;
   },
 
+  // 대기자 승격 헬퍼: 성별 정원을 지키는 첫 번째 대기자를 참석으로 이동
+  _promoteFromWaitlist(ev) {
+    if (!ev.waitlist || ev.waitlist.length === 0) return null;
+    var self = this;
+    var guestGenderMap = {};
+    (ev.guests || []).forEach(function(g) { guestGenderMap[g.name] = g.gender; });
+    var getGender = function(name) { return self._getPlayerGender(name) || guestGenderMap[name] || null; };
+    var hasGenderLimit = (ev.maxMale || 0) > 0 || (ev.maxFemale || 0) > 0;
+    for (var wi = 0; wi < ev.waitlist.length; wi++) {
+      var canPromote = true;
+      if (hasGenderLimit) {
+        var wGender = getGender(ev.waitlist[wi]);
+        if (wGender === 'M' && (ev.maxMale || 0) > 0) {
+          var mc = 0;
+          for (var mi = 0; mi < ev.participants.length; mi++) { if (getGender(ev.participants[mi]) === 'M') mc++; }
+          if (mc >= ev.maxMale) canPromote = false;
+        }
+        if (wGender === 'F' && (ev.maxFemale || 0) > 0) {
+          var fc = 0;
+          for (var fi = 0; fi < ev.participants.length; fi++) { if (getGender(ev.participants[fi]) === 'F') fc++; }
+          if (fc >= ev.maxFemale) canPromote = false;
+        }
+      }
+      if (canPromote) {
+        var promoted = ev.waitlist.splice(wi, 1)[0];
+        ev.participants.push(promoted);
+        if (!ev.participantTimes) ev.participantTimes = {};
+        ev.participantTimes[promoted] = Date.now();
+        return promoted;
+      }
+    }
+    return null;
+  },
+
   async removeGuestParticipant(eventId, guestName) {
     var self = this;
     var ev = this._data.events.find(function(e) { return e.id === eventId; });
     if (!ev) return false;
     if (!ev.guests) ev.guests = [];
+    var wasParticipant = ev.participants && ev.participants.indexOf(guestName) >= 0;
     // 로컬 적용: guests에서 제거
     ev.guests = ev.guests.filter(function(g) { return g.name !== guestName; });
     // participants에서도 제거
@@ -1030,6 +1088,10 @@ const Storage = {
     if (ev.waitlist) {
       var wIdx = ev.waitlist.indexOf(guestName);
       if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+    }
+    // 참석자에서 제거된 경우 대기자 승격
+    if (wasParticipant) {
+      this._promoteFromWaitlist(ev);
     }
     // RTDB 동기화
     var rtdbRef = this._getAttendanceRef(eventId);
@@ -1047,6 +1109,38 @@ const Storage = {
           current.participants = participants;
           current.waitlist = waitlist;
           current.guests = guests.filter(function(g) { return g.name !== guestName; });
+          // 대기자 승격 (RTDB 측)
+          if (pIdx >= 0 && waitlist.length > 0) {
+            var guestGenderMap = {};
+            current.guests.forEach(function(g) { guestGenderMap[g.name] = g.gender; });
+            var getGender = function(name) { return self._getPlayerGender(name) || guestGenderMap[name] || null; };
+            var hasGenderLimit = (current.maxMale || 0) > 0 || (current.maxFemale || 0) > 0;
+            for (var pwi = 0; pwi < waitlist.length; pwi++) {
+              var canP = true;
+              if (hasGenderLimit) {
+                var wg = getGender(waitlist[pwi]);
+                if (wg === 'M' && (current.maxMale || 0) > 0) {
+                  var pmc = 0;
+                  for (var pmi = 0; pmi < participants.length; pmi++) { if (getGender(participants[pmi]) === 'M') pmc++; }
+                  if (pmc >= current.maxMale) canP = false;
+                }
+                if (wg === 'F' && (current.maxFemale || 0) > 0) {
+                  var pfc = 0;
+                  for (var pfi = 0; pfi < participants.length; pfi++) { if (getGender(participants[pfi]) === 'F') pfc++; }
+                  if (pfc >= current.maxFemale) canP = false;
+                }
+              }
+              if (canP) {
+                var prom = waitlist.splice(pwi, 1)[0];
+                participants.push(prom);
+                if (!current.participantTimes) current.participantTimes = {};
+                current.participantTimes[prom] = Date.now();
+                break;
+              }
+            }
+            current.participants = participants;
+            current.waitlist = waitlist;
+          }
           return current;
         });
       } catch (err) {
@@ -2106,6 +2200,7 @@ const Storage = {
           ev.participants = self._data.events[i].participants || [];
           ev.waitlist = self._data.events[i].waitlist || [];
           ev.participantTimes = self._data.events[i].participantTimes || {};
+          ev.guests = self._data.events[i].guests || [];
           self._data.events[i] = ev;
         } else {
           self._data.events.push(ev);
