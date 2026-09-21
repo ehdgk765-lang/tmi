@@ -424,11 +424,16 @@ const App = {
     reader.onload = function(e) {
       try {
         var wb = XLSX.read(e.target.result, { type: 'array' });
-        // 현재 연도+월 + "대관" 키워드로 시트 감지
+        // 파일 이름에서 월 추출 시도 → 없으면 현재 날짜 기준
+        var fileName = file.name || '';
+        var fileMonthMatch = fileName.match(/(\d{1,2})\s*월/);
+        var fileYearMatch = fileName.match(/(\d{2,4})\s*년/);
         var now = new Date();
-        var curYear = String(now.getFullYear()).slice(2); // '26'
-        var curMonth = now.getMonth() + 1; // 1~12
-        var yearMonthStr = curYear + '년 ' + curMonth + '월'; // '26년 9월'
+        var curMonth = fileMonthMatch ? parseInt(fileMonthMatch[1], 10) : (now.getMonth() + 1);
+        var curYear = fileYearMatch
+          ? String(fileYearMatch[1]).slice(-2)
+          : String(now.getFullYear()).slice(2);
+        var yearMonthStr = curYear + '년 ' + curMonth + '월';
         var monthStr = curMonth + '월';
         var resSheets = wb.SheetNames.filter(function(n) { return n.indexOf('대관') >= 0; });
         if (resSheets.length === 0) {
