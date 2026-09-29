@@ -386,8 +386,8 @@ const Schedule = {
     return matches;
   },
 
-  // 대진표 생성 (lateEntries: { playerName: "HH:MM" }, typeDistribution: { MD: 3, XD: 2, WD: 3 } | null)
-  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, typeDistribution, warmupMinutes, gameMinutes) {
+  // 대진표 생성 (lateEntries: { playerName: "HH:MM" }, earlyLeaves: { playerName: "HH:MM" }, typeDistribution: { MD: 3, XD: 2, WD: 3 } | null)
+  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, earlyLeaves, typeDistribution, warmupMinutes, gameMinutes) {
     const slots = this.calculateTimeSlots(startTime, endTime, warmupMinutes, gameMinutes);
     const gameCounts = {};
     [...males, ...females].forEach(p => { gameCounts[p] = 0; });
@@ -399,6 +399,16 @@ const Schedule = {
         const missedSlots = slots.filter(t => t < lateTime).length;
         if (missedSlots > 0 && gameCounts.hasOwnProperty(player)) {
           gameCounts[player] = -missedSlots;
+        }
+      }
+    }
+
+    // 일찍 귀가하는 멤버: 빠지는 슬롯 수만큼 음수 가산 → 참여 슬롯에서 우선 배정
+    if (earlyLeaves) {
+      for (const [player, earlyTime] of Object.entries(earlyLeaves)) {
+        const missedSlots = slots.filter(t => t > earlyTime).length;
+        if (missedSlots > 0 && gameCounts.hasOwnProperty(player)) {
+          gameCounts[player] = (gameCounts[player] || 0) - missedSlots;
         }
       }
     }
@@ -431,6 +441,10 @@ const Schedule = {
       if (lateEntries) {
         slotMales = males.filter(p => !lateEntries[p] || lateEntries[p] <= time);
         slotFemales = females.filter(p => !lateEntries[p] || lateEntries[p] <= time);
+      }
+      if (earlyLeaves) {
+        slotMales = slotMales.filter(p => !earlyLeaves[p] || earlyLeaves[p] >= time);
+        slotFemales = slotFemales.filter(p => !earlyLeaves[p] || earlyLeaves[p] >= time);
       }
       const forcedPlan = slotPlans ? slotPlans[idx] : null;
       const matches = this.generateSlotMatches(slotMales, slotFemales, courts, gameCounts, allowMixed, usedTeams, isSingles, forcedPlan);
@@ -723,6 +737,7 @@ const Schedule = {
           const slots = tournament.timeSlots || [];
           const slotTimes = slots.map(s => s.time);
           const savedLate = tournament.lateEntries || {};
+          const savedEarly = tournament.earlyLeaves || {};
           // 슬롯별 배정 멤버 수집
           const slotBusyMap = slots.map(slot => {
             const busy = new Set();
@@ -751,12 +766,14 @@ const Schedule = {
                     <th class="text-left px-3 py-2 sticky left-0 bg-white/90 z-10 font-medium">멤버</th>
                     <th class="text-center px-1 py-2 font-medium assign-start-col" style="display:none">시작</th>
                     ${slotTimes.map(t => `<th class="text-center px-1.5 py-2 font-medium whitespace-nowrap">${t}</th>`).join('')}
+                    <th class="text-center px-1 py-2 font-medium assign-end-col" style="display:none">종료</th>
                     <th class="text-center px-2 py-2 font-medium">경기</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${playerData.map(p => {
                     const curStart = savedLate[p.name] || slotTimes[0];
+                    const curEnd = savedEarly[p.name] || slotTimes[slotTimes.length - 1];
                     return `
                     <tr class="border-b border-gray-50 hover:bg-gray-50/50">
                       <td class="px-3 py-1.5 sticky left-0 bg-white/90 z-10 text-gray-700 font-medium whitespace-nowrap">${Results.escapeHtml(p.name)}</td>
@@ -769,6 +786,11 @@ const Schedule = {
                         ? '<td class="text-center py-1.5"><span class="inline-block w-2 h-2 rounded-full bg-green-400"></span></td>'
                         : '<td class="text-center py-1.5 text-gray-300">-</td>'
                       ).join('')}
+                      <td class="text-center py-1 assign-end-col" style="display:none">
+                        <select class="early-leave-select text-xs border border-gray-200 rounded px-1 py-0.5 bg-white" data-player="${Results.escapeHtml(p.name)}">
+                          ${slotTimes.map(t => `<option value="${t}" ${t === curEnd ? 'selected' : ''}>${t}</option>`).join('')}
+                        </select>
+                      </td>
                       <td class="text-center py-1.5 font-bold ${p.games < playerData[playerData.length - 1].games ? 'text-orange-500' : 'text-gray-600'}">${p.games}</td>
                     </tr>`;
                   }).join('')}
@@ -954,8 +976,9 @@ const Schedule = {
       const overviewEl = container.querySelector('.assignment-overview');
       if (overviewEl) {
         overviewEl.style.display = '';
-        // 시작 시간 컬럼 + 재생성 버튼 표시
+        // 시작/종료 시간 컬럼 + 재생성 버튼 표시
         overviewEl.querySelectorAll('.assign-start-col').forEach(el => el.style.display = '');
+        overviewEl.querySelectorAll('.assign-end-col').forEach(el => el.style.display = '');
         const regenWrap = overviewEl.querySelector('.assign-regen-wrap');
         if (regenWrap) regenWrap.style.display = '';
 
@@ -991,17 +1014,30 @@ const Schedule = {
               }
             });
 
+            // earlyLeaves 수집
+            const earlyLeaves = {};
+            const lastTime = (tournament.timeSlots[tournament.timeSlots.length - 1] || {}).time || tournament.endTime;
+            overviewEl.querySelectorAll('.early-leave-select').forEach(sel => {
+              const player = sel.dataset.player;
+              const endTime = sel.value;
+              if (endTime !== lastTime) {
+                earlyLeaves[player] = endTime;
+              }
+            });
+
             // 대진표 재생성
             const newTimeSlots = Schedule.generate(
               tournament.males, tournament.females, tournament.courts,
               tournament.startTime, tournament.endTime,
               tournament.allowMixed, tournament.isSingles,
               Object.keys(lateEntries).length > 0 ? lateEntries : null,
+              Object.keys(earlyLeaves).length > 0 ? earlyLeaves : null,
               tournament.typeDistribution || null
             );
 
             tournament.timeSlots = newTimeSlots;
             tournament.lateEntries = lateEntries;
+            tournament.earlyLeaves = earlyLeaves;
             tournament.lastModified = Date.now();
             Storage.saveTournamentDirect(tournament);
             this.render(container, tournament);

@@ -1967,7 +1967,7 @@ const Calendar = {
         }
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, typeDistribution, warmupMin, 25);
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, null, typeDistribution, warmupMin, 25);
       if (timeSlots.length === 0) {
         Modal.alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
