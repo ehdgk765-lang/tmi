@@ -724,7 +724,7 @@ const Schedule = {
                   if (resting.length === 0) return '';
                   return `<div class="resting-players mt-2 text-xs text-gray-400 flex items-center flex-wrap gap-1" style="display:none">
                     <span class="font-medium text-gray-500 flex-shrink-0">쉬는 멤버:</span>
-                    ${resting.map(n => `<span class="resting-player inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full cursor-pointer hover:bg-green-100 hover:text-green-700 transition" data-name="${Results.escapeHtml(n)}" data-slot-idx="${si}">${Results.escapeHtml(n)}</span>`).join('')}
+                    ${resting.map(n => `<span class="resting-swap inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full cursor-pointer hover:bg-blue-100 hover:text-blue-700 transition" data-name="${Results.escapeHtml(n)}" data-slot-idx="${si}">${Results.escapeHtml(n)}</span>`).join('')}
                   </div>`;
                 })()}
               </div>`;
@@ -1097,14 +1097,14 @@ const Schedule = {
 
     // 쉬는 멤버 배지 시각 피드백 헬퍼
     const highlightRestingBadges = (slotIdx) => {
-      container.querySelectorAll('.resting-player').forEach(badge => {
+      container.querySelectorAll('.resting-swap').forEach(badge => {
         if (+badge.dataset.slotIdx === slotIdx) {
           badge.classList.add('ring-2', 'ring-green-400', 'bg-green-100', 'text-green-700');
         }
       });
     };
     const unhighlightRestingBadges = () => {
-      container.querySelectorAll('.resting-player').forEach(badge => {
+      container.querySelectorAll('.resting-swap').forEach(badge => {
         badge.classList.remove('ring-2', 'ring-green-400', 'bg-green-100', 'text-green-700');
       });
     };
@@ -1112,7 +1112,7 @@ const Schedule = {
     // 멤버 이름 탭 → 선택/교환 (관리자 또는 호스트)
     container.querySelectorAll('.swap-player').forEach(el => {
       if (!canEdit) { el.style.cursor = 'default'; return; }
-      el.onclick = (e) => {
+      el.onclick = async (e) => {
         e.stopPropagation(); // 카드 클릭(스코어) 방지
         try {
         const data = {
@@ -1234,8 +1234,34 @@ const Schedule = {
             tgtMatch[tgtKey] = tgtTeam.join(' / ');
           }
 
-          Storage.saveTournamentDirect(tournament);
-          this.render(container, tournament);
+          // 교환 후 gameType 자동 재감지
+          const allP = Storage.getPlayers();
+          const getG = (n) => { const p = allP.find(pl => pl.name === n); return p ? p.gender : null; };
+          [srcMatch, tgtMatch].forEach(mm => {
+            const p1s = mm.player1.split(' / '), p2s = mm.player2.split(' / ');
+            if (p1s.length === 1 && p2s.length === 1) {
+              const g1 = getG(p1s[0]), g2 = getG(p2s[0]);
+              mm.gameType = (g1 === 'M' && g2 === 'M') ? 'MS' : (g1 === 'F' && g2 === 'F') ? 'WS' : 'FS';
+            } else {
+              const gs = [p1s[0], p1s[1] || '', p2s[0], p2s[1] || ''].map(getG);
+              mm.gameType = gs.every(g => g === 'M') ? 'MD'
+                : gs.every(g => g === 'F') ? 'WD'
+                : ((gs[0] !== gs[1]) && (gs[2] !== gs[3]) && gs.filter(g => g === 'M').length === 2 && gs.filter(g => g === 'F').length === 2) ? 'XD' : 'FD';
+            }
+          });
+          const patchSrcId = srcMatch.id, patchTgtId = tgtMatch.id;
+          const patchSrcP1 = srcMatch.player1, patchSrcP2 = srcMatch.player2;
+          const patchTgtP1 = tgtMatch.player1, patchTgtP2 = tgtMatch.player2;
+          const patchSrcGT = srcMatch.gameType, patchTgtGT = tgtMatch.gameType;
+          await Storage.updateTournament(tournament.id, t => {
+            for (const slot of t.timeSlots) {
+              for (const m of slot.matches) {
+                if (m.id === patchSrcId) { m.player1 = patchSrcP1; m.player2 = patchSrcP2; m.gameType = patchSrcGT; }
+                if (m.id === patchTgtId) { m.player1 = patchTgtP1; m.player2 = patchTgtP2; m.gameType = patchTgtGT; }
+              }
+            }
+          });
+          this.render(container, Storage.getTournamentById(tournament.id) || tournament);
         }
         } catch (err) {
           console.error('멤버 교환 오류:', err);
@@ -1250,39 +1276,44 @@ const Schedule = {
       };
     });
 
-    // 쉬는 멤버 배지 클릭 → 선택된 플레이어와 교체 (관리자 또는 호스트)
-    container.querySelectorAll('.resting-player').forEach(badge => {
-      if (!canEdit) return;
-      badge.onclick = (e) => {
+    // 쉬는 멤버 탭 → 선택된 선수와 교체
+    container.querySelectorAll('.resting-swap').forEach(el => {
+      if (!RolesConfig.hasAdminAccess()) return;
+      el.onclick = async (e) => {
         e.stopPropagation();
-        if (!selectedPlayer) return; // 선택된 플레이어 없으면 무시
-        try {
-        const restingName = badge.dataset.name;
-        const restingSlot = +badge.dataset.slotIdx;
-
-        // 선택된 플레이어의 매치 정보
-        const src = selectedPlayer;
-        const srcMatch = tournament.timeSlots[src.slotIdx]?.matches[src.matchIdx];
-        if (!srcMatch) return;
-        const srcKey = src.team === 1 ? 'player1' : 'player2';
-
-        // 같은 시간대가 아닌 경우: 쉬는 멤버는 해당 슬롯의 벤치에만 존재
-        if (src.slotIdx !== restingSlot) {
-          Modal.toast('다른 시간대의 쉬는 멤버와는 교체할 수 없습니다.', 'error');
-          return;
+        if (!selectedPlayer) return;
+        const newName = el.dataset.name;
+        const { slotIdx, matchIdx, team, pos } = selectedPlayer;
+        const match = tournament.timeSlots[slotIdx]?.matches[matchIdx];
+        if (!match) return;
+        const playerKey = team === 1 ? 'player1' : 'player2';
+        const names = match[playerKey].split(' / ');
+        names[pos] = newName;
+        match[playerKey] = names.join(' / ');
+        // gameType 재계산
+        const _ap = Storage.getPlayers();
+        const _gg = (n) => { const p = _ap.find(pl => pl.name === n); return p ? p.gender : null; };
+        const _p1s = match.player1.split(' / '), _p2s = match.player2.split(' / ');
+        if (_p1s.length === 1 && _p2s.length === 1) {
+          const g1 = _gg(_p1s[0]), g2 = _gg(_p2s[0]);
+          match.gameType = (g1 === 'M' && g2 === 'M') ? 'MS' : (g1 === 'F' && g2 === 'F') ? 'WS' : 'FS';
+        } else {
+          const gs = [_p1s[0], _p1s[1] || '', _p2s[0], _p2s[1] || ''].map(_gg);
+          match.gameType = gs.every(g => g === 'M') ? 'MD'
+            : gs.every(g => g === 'F') ? 'WD'
+            : ((gs[0] !== gs[1]) && (gs[2] !== gs[3]) && gs.filter(g => g === 'M').length === 2 && gs.filter(g => g === 'F').length === 2) ? 'XD' : 'FD';
         }
-
-        // 교체 실행: 선택된 플레이어 → 벤치, 쉬는 멤버 → 매치 투입
-        const names = srcMatch[srcKey].split(' / ');
-        names[src.pos] = restingName;
-        srcMatch[srcKey] = names.join(' / ');
-
-        Storage.saveTournamentDirect(tournament);
-        this.render(container, tournament);
-        } catch (err) {
-          console.error('쉬는 멤버 교체 오류:', err);
-          if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교체 중 오류가 발생했습니다.', 'error');
-        }
+        const pId = match.id, pKey = playerKey, pVal = match[playerKey], pGT = match.gameType;
+        await Storage.updateTournament(tournament.id, t => {
+          for (const slot of t.timeSlots) {
+            const m = slot.matches.find(x => x.id === pId);
+            if (m) { m[pKey] = pVal; m.gameType = pGT; break; }
+          }
+        });
+        selectedPlayer.el.classList.remove('bg-blue-200', 'ring-2', 'ring-blue-700', 'rounded');
+        container.querySelectorAll('.replace-player-btn').forEach(b => b.remove());
+        selectedPlayer = null;
+        this.render(container, Storage.getTournamentById(tournament.id) || tournament);
       };
     });
 
@@ -2789,17 +2820,53 @@ const Schedule = {
     };
 
     picker.querySelectorAll('.amp-option').forEach(opt => {
-      opt.onclick = () => {
+      opt.onclick = async () => {
         if (opt.dataset.disabled === 'true') return;
         try {
           const newName = opt.dataset.name;
           const names = match[playerKey].split(' / ');
           names[pos] = newName;
           match[playerKey] = names.join(' / ');
-          Storage.saveTournamentDirect(tournament);
+          // 멤버 교체 시 gameType 자동 재감지
+          const allPlayers2 = Storage.getPlayers();
+          const getG = (n) => { const p = allPlayers2.find(pl => pl.name === n); return p ? p.gender : null; };
+          const p1Parts = match.player1.split(' / ');
+          const p2Parts = match.player2.split(' / ');
+          let newGameType = match.gameType || null;
+          if (p1Parts.length === 1 && p2Parts.length === 1) {
+            const g1 = getG(p1Parts[0]), g2 = getG(p2Parts[0]);
+            if (g1 === 'M' && g2 === 'M') newGameType = 'MS';
+            else if (g1 === 'F' && g2 === 'F') newGameType = 'WS';
+            else newGameType = 'FS';
+          } else {
+            const genders = [p1Parts[0], p1Parts[1] || '', p2Parts[0], p2Parts[1] || ''].map(getG);
+            const aM = genders.every(g => g === 'M');
+            const aF = genders.every(g => g === 'F');
+            const mx = (genders[0] !== genders[1]) && (genders[2] !== genders[3])
+              && genders.filter(g => g === 'M').length === 2 && genders.filter(g => g === 'F').length === 2;
+            if (aM) newGameType = 'MD';
+            else if (aF) newGameType = 'WD';
+            else if (mx) newGameType = 'XD';
+            else newGameType = 'FD';
+          }
+          match.gameType = newGameType;
+          const patchMatchId = match.id;
+          const patchKey = playerKey;
+          const patchValue = match[playerKey];
+          const patchGameType = newGameType;
+          await Storage.updateTournament(tournament.id, t => {
+            for (const slot of t.timeSlots) {
+              const m = slot.matches.find(x => x.id === patchMatchId);
+              if (m) {
+                m[patchKey] = patchValue;
+                m.gameType = patchGameType;
+                break;
+              }
+            }
+          });
           closePicker2();
           onDone();
-          this.render(container, tournament);
+          this.render(container, Storage.getTournamentById(tournament.id) || tournament);
         } catch (err) {
           console.error('멤버 교체 오류:', err);
           if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교체 중 오류가 발생했습니다.', 'error');

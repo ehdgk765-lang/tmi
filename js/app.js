@@ -573,7 +573,7 @@ const App = {
       sheetName: sheetName,
       weeks: weeks
     };
-    localStorage.setItem('tmi_reservations', JSON.stringify(data));
+    Storage.saveReservations(data);
 
     // 건수 요약
     var weekKeys = Object.keys(weeks);
@@ -637,11 +637,8 @@ const App = {
   _renderReservationWeeks(container) {
     var area = document.getElementById('reservation-weeks-area');
     if (!area) return;
-    var raw = localStorage.getItem('tmi_reservations');
-    if (!raw) { area.innerHTML = ''; return; }
-    var data;
-    try { data = JSON.parse(raw); } catch(e) { area.innerHTML = ''; return; }
-    if (!data.weeks || Object.keys(data.weeks).length === 0) { area.innerHTML = ''; return; }
+    var data = Storage.getReservations();
+    if (!data || !data.weeks || Object.keys(data.weeks).length === 0) { area.innerHTML = ''; return; }
 
     var self = this;
     var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -710,12 +707,11 @@ const App = {
     area.querySelectorAll('.res-unreg-btn').forEach(function(btn) {
       btn.onclick = async function() {
         if (!await Modal.confirm(btn.dataset.week + '주차 등록 상태를 초기화하시겠습니까?\n이미 생성된 일정은 캘린더에서 직접 삭제해야 합니다.')) return;
-        var raw = localStorage.getItem('tmi_reservations');
-        if (!raw) return;
-        var data = JSON.parse(raw);
+        var data = Storage.getReservations();
+        if (!data) return;
         if (data.weeks[btn.dataset.week]) {
           data.weeks[btn.dataset.week].registered = false;
-          localStorage.setItem('tmi_reservations', JSON.stringify(data));
+          Storage.saveReservations(data);
         }
         self._renderReservationWeeks(container);
       };
@@ -723,9 +719,8 @@ const App = {
   },
 
   async _registerReservationWeek(weekNum, container) {
-    var raw = localStorage.getItem('tmi_reservations');
-    if (!raw) return;
-    var data = JSON.parse(raw);
+    var data = Storage.getReservations();
+    if (!data) return;
     var week = data.weeks[weekNum];
     if (!week || !week.events || week.events.length === 0) return;
 
@@ -785,7 +780,7 @@ const App = {
 
     // 등록 완료 표시
     data.weeks[weekNum].registered = true;
-    localStorage.setItem('tmi_reservations', JSON.stringify(data));
+    Storage.saveReservations(data);
 
     var msg = weekNum + '주차 대관 일정 ' + added + '건이 등록되었습니다.';
     if (skipped > 0) msg += '\n(중복 ' + skipped + '건 제외)';
@@ -797,7 +792,7 @@ const App = {
   _clearReservationData() {
     Modal.confirm('업로드된 대관 데이터를 초기화하시겠습니까?').then(function(ok) {
       if (!ok) return;
-      localStorage.removeItem('tmi_reservations');
+      Storage.saveReservations(null);
       var area = document.getElementById('reservation-weeks-area');
       if (area) area.innerHTML = '';
     });
