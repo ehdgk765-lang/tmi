@@ -654,7 +654,7 @@ const Schedule = {
         ${isComplete && tournament.isTeamMode ? (() => {
           const teamStats = this.calcTeamStats(tournament);
           return teamStats.length > 0 ? `
-            <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200 rounded-2xl p-4 mb-6 text-center">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6 text-center">
               <div class="text-yellow-600 text-sm font-medium mb-1">우승 팀</div>
               <div class="text-2xl font-bold text-yellow-800">${Results.escapeHtml(teamStats[0].name)}</div>
               <div class="text-sm text-yellow-700 mt-1">승점 ${teamStats[0].matchPoints} · 득실 ${teamStats[0].scorePoints}</div>
@@ -829,7 +829,7 @@ const Schedule = {
                 ${teamStats.map((s, idx) => {
                   const rank = teamStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                   const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(css/medal.png) no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
-                  return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? ' bg-gradient-to-r' + (rank === 0 ? ' from-yellow-50/60' : rank === 1 ? ' from-gray-50/60' : ' from-orange-50/60') + ' to-transparent' : '') + '"' + (idx >= 10 ? ' data-expandable="sch-team" style="display:none"' : '') + '>' +
+                  return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? (rank === 0 ? ' bg-yellow-50/60' : rank === 1 ? ' bg-gray-50/60' : ' bg-orange-50/60') : '') + '"' + (idx >= 10 ? ' data-expandable="sch-team" style="display:none"' : '') + '>' +
                     '<td class="px-4 py-2 font-medium text-gray-800">' + medalHtml + Results.escapeHtml(s.name) + '</td>' +
                     '<td class="text-center px-2 py-2 text-gray-600">' + s.games + '</td>' +
                     '<td class="text-center px-2 py-2 text-green-600 font-medium">' + s.wins + '</td>' +
@@ -919,7 +919,7 @@ const Schedule = {
                 const rank = playerStats.findIndex(p => p.scorePoints === s.scorePoints && p.matchPoints === s.matchPoints);
                 const medalHtml = isComplete && rank < 3 ? '<span style="display:inline-block;width:22px;height:26px;background:url(\'css/medal.png\') no-repeat;background-size:300% auto;background-position:' + medalPos[rank] + ' center;vertical-align:middle;margin-right:2px;"></span>' : '';
                 const isGuest = tournament.guests?.includes(s.name);
-                return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? ' bg-gradient-to-r' + (rank === 0 ? ' from-yellow-50/60' : rank === 1 ? ' from-gray-50/60' : ' from-orange-50/60') + ' to-transparent' : '') + '"' + (idx >= 10 ? ' data-expandable="sch-member" style="display:none"' : '') + '>' +
+                return '<tr class="border-b border-gray-50 hover:bg-gray-50' + (isComplete && rank < 3 ? (rank === 0 ? ' bg-yellow-50/60' : rank === 1 ? ' bg-gray-50/60' : ' bg-orange-50/60') : '') + '"' + (idx >= 10 ? ' data-expandable="sch-member" style="display:none"' : '') + '>' +
                   '<td class="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white/95 dark:bg-slate-800/95 z-[1]">' +
                     medalHtml + Results.escapeHtml(s.name) +
                     ' ' + genderBadge(gender) +

@@ -84,7 +84,7 @@ html {
   color: #1f2937;
 }
 
-html, body {
+body {
   overflow-x: hidden;
   width: 100%;
 }
@@ -846,11 +846,11 @@ html.dark .bg-white {
   background-color: #1e293b !important;
 }
 html.dark .bg-white\/80 {
-  background-color: rgba(30, 41, 59, 0.85) !important;
+  background-color: #1e293b !important;
   border-color: rgba(51, 65, 85, 0.5) !important;
 }
 html.dark .bg-white\/95 {
-  background-color: rgba(30, 41, 59, 0.95) !important;
+  background-color: #1e293b !important;
   border-color: rgba(51, 65, 85, 0.5) !important;
 }
 html.dark .bg-gray-50 {
@@ -865,7 +865,7 @@ html.dark .bg-gray-50\/50 {
 
 /* 글래스 카드 다크 모드 */
 html.dark .tournament-card {
-  background-color: rgba(30, 41, 59, 0.85) !important;
+  background-color: #1e293b !important;
   border-color: rgba(51, 65, 85, 0.5) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
@@ -1765,4 +1765,88 @@ html.dark .text-teal-700 {
 }
 html.dark .text-teal-600 {
   color: #2dd4bf !important;
+}
+
+/* ============================================
+   Light-mode 카드 시인성 개선 오버라이드
+   ============================================ */
+
+/* 반투명 카드 → 불투명 */
+.bg-white\/80 {
+  background-color: #fff !important;
+}
+.bg-white\/95 {
+  background-color: #fff !important;
+}
+.backdrop-blur-sm,
+.backdrop-blur-md {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* 투명 테두리 → 회색 테두리 */
+.border-white\/60 {
+  border-color: #e5e7eb !important;
+}
+
+/* 컬러 섀도 → 중성 (카드) */
+.shadow-blue-100\/30,
+.shadow-blue-50\/30,
+.shadow-green-50\/30,
+.shadow-blue-100\/50 {
+  --tw-shadow-color: transparent !important;
+}
+
+/* ============================================
+   글씨 가독성 개선 — 최소 크기 상향
+   ============================================ */
+
+/* text-xs (12px) → 13px */
+.text-xs {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+
+/* text-[10px], text-[11px] → 12px */
+.\!text-\[10px\],
+.text-\[10px\] {
+  font-size: 12px !important;
+}
+.\!text-\[11px\],
+.text-\[11px\] {
+  font-size: 12px !important;
+}
+
+/* ============================================
+   버튼 컬러 섀도 → 중성 (통일)
+   ============================================ */
+.shadow-blue-200\/50,
+.shadow-blue-200,
+.shadow-green-200\/50,
+.shadow-orange-200\/50 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ============================================
+   다가오는 일정 스크롤 영역
+   ============================================ */
+#upcoming-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+#upcoming-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+#upcoming-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+#upcoming-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+html.dark #upcoming-scroll {
+  scrollbar-color: #475569 transparent;
+}
+html.dark #upcoming-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
 }

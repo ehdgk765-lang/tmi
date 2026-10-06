@@ -21,14 +21,14 @@ const Calendar = {
 
   // 색상 옵션
   COLORS: [
-    { value: 'green', label: '초록', bg: 'bg-emerald-100', dot: 'bg-emerald-500', text: 'text-emerald-700' },
-    { value: 'blue', label: '파랑', bg: 'bg-blue-100', dot: 'bg-blue-500', text: 'text-blue-700' },
-    { value: 'red', label: '빨강', bg: 'bg-red-100', dot: 'bg-red-500', text: 'text-red-700' },
-    { value: 'yellow', label: '노랑', bg: 'bg-yellow-100', dot: 'bg-yellow-500', text: 'text-yellow-700' },
-    { value: 'purple', label: '보라', bg: 'bg-purple-100', dot: 'bg-purple-500', text: 'text-purple-700' },
-    { value: 'pink', label: '분홍', bg: 'bg-pink-100', dot: 'bg-pink-400', text: 'text-pink-700' },
-    { value: 'orange', label: '주황', bg: 'bg-orange-100', dot: 'bg-orange-400', text: 'text-orange-700' },
-    { value: 'teal', label: '청록', bg: 'bg-teal-100', dot: 'bg-teal-500', text: 'text-teal-700' },
+    { value: 'green', label: '초록', bg: 'bg-emerald-50', dot: 'bg-emerald-500', text: 'text-gray-800' },
+    { value: 'blue', label: '파랑', bg: 'bg-blue-50', dot: 'bg-blue-500', text: 'text-gray-800' },
+    { value: 'red', label: '빨강', bg: 'bg-red-50', dot: 'bg-red-500', text: 'text-gray-800' },
+    { value: 'yellow', label: '노랑', bg: 'bg-amber-50', dot: 'bg-amber-400', text: 'text-gray-800' },
+    { value: 'purple', label: '보라', bg: 'bg-purple-50', dot: 'bg-purple-500', text: 'text-gray-800' },
+    { value: 'pink', label: '분홍', bg: 'bg-pink-50', dot: 'bg-pink-400', text: 'text-gray-800' },
+    { value: 'orange', label: '주황', bg: 'bg-orange-50', dot: 'bg-orange-400', text: 'text-gray-800' },
+    { value: 'teal', label: '청록', bg: 'bg-teal-50', dot: 'bg-teal-500', text: 'text-gray-800' },
   ],
 
   // 요일별 기본 색상 (일~토)
@@ -1235,10 +1235,25 @@ const Calendar = {
   _highlightEvent(eventId) {
     var card = document.querySelector('[data-event-id="' + eventId + '"]');
     if (!card) return;
-    // 모바일에서 참석 버튼이 바로 보이도록 카드를 화면 상단에 배치
-    var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
-    var cardTop = card.getBoundingClientRect().top + window.scrollY - headerH - 12;
-    window.scrollTo({ top: cardTop, behavior: 'smooth' });
+
+    // 스크롤 컨테이너 내부 스크롤
+    var scrollContainer = document.getElementById('upcoming-scroll');
+    if (scrollContainer && scrollContainer.contains(card)) {
+      // 1) 페이지 스크롤: 다가오는 일정 컨테이너가 보이도록
+      var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+      var containerTop = scrollContainer.getBoundingClientRect().top + window.scrollY - headerH - 12;
+      window.scrollTo({ top: containerTop, behavior: 'smooth' });
+      // 2) 컨테이너 내부 스크롤: 해당 카드로 이동
+      setTimeout(function() {
+        scrollContainer.scrollTo({ top: card.offsetTop - 8, behavior: 'smooth' });
+      }, 400);
+    } else {
+      // 스크롤 컨테이너 밖 (선택된 날짜 이벤트 등)
+      var headerH2 = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+      var cardTop = card.getBoundingClientRect().top + window.scrollY - headerH2 - 12;
+      window.scrollTo({ top: cardTop, behavior: 'smooth' });
+    }
+
     card.classList.add('cal-event-highlight');
     setTimeout(function() { card.classList.remove('cal-event-highlight'); }, 3000);
   },
@@ -1306,7 +1321,8 @@ const Calendar = {
     var html = '<div class="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 mb-4">' +
       '<h3 class="font-bold text-gray-800 flex items-center gap-1.5 mb-3">' +
         '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' +
-        '다가오는 일정</h3>';
+        '다가오는 일정 <span class="text-xs font-normal text-gray-400 ml-1">' + upcoming.length + '건</span></h3>' +
+      '<div id="upcoming-scroll" class="overflow-y-auto" style="max-height:60vh">';
 
     for (var di = 0; di < dates.length; di++) {
       var dateStr = dates[di];
@@ -1316,7 +1332,7 @@ const Calendar = {
       html += this._buildEventsList(dateGroups[dateStr], isAdmin);
     }
 
-    html += '</div>';
+    html += '</div></div>';
     return html;
   },
 

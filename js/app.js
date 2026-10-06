@@ -1001,7 +1001,7 @@ const App = {
               '</select>' +
               '<select id="reg-check-day" class="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-700 focus:border-blue-700"></select>' +
             '</div>' +
-            '<button id="reg-check-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium shadow-sm shadow-blue-200/50">참석자 확인</button>' +
+            '<button id="reg-check-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium shadow-md shadow-blue-200/50">참석자 확인</button>' +
           '</div>' +
         '</div>' +
         // 대관 일정 업로드
