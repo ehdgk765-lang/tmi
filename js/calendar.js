@@ -2115,9 +2115,10 @@ const Calendar = {
     var saved = ev.settlement || null;
     var memberName = typeof App !== 'undefined' ? App.getMemberName() : '';
     var isHost = memberName && ev.host === memberName;
+    var isAdmin = typeof RolesConfig !== 'undefined' && RolesConfig.hasAdminAccess();
 
-    // 호스트가 아닌 경우: 저장된 정산서 미리보기만 표시
-    if (!isHost) {
+    // 호스트도 관리자도 아닌 경우: 저장된 정산서 미리보기만 표시
+    if (!isHost && !isAdmin) {
       return self._showSettlementReadonly(ev);
     }
 
@@ -2161,12 +2162,18 @@ const Calendar = {
       '</div>';
     }
 
-    // 시간 기반 코트비 자동 계산 (2시간=18600, 3시간=27400)
+    // 시간 기반 코트비 자동 계산 (평일: 8,800원/h, 주말·공휴일: 11,440원/h + 예약지원금 1,000원)
     var autoFee = '';
     if (startH !== '' && endH !== '') {
       var hours = endH - startH;
-      if (hours === 2) autoFee = 18600;
-      else if (hours >= 3) autoFee = 27400;
+      if (hours > 0) {
+        var isWeekend = (dateParts.length === 3) &&
+          (new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])).getDay() % 6 === 0);
+        var isHoliday = (dateParts.length === 3) && self._holidays[parseInt(dateParts[0])] &&
+          self._holidays[parseInt(dateParts[0])][ev.date];
+        var hourlyRate = (isWeekend || isHoliday) ? 11440 : 8800;
+        autoFee = hourlyRate * hours + 1000;
+      }
     }
 
     // 저장된 값 또는 자동 계산값
@@ -2238,11 +2245,11 @@ const Calendar = {
             '<div id="stl-bookers">' + courtBookerRows + '</div>' +
           '</div>' +
 
-          // 코트지원비 (읽기전용)
+          // 코트지원비
           '<div class="space-y-1">' +
             '<div class="text-xs font-semibold text-gray-700">코트지원비 (예약지원금 1,000 포함)</div>' +
             '<div class="flex items-center gap-1.5">' +
-              '<input type="number" id="stl-fee" class="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg bg-gray-50 text-gray-500" value="' + feeVal + '" readonly>' +
+              '<input type="number" id="stl-fee" class="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="' + feeVal + '">' +
               '<span class="text-xs text-gray-400 flex-shrink-0">원</span>' +
             '</div>' +
             '<div id="stl-fee-calc" class="mt-1 space-y-0.5"></div>' +
@@ -2274,7 +2281,7 @@ const Calendar = {
               '<span class="text-xs text-gray-400 flex-shrink-0">명</span>' +
               '<span class="text-xs text-gray-300 flex-shrink-0">|</span>' +
               '<span class="text-xs text-gray-500 flex-shrink-0">1인</span>' +
-              '<input type="number" id="stl-guest-fee" class="w-16 px-1.5 py-1 text-xs border border-gray-200 rounded-lg text-center bg-gray-50 text-gray-500" value="' + guestFee + '" readonly>' +
+              '<input type="number" id="stl-guest-fee" class="w-16 px-1.5 py-1 text-xs border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="' + guestFee + '">' +
               '<span class="text-xs text-gray-400 flex-shrink-0">원</span>' +
             '</div>' +
           '</div>' +
