@@ -2039,6 +2039,7 @@ const Storage = {
       // RTDB 참석 마이그레이션 + 로드
       await this._migrateAttendanceToRtdb(parent);
       await this._loadAttendanceFromRtdb();
+      await this._migrateEventColors(parent);
     } catch (err) {
       console.error('Firestore load error:', err);
     }
@@ -2075,6 +2076,58 @@ const Storage = {
         self._data.tournaments.push(t);
       });
       console.warn('[전환] 대회 컬렉션이 비어 레거시 문서로 폴백 로드.');
+    }
+  },
+
+  // ─── 일정 색상 일괄 마이그레이션 (1회) ───
+  async _migrateEventColors(parent) {
+    var metaRef = parent.collection('data').doc('_meta');
+    try {
+      var meta = await metaRef.get();
+      if (meta.exists && meta.data().eventColorMigrated) return;
+
+      var events = this._data.events;
+      var changed = 0;
+      for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        var title = ev.title || '';
+        var newColor = null;
+        if (title.indexOf('정규 일정') >= 0) {
+          newColor = 'green';
+        } else if (title.indexOf('선정') >= 0) {
+          newColor = 'red';
+        } else if (title.indexOf('장미') >= 0) {
+          newColor = 'blue';
+        }
+        if (newColor && ev.color !== newColor) {
+          ev.color = newColor;
+          changed++;
+        }
+      }
+
+      if (changed > 0) {
+        // Firestore 이벤트 개별 문서 업데이트
+        var evCol = parent.collection('events');
+        var batch = fbDb.batch();
+        var inBatch = 0;
+        var self = this;
+        for (var j = 0; j < events.length; j++) {
+          var e = events[j];
+          if (!e || e.id == null) continue;
+          var stripped = this._stripAttendance(e);
+          var json = JSON.stringify(stripped);
+          batch.set(evCol.doc(String(e.id)), { json: json });
+          self._eJson[String(e.id)] = json;
+          inBatch++;
+          if (inBatch >= 400) { await batch.commit(); batch = fbDb.batch(); inBatch = 0; }
+        }
+        if (inBatch > 0) await batch.commit();
+        console.log('[색상 마이그레이션] ' + changed + '건 변경 완료');
+      }
+
+      await metaRef.set({ eventColorMigrated: true }, { merge: true });
+    } catch (err) {
+      console.error('[색상 마이그레이션] 실패:', err);
     }
   },
 

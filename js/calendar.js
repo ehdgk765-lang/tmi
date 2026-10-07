@@ -21,6 +21,7 @@ const Calendar = {
   _holidays: {},        // { year: { 'YYYY-MM-DD': '공휴일명', ... } }
   _holidayFetching: {}, // { year: true } 중복 요청 방지
   _memoExpanded: {},    // { eventId: true } 메모 펼침 상태
+  _upcomingExpanded: false, // 다가오는 일정 펼침 상태
 
   // 색상 옵션
   COLORS: [
@@ -104,6 +105,15 @@ const Calendar = {
     var d = new Date(dateStr + 'T00:00:00');
     var day = d.getDay(); // 0=일, 1=월, ..., 6=토
     return this.DAY_COLORS[day];
+  },
+
+  // 제목+날짜 기반 색상 결정 (대관 장소 우선, 정규 일정은 슬롯 색상 사용)
+  getColorByTitle(title, dateStr) {
+    if (title && title.indexOf('정규 일정') < 0) {
+      if (title.indexOf('선정') >= 0) return 'red';
+      if (title.indexOf('장미') >= 0) return 'blue';
+    }
+    return dateStr ? this._getColorForDate(dateStr) : 'green';
   },
 
   render(container) {
@@ -613,6 +623,20 @@ const Calendar = {
       };
     }
 
+    // 다가오는 일정 접기/펼치기
+    var upcomingToggle = document.getElementById('upcoming-toggle');
+    if (upcomingToggle) {
+      upcomingToggle.onclick = function() {
+        var body = document.getElementById('upcoming-scroll');
+        var chevron = document.getElementById('upcoming-chevron');
+        if (body) {
+          body.classList.toggle('hidden');
+          self._upcomingExpanded = !body.classList.contains('hidden');
+          if (chevron) chevron.classList.toggle('rotate-180', self._upcomingExpanded);
+        }
+      };
+    }
+
     // 다가오는 일정 날짜 헤더 클릭 → 해당 날짜로 이동
     container.querySelectorAll('[data-upcoming-date]').forEach(function(el) {
       el.onclick = function() {
@@ -1053,15 +1077,17 @@ const Calendar = {
       document.getElementById('event-title').focus();
     }, 100);
 
-    // ── 날짜 변경 시 요일별 색상 자동 선택 ──
+    // ── 제목/날짜 변경 시 색상 자동 선택 ──
+    function autoSelectColor() {
+      var titleVal = document.getElementById('event-title').value.trim();
+      var dateVal = document.getElementById('event-date').value;
+      var color = self.getColorByTitle(titleVal, dateVal);
+      var radio = document.querySelector('input[name="event-color"][value="' + color + '"]');
+      if (radio) radio.checked = true;
+    }
     if (!isEdit) {
-      document.getElementById('event-date').addEventListener('change', function() {
-        var dateVal = this.value;
-        if (!dateVal) return;
-        var dayColor = self._getColorForDate(dateVal);
-        var radio = document.querySelector('input[name="event-color"][value="' + dayColor + '"]');
-        if (radio) radio.checked = true;
-      });
+      document.getElementById('event-date').addEventListener('change', autoSelectColor);
+      document.getElementById('event-title').addEventListener('input', autoSelectColor);
     }
 
     // ── 코트 멀티 선택 (칩 UI) ──
@@ -1569,14 +1595,23 @@ const Calendar = {
     // 스크롤 컨테이너 내부 스크롤
     var scrollContainer = document.getElementById('upcoming-scroll');
     if (scrollContainer && scrollContainer.contains(card)) {
-      // 1) 페이지 스크롤: 다가오는 일정 컨테이너가 보이도록
-      var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
-      var containerTop = scrollContainer.getBoundingClientRect().top + window.scrollY - headerH - 12;
-      window.scrollTo({ top: containerTop, behavior: 'smooth' });
-      // 2) 컨테이너 내부 스크롤: 해당 카드로 이동
+      // 접혀있으면 펼치기
+      if (scrollContainer.classList.contains('hidden')) {
+        scrollContainer.classList.remove('hidden');
+        this._upcomingExpanded = true;
+        var chevron = document.getElementById('upcoming-chevron');
+        if (chevron) chevron.classList.add('rotate-180');
+      }
+      // 1) 페이지 스크롤: 다가오는 일정 컨테이너가 보이도록 (펼침 후 레이아웃 확보)
       setTimeout(function() {
-        scrollContainer.scrollTo({ top: card.offsetTop - 8, behavior: 'smooth' });
-      }, 400);
+        var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+        var containerTop = scrollContainer.getBoundingClientRect().top + window.scrollY - headerH - 12;
+        window.scrollTo({ top: containerTop, behavior: 'smooth' });
+        // 2) 컨테이너 내부 스크롤: 해당 카드로 이동
+        setTimeout(function() {
+          scrollContainer.scrollTo({ top: card.offsetTop - 8, behavior: 'smooth' });
+        }, 400);
+      }, 50);
     } else {
       // 스크롤 컨테이너 밖 (선택된 날짜 이벤트 등)
       var headerH2 = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
@@ -1648,11 +1683,14 @@ const Calendar = {
     }
     var dates = Object.keys(dateGroups).sort();
 
+    var isOpen = this._upcomingExpanded;
     var html = '<div class="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 mb-4">' +
-      '<h3 class="font-bold text-gray-800 flex items-center gap-1.5 mb-3">' +
+      '<h3 id="upcoming-toggle" class="font-bold text-gray-800 flex items-center gap-1.5 cursor-pointer select-none hover:text-blue-600 transition">' +
         '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' +
-        '다가오는 일정 <span class="text-xs font-normal text-gray-400 ml-1">' + upcoming.length + '건</span></h3>' +
-      '<div id="upcoming-scroll" class="overflow-y-auto" style="max-height:60vh">';
+        '다가오는 일정 <span class="text-xs font-normal text-gray-400 ml-1">' + upcoming.length + '건</span>' +
+        '<svg class="w-4 h-4 ml-auto text-gray-400 transition-transform' + (isOpen ? ' rotate-180' : '') + '" id="upcoming-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+      '</h3>' +
+      '<div id="upcoming-scroll" class="overflow-y-auto' + (isOpen ? '' : ' hidden') + ' mt-3" style="max-height:60vh">';
 
     for (var di = 0; di < dates.length; di++) {
       var dateStr = dates[di];

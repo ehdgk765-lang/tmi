@@ -729,7 +729,6 @@ const App = {
     var beforeCount = events.length;
     var added = 0, skipped = 0;
     var creatorName = this.getMemberName() || '관리자';
-    var dayColors = ['red', 'green', 'blue', 'purple', 'orange', 'teal', 'pink'];
 
     for (var i = 0; i < week.events.length; i++) {
       var ev = week.events[i];
@@ -748,7 +747,7 @@ const App = {
         startTime: ev.startTime,
         endTime: ev.endTime,
         description: '',
-        color: dayColors[ev.dayOfWeek] || 'green',
+        color: Calendar.getColorByTitle(ev.title, ev.date),
         maxParticipants: is3h ? courtCount * 6 : courtCount * 4,
         maxMale: is3h ? 0 : courtCount * 2,
         maxFemale: is3h ? 0 : courtCount * 2,
