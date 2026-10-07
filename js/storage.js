@@ -397,6 +397,7 @@ const Storage = {
               waitlist: self._rtdbToArray(current.waitlist),
               participantTimes: current.participantTimes || {},
               guests: current.guests || [],
+              memos: current.memos || {},
               maxParticipants: updatedFields.maxParticipants !== undefined ? (updatedFields.maxParticipants || 0) : (current.maxParticipants || 0),
               maxMale: updatedFields.maxMale !== undefined ? (updatedFields.maxMale || 0) : (current.maxMale || 0),
               maxFemale: updatedFields.maxFemale !== undefined ? (updatedFields.maxFemale || 0) : (current.maxFemale || 0)
@@ -604,11 +605,12 @@ const Storage = {
           waitlist: self._rtdbToArray(current.waitlist),
           participantTimes: current.participantTimes || {},
           guests: current.guests || [],
+          memos: current.memos || {},
           maxParticipants: current.maxParticipants || 0,
           maxMale: current.maxMale || 0,
           maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, guests: [], maxParticipants: maxP,
+          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
           maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -622,6 +624,7 @@ const Storage = {
           currentEv.participants = self._rtdbToArray(serverAtt.participants);
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
+          currentEv.guests = serverAtt.guests || [];
         }
       }
       return localResult.result;
@@ -658,11 +661,12 @@ const Storage = {
         waitlist: self._rtdbToArray(current.waitlist),
         participantTimes: current.participantTimes || {},
         guests: current.guests || [],
+        memos: current.memos || {},
         maxParticipants: current.maxParticipants || 0,
         maxMale: current.maxMale || 0,
         maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, guests: [], maxParticipants: maxP,
+        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
         maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -676,6 +680,7 @@ const Storage = {
           currentEv.participants = self._rtdbToArray(serverAtt.participants);
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
+          currentEv.guests = serverAtt.guests || [];
         }
       }
     }).catch(function(err) {
@@ -900,11 +905,13 @@ const Storage = {
           participants: self._rtdbToArray(current.participants),
           waitlist: self._rtdbToArray(current.waitlist),
           participantTimes: current.participantTimes || {},
+          guests: current.guests || [],
+          memos: current.memos || {},
           maxParticipants: current.maxParticipants || 0,
           maxMale: current.maxMale || 0,
           maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
           maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleWaitlistSingle(att, memberName, action);
@@ -917,6 +924,8 @@ const Storage = {
           currentEv.participants = self._rtdbToArray(serverAtt.participants);
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
+          currentEv.guests = serverAtt.guests || [];
+          currentEv.memos = serverAtt.memos || {};
         }
       }
       return localResult.result;
@@ -947,11 +956,13 @@ const Storage = {
         participants: self._rtdbToArray(current.participants),
         waitlist: self._rtdbToArray(current.waitlist),
         participantTimes: current.participantTimes || {},
+        guests: current.guests || [],
+        memos: current.memos || {},
         maxParticipants: current.maxParticipants || 0,
         maxMale: current.maxMale || 0,
         maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, maxParticipants: maxP,
+        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
         maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleWaitlistSingle(att, memberName, action);
@@ -964,6 +975,8 @@ const Storage = {
           currentEv.participants = self._rtdbToArray(serverAtt.participants);
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
+          currentEv.guests = serverAtt.guests || [];
+          currentEv.memos = serverAtt.memos || {};
         }
       }
     }).catch(function(err) {
@@ -2359,12 +2372,15 @@ const Storage = {
         var oldW = JSON.stringify(ev.waitlist || []);
         var newMemos = JSON.stringify(att.memos || {});
         var oldMemos = JSON.stringify(ev.memos || {});
-        if (newP === oldP && newW === oldW && newMemos === oldMemos) return;
+        var newGuests = JSON.stringify(att.guests || []);
+        var oldGuests = JSON.stringify(ev.guests || []);
+        if (newP === oldP && newW === oldW && newMemos === oldMemos && newGuests === oldGuests) return;
 
         ev.participants = self._rtdbToArray(att.participants);
         ev.waitlist = self._rtdbToArray(att.waitlist);
         ev.participantTimes = att.participantTimes || {};
         ev.memos = att.memos || {};
+        ev.guests = att.guests || [];
         if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
         if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         self._onRemoteChange();
