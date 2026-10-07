@@ -304,19 +304,24 @@ const Calendar = {
       // 성별 정원 체크
       var maxMale = ev.maxMale || 0;
       var maxFemale = ev.maxFemale || 0;
+      // 성별 정원 체크 (게스트 성별 포함, 로그인 사용자 성별 기준)
+      var _gfMap = {};
+      var _evG = ev.guests || [];
+      for (var _gi = 0; _gi < _evG.length; _gi++) { _gfMap[_evG[_gi].name] = _evG[_gi].gender; }
+      var _getGender = function(n) { return Storage._getPlayerGender(n) || _gfMap[n] || null; };
       var isGenderFull = false;
       if (!isFull && memberName && (maxMale > 0 || maxFemale > 0)) {
-        var _myGender = Storage._getPlayerGender(memberName);
+        var _myGender = _getGender(memberName);
         if (_myGender === 'M' && maxMale > 0) {
           var _mc = 0;
           for (var _mi = 0; _mi < participants.length; _mi++) {
-            if (Storage._getPlayerGender(participants[_mi]) === 'M') _mc++;
+            if (_getGender(participants[_mi]) === 'M') _mc++;
           }
           if (_mc >= maxMale) isGenderFull = true;
         } else if (_myGender === 'F' && maxFemale > 0) {
           var _fc = 0;
           for (var _fi = 0; _fi < participants.length; _fi++) {
-            if (Storage._getPlayerGender(participants[_fi]) === 'F') _fc++;
+            if (_getGender(participants[_fi]) === 'F') _fc++;
           }
           if (_fc >= maxFemale) isGenderFull = true;
         }
