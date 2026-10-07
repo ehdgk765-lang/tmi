@@ -1236,7 +1236,7 @@ const Schedule = {
 
           // 교환 후 gameType 자동 재감지
           const allP = Storage.getPlayers();
-          const getG = (n) => { const p = allP.find(pl => pl.name === n); return p ? p.gender : null; };
+          const getG = (n) => { const p = allP.find(pl => pl.name === n); return p ? p.gender : (tournament.males?.includes(n) ? 'M' : tournament.females?.includes(n) ? 'F' : null); };
           [srcMatch, tgtMatch].forEach(mm => {
             const p1s = mm.player1.split(' / '), p2s = mm.player2.split(' / ');
             if (p1s.length === 1 && p2s.length === 1) {
@@ -2552,7 +2552,7 @@ const Schedule = {
         const gtEl = modal.querySelector('input[name="am-gametype"]:checked');
         if (presetSlot != null || tournament.isCustom) {
           // 성별 기반 경기 종류 자동 감지
-          const getGender = (name) => { const p = allPlayers.find(pl => pl.name === name); return p ? p.gender : null; };
+          const getGender = (name) => { const p = allPlayers.find(pl => pl.name === name); return p ? p.gender : (tournament.males?.includes(name) ? 'M' : tournament.females?.includes(name) ? 'F' : null); };
           if (isSingles) {
             const g1 = getGender(t1p1), g2 = getGender(t2p1);
             if (g1 === 'M' && g2 === 'M') gameType = 'MS';
@@ -2829,7 +2829,7 @@ const Schedule = {
           match[playerKey] = names.join(' / ');
           // 멤버 교체 시 gameType 자동 재감지
           const allPlayers2 = Storage.getPlayers();
-          const getG = (n) => { const p = allPlayers2.find(pl => pl.name === n); return p ? p.gender : null; };
+          const getG = (n) => { const p = allPlayers2.find(pl => pl.name === n); return p ? p.gender : (tournament.males?.includes(n) ? 'M' : tournament.females?.includes(n) ? 'F' : null); };
           const p1Parts = match.player1.split(' / ');
           const p2Parts = match.player2.split(' / ');
           let newGameType = match.gameType || null;
