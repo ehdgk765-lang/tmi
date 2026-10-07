@@ -995,6 +995,64 @@ const Storage = {
     return { changed: false, result: false };
   },
 
+  // ─── 이벤트 메모 (RTDB) ───
+
+  async addEventMemo(eventId, memberName, text) {
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return null;
+    var memo = { name: memberName, text: text, time: Date.now() };
+    var newRef = rtdbRef.child('memos').push();
+    var memoId = newRef.key;
+    // 로컬 낙관적 업데이트
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (ev) {
+      if (!ev.memos) ev.memos = {};
+      ev.memos[memoId] = memo;
+    }
+    // RTDB 저장
+    try {
+      await newRef.set(memo);
+    } catch (err) {
+      console.error('addEventMemo error:', err);
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('메모 저장에 실패했습니다.', 'error');
+    }
+    return memoId;
+  },
+
+  async deleteEventMemo(eventId, memoId) {
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return;
+    // 로컬 즉시 제거
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (ev && ev.memos) {
+      delete ev.memos[memoId];
+    }
+    // RTDB 삭제
+    try {
+      await rtdbRef.child('memos/' + memoId).remove();
+    } catch (err) {
+      console.error('deleteEventMemo error:', err);
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('메모 삭제에 실패했습니다.', 'error');
+    }
+  },
+
+  async updateEventMemo(eventId, memoId, newText) {
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (!rtdbRef) return;
+    // 로컬 즉시 반영
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (ev && ev.memos && ev.memos[memoId]) {
+      ev.memos[memoId].text = newText;
+    }
+    // RTDB 업데이트
+    try {
+      await rtdbRef.child('memos/' + memoId + '/text').set(newText);
+    } catch (err) {
+      console.error('updateEventMemo error:', err);
+      if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('메모 수정에 실패했습니다.', 'error');
+    }
+  },
+
   // ─── 이벤트 게스트 참석자 추가/제거 ───
 
   async addGuestParticipant(eventId, guestName, gender) {
@@ -2014,6 +2072,7 @@ const Storage = {
           ev.waitlist = self._rtdbToArray(att.waitlist);
           ev.participantTimes = att.participantTimes || {};
           ev.guests = att.guests || [];
+          ev.memos = att.memos || {};
           if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
           if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         }
@@ -2298,11 +2357,14 @@ const Storage = {
         var oldP = JSON.stringify(ev.participants || []);
         var newW = JSON.stringify(self._rtdbToArray(att.waitlist));
         var oldW = JSON.stringify(ev.waitlist || []);
-        if (newP === oldP && newW === oldW) return;
+        var newMemos = JSON.stringify(att.memos || {});
+        var oldMemos = JSON.stringify(ev.memos || {});
+        if (newP === oldP && newW === oldW && newMemos === oldMemos) return;
 
         ev.participants = self._rtdbToArray(att.participants);
         ev.waitlist = self._rtdbToArray(att.waitlist);
         ev.participantTimes = att.participantTimes || {};
+        ev.memos = att.memos || {};
         if (att.maxMale !== undefined) ev.maxMale = att.maxMale || 0;
         if (att.maxFemale !== undefined) ev.maxFemale = att.maxFemale || 0;
         self._onRemoteChange();

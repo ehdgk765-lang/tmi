@@ -20,6 +20,7 @@ const Calendar = {
   _container: null,
   _holidays: {},        // { year: { 'YYYY-MM-DD': '공휴일명', ... } }
   _holidayFetching: {}, // { year: true } 중복 요청 방지
+  _memoExpanded: {},    // { eventId: true } 메모 펼침 상태
 
   // 색상 옵션
   COLORS: [
@@ -471,6 +472,57 @@ const Calendar = {
         '</div>';
       })();
 
+      // 메모 섹션
+      var memoHtml = '';
+      var memos = ev.memos || {};
+      var memoKeys = Object.keys(memos);
+      var memoCount = memoKeys.length;
+      // 시간순 정렬
+      memoKeys.sort(function(a, b) { return (memos[a].time || 0) - (memos[b].time || 0); });
+
+      var memoListHtml = '';
+      for (var mi2 = 0; mi2 < memoKeys.length; mi2++) {
+        var mk = memoKeys[mi2];
+        var memo = memos[mk];
+        var memoDate = new Date(memo.time);
+        var memoTimeStr = (memoDate.getMonth() + 1) + '/' + memoDate.getDate() + ' ' +
+          String(memoDate.getHours()).padStart(2, '0') + ':' + String(memoDate.getMinutes()).padStart(2, '0');
+        var canEditMemo = (memberName && memo.name === memberName) || (isAdmin && memo.name === '관리자');
+        var canDeleteMemo = isAdmin || (memberName && memo.name === memberName);
+        memoListHtml += '<div class="cal-memo-item" data-memo-id="' + mk + '">' +
+          '<div class="flex items-center gap-1.5">' +
+            '<span class="cal-memo-author">' + this._escapeHtml(memo.name) + '</span>' +
+            '<span class="cal-memo-time">' + memoTimeStr + '</span>' +
+            ((canEditMemo || canDeleteMemo) ? '<span class="ml-auto flex gap-0.5">' +
+              (canEditMemo ? '<button class="cal-memo-edit text-gray-300 hover:text-blue-400 transition" data-id="' + ev.id + '" data-memo-id="' + mk + '" title="수정"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>' : '') +
+              (canDeleteMemo ? '<button class="cal-memo-delete text-gray-300 hover:text-red-400 transition" data-id="' + ev.id + '" data-memo-id="' + mk + '" title="삭제"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>' : '') +
+            '</span>' : '') +
+          '</div>' +
+          '<div class="cal-memo-text">' + this._escapeHtml(memo.text) + '</div>' +
+        '</div>';
+      }
+
+      var memoInputHtml = '';
+      if ((isClub && memberName) || isAdmin) {
+        memoInputHtml = '<div class="flex gap-1.5 mt-2">' +
+          '<input type="text" class="cal-memo-input flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:ring-1 focus:ring-blue-300 focus:border-blue-300 outline-none" data-id="' + ev.id + '" placeholder="메모를 입력하세요..." maxlength="200">' +
+          '<button class="cal-memo-submit flex-shrink-0 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-500 hover:text-white transition" data-id="' + ev.id + '">전송</button>' +
+        '</div>';
+      }
+
+      var isMemoOpen = this._memoExpanded[ev.id] || false;
+      memoHtml = '<div class="cal-memo-section mt-2" data-id="' + ev.id + '">' +
+        '<button class="cal-memo-toggle w-full flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition py-1" data-id="' + ev.id + '">' +
+          '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>' +
+          '<span>메모' + (memoCount > 0 ? ' ' + memoCount + '건' : '') + '</span>' +
+          '<svg class="w-3 h-3 ml-auto cal-memo-chevron transition-transform' + (isMemoOpen ? ' rotate-180' : '') + '" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+        '</button>' +
+        '<div class="cal-memo-body' + (isMemoOpen ? '' : ' hidden') + ' mt-1">' +
+          (memoListHtml || '<div class="text-xs text-gray-300 py-2 text-center">아직 메모가 없습니다.</div>') +
+          memoInputHtml +
+        '</div>' +
+      '</div>';
+
       html += '<div class="p-3 rounded-xl ' + color.bg + cardExtra + myEventClass + ' mb-2" data-event-id="' + ev.id + '">' +
                 '<div class="flex items-start gap-3">' +
                   '<div class="w-1 self-stretch rounded-full ' + color.dot + ' flex-shrink-0 mt-0.5"></div>' +
@@ -492,6 +544,7 @@ const Calendar = {
                 waitlistHtml +
                 attendBtn +
                 addParticipantBtn +
+                memoHtml +
               '</div>';
     }
     return html;
@@ -670,6 +723,110 @@ const Calendar = {
         var events = Storage.getEvents();
         var ev = events.find(function(e) { return e.id === id; });
         if (ev) self._shareEvent(ev);
+      };
+    });
+
+    // 메모 토글
+    container.querySelectorAll('.cal-memo-toggle').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        var section = btn.closest('.cal-memo-section');
+        var body = section.querySelector('.cal-memo-body');
+        var chevron = section.querySelector('.cal-memo-chevron');
+        body.classList.toggle('hidden');
+        chevron.classList.toggle('rotate-180');
+        self._memoExpanded[id] = !body.classList.contains('hidden');
+      };
+    });
+
+    // 메모 전송
+    container.querySelectorAll('.cal-memo-submit').forEach(function(btn) {
+      btn.onclick = async function(e) {
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        var section = btn.closest('.cal-memo-section');
+        var input = section.querySelector('.cal-memo-input');
+        var text = (input.value || '').trim();
+        if (!text) return;
+        var memberName = App.getMemberName();
+        if (!memberName && RolesConfig.hasAdminAccess()) memberName = '관리자';
+        if (!memberName) return;
+        btn.disabled = true;
+        await Storage.addEventMemo(id, memberName, text);
+        self.render(self._container);
+      };
+    });
+
+    // 메모 입력 Enter 키
+    container.querySelectorAll('.cal-memo-input').forEach(function(input) {
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var section = input.closest('.cal-memo-section');
+          var submitBtn = section.querySelector('.cal-memo-submit');
+          if (submitBtn) submitBtn.click();
+        }
+      };
+      input.onclick = function(e) { e.stopPropagation(); };
+    });
+
+    // 메모 수정 (인라인 편집)
+    container.querySelectorAll('.cal-memo-edit').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        var memoId = btn.dataset.memoId;
+        var item = btn.closest('.cal-memo-item');
+        var textEl = item.querySelector('.cal-memo-text');
+        var oldText = textEl.textContent;
+        // 이미 편집 중이면 무시
+        if (item.querySelector('.cal-memo-edit-input')) return;
+        // 텍스트를 입력 필드로 교체
+        textEl.style.display = 'none';
+        var editWrap = document.createElement('div');
+        editWrap.className = 'flex gap-1.5 mt-1';
+        editWrap.innerHTML = '<input type="text" class="cal-memo-edit-input flex-1 px-2 py-1 text-xs border border-blue-300 rounded-lg bg-white focus:ring-1 focus:ring-blue-300 outline-none" maxlength="200" value="">' +
+          '<button class="cal-memo-edit-save flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition">저장</button>' +
+          '<button class="cal-memo-edit-cancel flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition">취소</button>';
+        item.appendChild(editWrap);
+        var editInput = editWrap.querySelector('.cal-memo-edit-input');
+        editInput.value = oldText;
+        editInput.focus();
+        editInput.onclick = function(ev) { ev.stopPropagation(); };
+        // 저장
+        editWrap.querySelector('.cal-memo-edit-save').onclick = async function(ev) {
+          ev.stopPropagation();
+          var newText = editInput.value.trim();
+          if (!newText || newText === oldText) { cancel(); return; }
+          await Storage.updateEventMemo(id, memoId, newText);
+          self.render(self._container);
+        };
+        // 취소
+        var cancel = function() {
+          editWrap.remove();
+          textEl.style.display = '';
+        };
+        editWrap.querySelector('.cal-memo-edit-cancel').onclick = function(ev) {
+          ev.stopPropagation();
+          cancel();
+        };
+        // Enter로 저장, Esc로 취소
+        editInput.onkeydown = function(ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); editWrap.querySelector('.cal-memo-edit-save').click(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
+        };
+      };
+    });
+
+    // 메모 삭제
+    container.querySelectorAll('.cal-memo-delete').forEach(function(btn) {
+      btn.onclick = async function(e) {
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        var memoId = btn.dataset.memoId;
+        await Storage.deleteEventMemo(id, memoId);
+        self.render(self._container);
       };
     });
   },

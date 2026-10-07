@@ -314,6 +314,34 @@ header {
   line-height: 16px;
 }
 
+/* 메모 영역 */
+.cal-memo-section {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 4px;
+}
+.cal-memo-item {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 6px 0;
+}
+.cal-memo-item:last-child {
+  border-bottom: none;
+}
+.cal-memo-author {
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+}
+.cal-memo-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.cal-memo-text {
+  font-size: 13px;
+  color: #4b5563;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
 /* 모달 스크롤 잠금 */
 .fixed.inset-0[class*="bg-black"] > div,
 #cal-modal > .cal-modal-inner,
@@ -1188,6 +1216,26 @@ html.dark .calendar-day.holiday .day-number {
 }
 html.dark .calendar-holiday-name {
   color: #f87171;
+}
+html.dark .cal-memo-section {
+  border-top-color: #334155;
+}
+html.dark .cal-memo-item {
+  border-bottom-color: #334155;
+}
+html.dark .cal-memo-author {
+  color: #e5e7eb;
+}
+html.dark .cal-memo-time {
+  color: #6b7280;
+}
+html.dark .cal-memo-text {
+  color: #d1d5db;
+}
+html.dark .cal-memo-input {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #e5e7eb;
 }
 html.dark .calendar-day:hover {
   background-color: #334155;
