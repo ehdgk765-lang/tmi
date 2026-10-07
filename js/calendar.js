@@ -18,6 +18,8 @@ const Calendar = {
   _currentMonth: null, // Date 객체 (해당 월 1일)
   _selectedDate: null, // 'YYYY-MM-DD'
   _container: null,
+  _holidays: {},        // { year: { 'YYYY-MM-DD': '공휴일명', ... } }
+  _holidayFetching: {}, // { year: true } 중복 요청 방지
 
   // 색상 옵션
   COLORS: [
@@ -36,6 +38,65 @@ const Calendar = {
 
   _getColor(value) {
     return this.COLORS.find(function(c) { return c.value === value; }) || this.COLORS[0];
+  },
+
+  _fetchHolidays(year) {
+    var self = this;
+    if (self._holidays[year] || self._holidayFetching[year]) return Promise.resolve();
+
+    var settings = Storage.getSettings();
+    var apiKey = settings.holidayApiKey;
+    if (!apiKey) return Promise.resolve();
+
+    // 1) Firestore 캐시 확인 (settings.holidays_YYYY)
+    var cacheKey = 'holidays_' + year;
+    if (settings[cacheKey]) {
+      self._holidays[year] = settings[cacheKey];
+      return Promise.resolve();
+    }
+
+    self._holidayFetching[year] = true;
+
+    // 2) API 호출
+    var url = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo' +
+      '?solYear=' + year +
+      '&numOfRows=100' +
+      '&_type=json' +
+      '&ServiceKey=' + encodeURIComponent(apiKey);
+
+    return fetch(url)
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        var items = [];
+        try {
+          var rawItems = data.response.body.items.item;
+          items = Array.isArray(rawItems) ? rawItems : (rawItems ? [rawItems] : []);
+        } catch (e) {
+          console.warn('[공휴일] API 응답 파싱 실패:', e);
+        }
+
+        var holidays = {};
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          if (item.isHoliday !== 'Y') continue;
+          var loc = String(item.locdate);
+          var dateStr = loc.substring(0, 4) + '-' + loc.substring(4, 6) + '-' + loc.substring(6, 8);
+          holidays[dateStr] = item.dateName;
+        }
+        self._holidays[year] = holidays;
+        delete self._holidayFetching[year];
+
+        // 3) Firestore에 캐시 저장 (다른 사용자도 재사용)
+        if (Object.keys(holidays).length > 0) {
+          var s = Storage.getSettings();
+          s[cacheKey] = holidays;
+          Storage.saveSettings(s);
+        }
+      })
+      .catch(function(err) {
+        console.error('[공휴일] API 호출 실패:', err);
+        delete self._holidayFetching[year];
+      });
   },
 
   _getColorForDate(dateStr) {
@@ -127,12 +188,24 @@ const Calendar = {
       '</div>');
 
     this._bindEvents(container);
+
+    // 공휴일 비동기 로드: 캐시 없으면 fetch 후 재렌더
+    var self = this;
+    var apiKey = (Storage.getSettings() || {}).holidayApiKey;
+    if (!this._holidays[year] && apiKey && !this._holidayFetching[year]) {
+      this._fetchHolidays(year).then(function() {
+        if (self._holidays[year] && Object.keys(self._holidays[year]).length > 0) {
+          self.render(self._container);
+        }
+      });
+    }
   },
 
   _buildCalendarGrid(year, month, events) {
     var firstDay = new Date(year, month, 1).getDay(); // 0=일 ~ 6=토
     var daysInMonth = new Date(year, month + 1, 0).getDate();
     var today = this._formatDate(new Date());
+    var holidays = this._holidays[year] || {};
     var html = '';
     var filterMine = this._filterMine;
     var memberName = filterMine ? (typeof App !== 'undefined' ? App.getMemberName() : '') : '';
@@ -149,6 +222,7 @@ const Calendar = {
       var isToday = dateStr === today;
       var isSelected = dateStr === this._selectedDate;
       var dayEvents = this._getEventsForDate(events, dateStr);
+      var holidayName = holidays[dateStr];
 
       // 내 일정 필터: 캘린더 그리드 라벨에도 적용
       if (filterMine && memberName) {
@@ -162,6 +236,13 @@ const Calendar = {
       if (isSelected) classes += ' selected';
       if (dayOfWeek === 0) classes += ' sunday';
       if (dayOfWeek === 6) classes += ' saturday';
+      if (holidayName) classes += ' holiday';
+
+      // 공휴일 이름 라벨
+      var holidayLabel = '';
+      if (holidayName) {
+        holidayLabel = '<span class="calendar-holiday-name">' + this._escapeHtml(holidayName) + '</span>';
+      }
 
       // 이벤트 라벨 (제목 표시)
       var labels = '';
@@ -181,6 +262,7 @@ const Calendar = {
 
       html += '<div class="' + classes + '" data-date="' + dateStr + '">' +
                 '<span class="day-number">' + d + '</span>' +
+                holidayLabel +
                 labels +
               '</div>';
     }

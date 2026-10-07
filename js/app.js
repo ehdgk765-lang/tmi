@@ -1092,6 +1092,18 @@ const App = {
                 }).join('')) +
           '</div>' +
         '</div>' +
+        // 공휴일 API 설정
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">공휴일 API 설정</h3>' +
+            '<p class="text-xs text-gray-400 mb-2">공공데이터포털(data.go.kr)의 특일 정보 API 키를 입력하면 캘린더에 공휴일이 표시됩니다.</p>' +
+            '<div class="flex gap-2">' +
+              '<input type="text" autocomplete="off" id="holiday-api-key-input" class="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm" placeholder="API 키 입력" value="' + (Storage.getSettings().holidayApiKey || '') + '">' +
+              '<button id="holiday-api-key-save" class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-md shadow-blue-200/50 text-sm">저장</button>' +
+            '</div>' +
+            '<div id="holiday-api-status" class="text-xs mt-2 text-gray-400"></div>' +
+          '</div>' +
+        '</div>' +
         // 데이터 백업/복원
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
           '<div class="px-4 py-3">' +
@@ -1174,6 +1186,33 @@ const App = {
     // 관리자 권한 부여 목록 로드 (admin만)
     if (RolesConfig.isAdmin()) {
       self._loadAdminAccessList();
+    }
+
+    // 공휴일 API 키 저장
+    var holidayKeySaveBtn = document.getElementById('holiday-api-key-save');
+    var holidayKeyInput = document.getElementById('holiday-api-key-input');
+    if (holidayKeySaveBtn && holidayKeyInput) {
+      holidayKeySaveBtn.onclick = function() {
+        var key = holidayKeyInput.value.trim();
+        var settings = Storage.getSettings();
+        // Firestore 공휴일 캐시 삭제 (holidays_YYYY 키들)
+        Object.keys(settings).forEach(function(k) {
+          if (k.indexOf('holidays_') === 0) delete settings[k];
+        });
+        settings.holidayApiKey = key || '';
+        Storage.saveSettings(settings);
+        // 메모리 캐시 초기화 (새 키로 재조회)
+        if (typeof Calendar !== 'undefined') {
+          Calendar._holidays = {};
+          Calendar._holidayFetching = {};
+        }
+        var statusEl = document.getElementById('holiday-api-status');
+        if (statusEl) {
+          statusEl.textContent = key ? 'API 키가 저장되었습니다.' : 'API 키가 삭제되었습니다.';
+          statusEl.className = 'text-xs mt-2 ' + (key ? 'text-green-600' : 'text-gray-400');
+        }
+        showToast(key ? '공휴일 API 키가 저장되었습니다.' : 'API 키가 삭제되었습니다.');
+      };
     }
 
     // 데이터 내보내기

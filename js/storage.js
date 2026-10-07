@@ -12,8 +12,8 @@
 const Storage = {
 
   // ─── 메모리 캐시 ───
-  _data: { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [], reservations: null },
-  _json: { players: '[]', teams: '[]', courts: '[]', groups: '[]', reservations: 'null' },
+  _data: { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [], reservations: null, settings: {} },
+  _json: { players: '[]', teams: '[]', courts: '[]', groups: '[]', reservations: 'null', settings: '{}' },
   _tJson: {},       // 대회 id → 확정 저장된 json (diff/에코 판단용)
   _writingT: {},    // 대회 id → 기록 중 json ('__deleted__'=삭제 중) 에코 억제
   _eJson: {},       // 이벤트 id → 확정 저장된 json (메타데이터만, 참석 제외)
@@ -63,8 +63,8 @@ const Storage = {
   },
 
   clearData() {
-    this._data = { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [], reservations: null };
-    this._json = { players: '[]', teams: '[]', courts: '[]', groups: '[]', reservations: 'null' };
+    this._data = { players: [], tournaments: [], teams: [], events: [], courts: [], groups: [], reservations: null, settings: {} };
+    this._json = { players: '[]', teams: '[]', courts: '[]', groups: '[]', reservations: 'null', settings: '{}' };
     this._tJson = {};
     this._writingT = {};
     this._eJson = {};
@@ -79,6 +79,7 @@ const Storage = {
   getCourts() { return this._data.courts; },
   getGroups() { return this._data.groups; },
   getReservations() { return this._data.reservations; },
+  getSettings() { return this._data.settings || {}; },
 
   getTournamentById(id) {
     return this._data.tournaments.find(function(t) { return t.id === id; }) || null;
@@ -180,6 +181,16 @@ const Storage = {
   saveReservations(data) {
     this._setLocal('reservations', data);
     this._syncToFirestore('reservations');
+    return true;
+  },
+
+  saveSettings(settings) {
+    if (typeof RolesConfig !== 'undefined' && !RolesConfig.isAdmin()) {
+      console.warn('관리자만 설정을 수정할 수 있습니다.');
+      return false;
+    }
+    this._setLocal('settings', settings || {});
+    this._syncToFirestore('settings');
     return true;
   },
 
@@ -1659,7 +1670,8 @@ const Storage = {
   _unsubCourts: null,
   _unsubGroups: null,
   _unsubReservations: null,
-  _writing: { players: null, teams: null, courts: null, groups: null, reservations: null },
+  _unsubSettings: null,
+  _writing: { players: null, teams: null, courts: null, groups: null, reservations: null, settings: null },
 
   _syncToFirestore(docName) {
     if (docName === 'events') {
@@ -1883,7 +1895,8 @@ const Storage = {
         dataBase.doc('teams').get(),
         dataBase.doc('courts').get(),
         dataBase.doc('groups').get(),
-        dataBase.doc('reservations').get()
+        dataBase.doc('reservations').get(),
+        dataBase.doc('settings').get()
       ]);
 
       // 클럽 관리자 초기 마이그레이션: per-user → shared
@@ -1897,6 +1910,7 @@ const Storage = {
       this._loadDoc('courts', results[2]);
       this._loadDoc('groups', results[3]);
       this._loadDoc('reservations', results[4]);
+      this._loadDoc('settings', results[5]);
 
       await this._loadEventsFromCollection(parent);
       await this._loadTournamentsFromCollection(parent);
@@ -2174,6 +2188,7 @@ const Storage = {
     this._unsubCourts = listenDoc('courts');
     this._unsubGroups = listenDoc('groups');
     this._unsubReservations = listenDoc('reservations');
+    this._unsubSettings = listenDoc('settings');
 
     // events: 컬렉션 리스너 (문서별 추가/수정/삭제 반영, 참석 데이터는 RTDB가 관리)
     this._unsubEvents = parent.collection('events').onSnapshot(function(snap) {
@@ -2298,7 +2313,7 @@ const Storage = {
   },
 
   stopRealtimeSync() {
-    var names = ['_unsubPlayers', '_unsubTournaments', '_unsubTeams', '_unsubEvents', '_unsubCourts', '_unsubGroups', '_unsubReservations'];
+    var names = ['_unsubPlayers', '_unsubTournaments', '_unsubTeams', '_unsubEvents', '_unsubCourts', '_unsubGroups', '_unsubReservations', '_unsubSettings'];
     var self = this;
     names.forEach(function(key) {
       if (self[key]) { self[key](); self[key] = null; }
