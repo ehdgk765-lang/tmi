@@ -1092,6 +1092,19 @@ const App = {
                 }).join('')) +
           '</div>' +
         '</div>' +
+        // 계좌 정보 설정
+        '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
+          '<div class="px-4 py-3">' +
+            '<h3 class="font-semibold text-gray-700 text-sm mb-3">계좌 정보</h3>' +
+            '<p class="text-xs text-gray-400 mb-2">정산서에서 게스트 비용 안내 시 계좌번호 복사 버튼이 표시됩니다.</p>' +
+            '<div class="flex gap-2">' +
+              '<input type="text" autocomplete="off" id="bank-name-input" class="w-20 flex-shrink-0 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm" placeholder="은행명" value="' + (Storage.getSettings().bankName || '') + '">' +
+              '<input type="text" autocomplete="off" id="bank-holder-input" class="w-20 flex-shrink-0 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm" placeholder="계좌주" value="' + (Storage.getSettings().bankHolder || '') + '">' +
+              '<input type="text" autocomplete="off" id="bank-account-input" class="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 text-sm" placeholder="계좌번호" value="' + (Storage.getSettings().bankAccount || '') + '">' +
+              '<button id="bank-account-save" class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap flex-shrink-0 shadow-md shadow-blue-200/50 text-sm">저장</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
         // 공휴일 API 설정
         '<div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 mt-4">' +
           '<div class="px-4 py-3">' +
@@ -1186,6 +1199,22 @@ const App = {
     // 관리자 권한 부여 목록 로드 (admin만)
     if (RolesConfig.isAdmin()) {
       self._loadAdminAccessList();
+    }
+
+    // 계좌 정보 저장
+    var bankSaveBtn = document.getElementById('bank-account-save');
+    var bankNameInput = document.getElementById('bank-name-input');
+    var bankHolderInput = document.getElementById('bank-holder-input');
+    var bankAccountInput = document.getElementById('bank-account-input');
+    if (bankSaveBtn && bankNameInput && bankAccountInput) {
+      bankSaveBtn.onclick = function() {
+        var settings = Storage.getSettings();
+        settings.bankName = bankNameInput.value.trim();
+        settings.bankHolder = bankHolderInput ? bankHolderInput.value.trim() : '';
+        settings.bankAccount = bankAccountInput.value.trim();
+        Storage.saveSettings(settings);
+        showToast('계좌 정보가 저장되었습니다.');
+      };
     }
 
     // 공휴일 API 키 저장

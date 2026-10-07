@@ -1292,7 +1292,7 @@ const Schedule = {
         match[playerKey] = names.join(' / ');
         // gameType 재계산
         const _ap = Storage.getPlayers();
-        const _gg = (n) => { const p = _ap.find(pl => pl.name === n); return p ? p.gender : null; };
+        const _gg = (n) => { const p = _ap.find(pl => pl.name === n); return p ? p.gender : (tournament.males?.includes(n) ? 'M' : tournament.females?.includes(n) ? 'F' : null); };
         const _p1s = match.player1.split(' / '), _p2s = match.player2.split(' / ');
         if (_p1s.length === 1 && _p2s.length === 1) {
           const g1 = _gg(_p1s[0]), g2 = _gg(_p2s[0]);
