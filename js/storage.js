@@ -2495,6 +2495,8 @@ const Storage = {
             App.renderTournamentDetail(content, t);
           }
         } else if (App.currentTab) {
+          // 폼 편집 중에는 재렌더링 스킵 (체크박스/입력 상태 보존)
+          if (App.currentTab === 'schedule' || App.currentTab === 'create') return;
           App.navigate(App.currentTab);
         }
       }

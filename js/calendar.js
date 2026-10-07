@@ -2343,7 +2343,7 @@ const Calendar = {
     var bankName = bankSettings.bankName || '';
     var bankHolder = bankSettings.bankHolder || '';
     var bankAccount = bankSettings.bankAccount || '';
-    var bankLabel = bankName ? (bankName + (bankHolder ? ' ' + bankHolder : '')) : '';
+    var bankCopyText = bankName ? (bankName + ' ' + bankAccount + (bankHolder ? ' ' + bankHolder : '')) : '';
     var autoTotal = autoFee ? autoFee * (courtCount || 1) : 0;
     var autoRequest = autoTotal ? ('코트지원비 : ' + autoTotal.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원 청구 요청') : '';
     var requestVal = saved ? (saved.request || '') : autoRequest;
@@ -2445,7 +2445,7 @@ const Calendar = {
               '<span class="text-xs text-gray-500 flex-shrink-0">1인</span>' +
               '<input type="number" id="stl-guest-fee" class="w-16 px-1.5 py-1 text-xs border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="' + guestFee + '">' +
               '<span class="text-xs text-gray-400 flex-shrink-0">원</span>' +
-              (bankLabel ? '<button type="button" class="stl-bank-copy px-2 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 active:scale-95 transition-all flex-shrink-0" data-account="' + self._escapeAttr(bankAccount) + '">' + self._escapeHtml(bankLabel) + '</button>' : '') +
+              (bankCopyText ? '<button type="button" class="stl-bank-copy px-2 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 active:scale-95 transition-all flex-shrink-0" data-copytext="' + self._escapeAttr(bankCopyText) + '">TMI 계좌번호 복사</button>' : '') +
             '</div>' +
           '</div>' +
 
@@ -2638,12 +2638,12 @@ const Calendar = {
     var bankCopyBtn = modal.querySelector('.stl-bank-copy');
     if (bankCopyBtn) {
       bankCopyBtn.onclick = function() {
-        var account = this.getAttribute('data-account');
-        if (!account) return;
+        var copytext = this.getAttribute('data-copytext');
+        if (!copytext) return;
         var btn = this;
         var orig = btn.textContent;
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(account).then(function() {
+          navigator.clipboard.writeText(copytext).then(function() {
             btn.textContent = '복사완료';
             btn.classList.replace('bg-blue-50', 'bg-green-50');
             btn.classList.replace('border-blue-200', 'border-green-200');
@@ -2657,7 +2657,7 @@ const Calendar = {
           });
         } else {
           var ta = document.createElement('textarea');
-          ta.value = account;
+          ta.value = copytext;
           ta.style.cssText = 'position:fixed;left:-9999px';
           document.body.appendChild(ta);
           ta.select();
