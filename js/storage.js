@@ -2407,9 +2407,6 @@ const Storage = {
       if (banner) banner.classList.add('hidden');
       if (fbAuth.currentUser) {
         self.loadFromFirestore().then(function() {
-          self.stopRealtimeSync();
-          self.startRealtimeSync();
-          self._initialSyncDone = true; // 페이지 복귀 시에는 즉시 렌더 필요
           self._onRemoteChange();
         }).catch(function() {});
       }
@@ -2425,13 +2422,19 @@ const Storage = {
   _setupVisibilityListener() {
     var self = this;
     this._removeVisibilityListener();
+    this._lastHiddenAt = 0;
     this._visibilityHandler = function() {
+      if (document.visibilityState === 'hidden') {
+        self._lastHiddenAt = Date.now();
+        return;
+      }
       if (document.visibilityState !== 'visible') return;
       if (!fbAuth.currentUser) return;
+      // 3분 미만 복귀 → onSnapshot 리스너가 이미 동기화 중이므로 스킵
+      var elapsed = Date.now() - (self._lastHiddenAt || 0);
+      if (elapsed < 3 * 60 * 1000) return;
+      // 3분 이상 → 데이터 재로드 (리스너는 유지, 재시작하지 않음)
       self.loadFromFirestore().then(function() {
-        self.stopRealtimeSync();
-        self.startRealtimeSync();
-        self._initialSyncDone = true; // 페이지 복귀 시에는 즉시 렌더 필요
         self._onRemoteChange();
       }).catch(function(err) {
         console.error('Visibility reload error:', err);

@@ -2152,27 +2152,7 @@ const Schedule = {
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // 게임 타입 뱃지들 (코트별)
       let riY = rowY + 6;
-      const tbW = rightInfoW - 16;
-      for (let ci = 0; ci < courtCount; ci++) {
-        const m = courtMap[ci + 1] && courtMap[ci + 1][0];
-        if (!m) continue;
-        const tc = this._typeColors[m.gameType] || { label: '?', bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
-        const label = courtCount > 1 ? `C${ci + 1} ${tc.label}` : tc.label;
-        this._roundRect(ctx, riX + 8, riY, tbW, 18, 4);
-        ctx.fillStyle = tc.bg;
-        ctx.fill();
-        ctx.strokeStyle = tc.border;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.font = `bold 10px ${FONT}`;
-        ctx.fillStyle = tc.text;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, riX + 8 + tbW / 2, riY + 9);
-        riY += 20;
-      }
 
       // 쉬는 멤버
       const resting = restingPerSlot[si];

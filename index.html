@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = '20261007-4';
+    var APP_VERSION = 'v2.0.1';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -187,7 +187,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
-            <!-- 좌측 여백 (멤버 정보는 서브 헤더로 이동) -->
+            <script>document.write('<span class="text-[10px] text-gray-300 ml-1 select-none">' + APP_VERSION + '</span>')</script>
           </div>
           <!-- 중앙: 로고 -->
           <h1 id="header-logo" class="text-lg font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-1.5 cursor-pointer select-none flex-shrink-0">
