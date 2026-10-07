@@ -556,6 +556,47 @@ const Storage = {
     }
   },
 
+  // 일정 양도/취소: 제목에 prefix 추가 + 인원 0 + 참석자 전체 해제
+  async markEvent(eventId, prefix) {
+    var self = this;
+    var ev = this._data.events.find(function(e) { return e.id === eventId; });
+    if (!ev) return;
+    // 이미 같은 prefix가 붙어있으면 무시
+    if (ev.title.startsWith('(' + prefix + ') ')) return;
+    var newTitle = '(' + prefix + ') ' + ev.title;
+    // Firestore 이벤트 수정
+    await this.editEvent(eventId, {
+      title: newTitle,
+      maxParticipants: 0,
+      maxMale: 0,
+      maxFemale: 0
+    });
+    // RTDB 참석 데이터 초기화
+    var rtdbRef = this._getAttendanceRef(eventId);
+    if (rtdbRef) {
+      await rtdbRef.transaction(function(current) {
+        if (!current) return current;
+        return {
+          participants: [],
+          waitlist: [],
+          participantTimes: {},
+          guests: current.guests || [],
+          memos: current.memos || {},
+          maxParticipants: 0,
+          maxMale: 0,
+          maxFemale: 0
+        };
+      });
+    }
+    // 로컬 메모리 동기화
+    var localEv = self._data.events.find(function(e) { return e.id === eventId; });
+    if (localEv) {
+      localEv.participants = [];
+      localEv.waitlist = [];
+      localEv.participantTimes = {};
+    }
+  },
+
   // 단일 이벤트 삭제 (개별 문서)
   async removeEvent(eventId) {
     var self = this;

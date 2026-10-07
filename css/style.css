@@ -341,6 +341,45 @@ header {
   margin-top: 2px;
   word-break: break-word;
 }
+.cal-memo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background-color: #3b82f6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.cal-memo-preview {
+  padding: 6px 8px;
+  margin-top: 2px;
+  background-color: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+}
+.cal-closed-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ef4444;
+}
+.cal-memo-preview-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3b82f6;
+}
+.cal-memo-preview-text {
+  font-size: 12px;
+  color: #4b5563;
+}
+.cal-memo-section.has-memos {
+  border-top-color: #dbeafe;
+}
 
 /* 모달 스크롤 잠금 */
 .fixed.inset-0[class*="bg-black"] > div,
@@ -1237,8 +1276,27 @@ html.dark .cal-memo-input {
   border-color: #475569;
   color: #e5e7eb;
 }
+html.dark .cal-memo-badge {
+  background-color: #2563eb;
+}
+html.dark .cal-memo-preview {
+  background-color: #1e293b;
+  border-left-color: #2563eb;
+}
+html.dark .cal-memo-preview-name {
+  color: #60a5fa;
+}
+html.dark .cal-memo-preview-text {
+  color: #d1d5db;
+}
+html.dark .cal-memo-section.has-memos {
+  border-top-color: #1e3a5f;
+}
 html.dark .calendar-day:hover {
   background-color: #334155;
+}
+html.dark .cal-closed-badge {
+  color: #f87171;
 }
 html.dark .calendar-day.today {
   background-color: rgba(37, 99, 235, 0.12);
