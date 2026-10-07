@@ -376,6 +376,7 @@ const Storage = {
           updatedEv.waitlist = self._data.events[i].waitlist || [];
           updatedEv.participantTimes = self._data.events[i].participantTimes || {};
           updatedEv.guests = self._data.events[i].guests || [];
+          updatedEv.memos = self._data.events[i].memos || {};
           self._data.events[i] = updatedEv;
         }
         self._sortEvents(self._data.events);
@@ -535,6 +536,7 @@ const Storage = {
           updatedEv.waitlist = self._data.events[i].waitlist || [];
           updatedEv.participantTimes = self._data.events[i].participantTimes || {};
           updatedEv.guests = self._data.events[i].guests || [];
+          updatedEv.memos = self._data.events[i].memos || {};
           self._data.events[i] = updatedEv;
         }
         self._eJson[String(eventId)] = newJson;
@@ -2299,6 +2301,7 @@ const Storage = {
           ev.waitlist = self._data.events[i].waitlist || [];
           ev.participantTimes = self._data.events[i].participantTimes || {};
           ev.guests = self._data.events[i].guests || [];
+          ev.memos = self._data.events[i].memos || {};
           self._data.events[i] = ev;
         } else {
           self._data.events.push(ev);
