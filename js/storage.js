@@ -384,10 +384,13 @@ const Storage = {
         self._writingE[String(eventId)] = newJson;
         setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
       }
-      // RTDB 인원 제한 동기화 + 대기자 자동 승격
-      var hasLimitChange = updatedFields.maxParticipants !== undefined ||
-                           updatedFields.maxMale !== undefined ||
-                           updatedFields.maxFemale !== undefined;
+      // RTDB 인원 제한 동기화 + 대기자 자동 승격 (실제 값 변경 시에만)
+      var prevEv = self._data.events.find(function(e) { return e.id === eventId; });
+      var hasLimitChange = prevEv && (
+        (updatedFields.maxParticipants !== undefined && (updatedFields.maxParticipants || 0) !== (prevEv.maxParticipants || 0)) ||
+        (updatedFields.maxMale !== undefined && (updatedFields.maxMale || 0) !== (prevEv.maxMale || 0)) ||
+        (updatedFields.maxFemale !== undefined && (updatedFields.maxFemale || 0) !== (prevEv.maxFemale || 0))
+      );
       if (hasLimitChange) {
         var rtdbRef = self._getAttendanceRef(eventId);
         if (rtdbRef) {
@@ -448,6 +451,8 @@ const Storage = {
                 currentEv.participants = self._rtdbToArray(serverAtt.participants);
                 currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
                 currentEv.participantTimes = serverAtt.participantTimes || {};
+                currentEv.guests = serverAtt.guests || [];
+                currentEv.memos = serverAtt.memos || {};
               }
               self._onRemoteChange();
             }
@@ -1703,7 +1708,9 @@ const Storage = {
               participantTimes: ev.participantTimes || {},
               maxParticipants: ev.maxParticipants || 0,
               maxMale: ev.maxMale || 0,
-              maxFemale: ev.maxFemale || 0
+              maxFemale: ev.maxFemale || 0,
+              guests: ev.guests || [],
+              memos: ev.memos || {}
             });
           }
         }
@@ -1838,7 +1845,7 @@ const Storage = {
   _stripAttendance(ev) {
     var copy = {};
     for (var key in ev) {
-      if (ev.hasOwnProperty(key) && key !== 'participants' && key !== 'waitlist' && key !== 'participantTimes') {
+      if (ev.hasOwnProperty(key) && key !== 'participants' && key !== 'waitlist' && key !== 'participantTimes' && key !== 'guests' && key !== 'memos') {
         copy[key] = ev[key];
       }
     }
@@ -2054,7 +2061,9 @@ const Storage = {
           participantTimes: ev.participantTimes || {},
           maxParticipants: ev.maxParticipants || 0,
           maxMale: ev.maxMale || 0,
-          maxFemale: ev.maxFemale || 0
+          maxFemale: ev.maxFemale || 0,
+          guests: ev.guests || [],
+          memos: ev.memos || {}
         };
         if (hasData) count++;
       }
@@ -2191,7 +2200,9 @@ const Storage = {
               participantTimes: ev.participantTimes || {},
               maxParticipants: ev.maxParticipants || 0,
               maxMale: ev.maxMale || 0,
-              maxFemale: ev.maxFemale || 0
+              maxFemale: ev.maxFemale || 0,
+              guests: ev.guests || [],
+              memos: ev.memos || {}
             });
           }
         }
