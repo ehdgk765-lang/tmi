@@ -367,6 +367,12 @@ const Storage = {
           return json;
         });
       });
+      // 이전 인원 제한 값 저장 (로컬 메모리 업데이트 전에 캡처)
+      var _prevIdx = self._data.events.findIndex(function(e) { return e.id === eventId; });
+      var _oldMaxP = _prevIdx !== -1 ? (self._data.events[_prevIdx].maxParticipants || 0) : 0;
+      var _oldMaxMale = _prevIdx !== -1 ? (self._data.events[_prevIdx].maxMale || 0) : 0;
+      var _oldMaxFemale = _prevIdx !== -1 ? (self._data.events[_prevIdx].maxFemale || 0) : 0;
+
       if (newJson) {
         var updatedEv = JSON.parse(newJson);
         // 로컬 메모리 동기화 (RTDB 참석 데이터 보존)
@@ -384,13 +390,11 @@ const Storage = {
         self._writingE[String(eventId)] = newJson;
         setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
       }
-      // RTDB 인원 제한 동기화 + 대기자 자동 승격 (실제 값 변경 시에만)
-      var prevEv = self._data.events.find(function(e) { return e.id === eventId; });
-      var hasLimitChange = prevEv && (
-        (updatedFields.maxParticipants !== undefined && (updatedFields.maxParticipants || 0) !== (prevEv.maxParticipants || 0)) ||
-        (updatedFields.maxMale !== undefined && (updatedFields.maxMale || 0) !== (prevEv.maxMale || 0)) ||
-        (updatedFields.maxFemale !== undefined && (updatedFields.maxFemale || 0) !== (prevEv.maxFemale || 0))
-      );
+      // RTDB 인원 제한 동기화 + 대기자 자동 승격 (이전 값과 비교)
+      var hasLimitChange =
+        (updatedFields.maxParticipants !== undefined && (updatedFields.maxParticipants || 0) !== _oldMaxP) ||
+        (updatedFields.maxMale !== undefined && (updatedFields.maxMale || 0) !== _oldMaxMale) ||
+        (updatedFields.maxFemale !== undefined && (updatedFields.maxFemale || 0) !== _oldMaxFemale);
       if (hasLimitChange) {
         var rtdbRef = self._getAttendanceRef(eventId);
         if (rtdbRef) {
