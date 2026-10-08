@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = 'v2.0.9';
+    var APP_VERSION = 'v2.1.0';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -53,6 +53,16 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <!-- Kakao SDK -->
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (typeof Kakao !== 'undefined') {
+      Kakao.init('27b295508e99de3294bae182266c779e');
+      console.log('[Kakao] SDK 초기화:', Kakao.isInitialized());
+    } else {
+      console.warn('[Kakao] SDK 로드 실패');
+    }
+  </script>
   <!-- morphdom: DOM diffing for flicker-free updates -->
   <script src="https://unpkg.com/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
   <script>

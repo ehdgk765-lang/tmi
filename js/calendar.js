@@ -1556,14 +1556,34 @@ const Calendar = {
 
     var displayDate = this._formatDisplayDate(ev.date);
     var timeRange = this._formatTimeRange(ev);
+    var description = displayDate;
+    if (timeRange) description += ' · ' + timeRange;
+    description += '\n참석: ' + countStr;
 
-    var shareText = '[TMI] ' + ev.title + '\n';
-    shareText += displayDate + '\n';
-    if (timeRange) shareText += timeRange + '\n';
-    shareText += '참석: ' + countStr + '\n';
-    shareText += shareUrl;
-
-    this._copyToClipboard(shareText);
+    // 카카오톡 공유 (SDK 초기화 확인)
+    if (typeof Kakao !== 'undefined' && Kakao.isInitialized()) {
+      Kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: '[TMI] ' + ev.title,
+          description: description,
+          imageUrl: baseUrl + 'css/android-chrome-512x512.png',
+          link: { mobileWebUrl: shareUrl, webUrl: shareUrl }
+        },
+        buttons: [{
+          title: '일정 보기',
+          link: { mobileWebUrl: shareUrl, webUrl: shareUrl }
+        }]
+      });
+    } else {
+      // 카카오 SDK 미로드 시 기존 클립보드 복사 방식
+      var shareText = '[TMI] ' + ev.title + '\n';
+      shareText += displayDate + '\n';
+      if (timeRange) shareText += timeRange + '\n';
+      shareText += '참석: ' + countStr + '\n';
+      shareText += shareUrl;
+      this._copyToClipboard(shareText);
+    }
   },
 
   _copyToClipboard(text) {
