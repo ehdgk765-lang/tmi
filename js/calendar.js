@@ -1616,7 +1616,6 @@ const Calendar = {
     var card = document.querySelector('[data-event-id="' + eventId + '"]');
     if (!card) return;
 
-    // 스크롤 컨테이너 내부 스크롤
     var scrollContainer = document.getElementById('upcoming-scroll');
     if (scrollContainer && scrollContainer.contains(card)) {
       // 접혀있으면 펼치기
@@ -1626,21 +1625,13 @@ const Calendar = {
         var chevron = document.getElementById('upcoming-chevron');
         if (chevron) chevron.classList.add('rotate-180');
       }
-      // 1) 페이지 스크롤: 다가오는 일정 컨테이너가 보이도록 (펼침 후 레이아웃 확보)
+      // 컨테이너 내부 스크롤 후 카드를 화면에 표시
       setTimeout(function() {
-        var headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
-        var containerTop = scrollContainer.getBoundingClientRect().top + window.scrollY - headerH - 12;
-        window.scrollTo({ top: containerTop, behavior: 'smooth' });
-        // 2) 컨테이너 내부 스크롤: 해당 카드로 이동
-        setTimeout(function() {
-          scrollContainer.scrollTo({ top: card.offsetTop - 8, behavior: 'smooth' });
-        }, 400);
-      }, 50);
+        scrollContainer.scrollTo({ top: card.offsetTop - 8, behavior: 'smooth' });
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     } else {
-      // 스크롤 컨테이너 밖 (선택된 날짜 이벤트 등)
-      var headerH2 = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
-      var cardTop = card.getBoundingClientRect().top + window.scrollY - headerH2 - 12;
-      window.scrollTo({ top: cardTop, behavior: 'smooth' });
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     card.classList.add('cal-event-highlight');
