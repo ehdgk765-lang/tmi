@@ -1567,7 +1567,6 @@ const Calendar = {
         content: {
           title: '[TMI] ' + ev.title,
           description: description,
-          imageUrl: baseUrl + 'css/android-chrome-512x512.png',
           link: { mobileWebUrl: shareUrl, webUrl: shareUrl }
         },
         buttons: [{
