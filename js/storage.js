@@ -537,21 +537,20 @@ const Storage = {
           return json;
         });
       });
-      if (newJson) {
-        var updatedEv = JSON.parse(newJson);
-        var i = self._data.events.findIndex(function(e) { return e.id === eventId; });
-        if (i !== -1) {
-          updatedEv.participants = self._data.events[i].participants || [];
-          updatedEv.waitlist = self._data.events[i].waitlist || [];
-          updatedEv.participantTimes = self._data.events[i].participantTimes || {};
-          updatedEv.guests = self._data.events[i].guests || [];
-          updatedEv.memos = self._data.events[i].memos || {};
-          self._data.events[i] = updatedEv;
-        }
-        self._eJson[String(eventId)] = newJson;
-        self._writingE[String(eventId)] = newJson;
-        setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
+      if (!newJson) return false;
+      var updatedEv = JSON.parse(newJson);
+      var i = self._data.events.findIndex(function(e) { return e.id === eventId; });
+      if (i !== -1) {
+        updatedEv.participants = self._data.events[i].participants || [];
+        updatedEv.waitlist = self._data.events[i].waitlist || [];
+        updatedEv.participantTimes = self._data.events[i].participantTimes || {};
+        updatedEv.guests = self._data.events[i].guests || [];
+        updatedEv.memos = self._data.events[i].memos || {};
+        self._data.events[i] = updatedEv;
       }
+      self._eJson[String(eventId)] = newJson;
+      self._writingE[String(eventId)] = newJson;
+      setTimeout(function() { if (self._writingE[String(eventId)] === newJson) delete self._writingE[String(eventId)]; }, 2000);
       return true;
     } catch (err) {
       console.error('saveSettlement transaction error:', err);

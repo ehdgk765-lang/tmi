@@ -2492,7 +2492,7 @@ const Calendar = {
     var autoRequest = autoTotal ? ('코트지원비 : ' + autoTotal.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원 청구 요청') : '';
     var requestVal = saved ? (saved.request || '') : autoRequest;
     var peopleVal = saved ? (saved.people || participants.length) : participants.length;
-    var hostVal = saved ? (saved.host || ev.host || '') : (ev.host || '');
+    var hostVal = ev.host || (saved ? saved.host : '') || '';
 
     // 저장 메타 정보
     var savedInfo = '';

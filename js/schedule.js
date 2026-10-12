@@ -12,6 +12,42 @@ const Schedule = {
     return !!(ev && ev.host === memberName);
   },
 
+  // 페어(팀) 중복 체크: 교환/교체 후 동일 페어가 다른 경기에도 있으면 경고
+  _checkDuplicateMatchup(tournament, changedMatchIds) {
+    if (!tournament.timeSlots) return;
+    // 페어 정규화: 팀 내 이름 정렬 → "A·B" 형태의 키
+    const normalizePair = (playerStr) => {
+      return (playerStr || '').split(' / ').sort().join('·');
+    };
+    // 전체 매치에서 페어별 등장 매치 ID 수집
+    const pairMap = {}; // pairKey → Set(matchId)
+    for (const slot of tournament.timeSlots) {
+      for (const m of (slot.matches || [])) {
+        if (!m.player1 && !m.player2) continue;
+        [m.player1, m.player2].forEach(p => {
+          if (!p) return;
+          const key = normalizePair(p);
+          if (!pairMap[key]) pairMap[key] = new Set();
+          pairMap[key].add(m.id);
+        });
+      }
+    }
+    // 변경된 매치의 페어 중 다른 매치에도 있는 것 찾기
+    const ids = new Set(changedMatchIds);
+    const dupPairs = [];
+    for (const key in pairMap) {
+      const matchIds = pairMap[key];
+      if (matchIds.size < 2) continue;
+      // 변경된 매치가 포함된 중복 페어만
+      for (const id of ids) {
+        if (matchIds.has(id)) { dupPairs.push(key); break; }
+      }
+    }
+    if (dupPairs.length > 0) {
+      Modal.toast('중복 페어: ' + dupPairs.join(', '), 'warning');
+    }
+  },
+
   // 시간 문자열에 분 더하기 헬퍼
   _addMinutes(timeStr, minutes) {
     const [h, m] = timeStr.split(':').map(Number);
@@ -1261,7 +1297,9 @@ const Schedule = {
               }
             }
           });
-          this.render(container, Storage.getTournamentById(tournament.id) || tournament);
+          var latestT = Storage.getTournamentById(tournament.id) || tournament;
+          this._checkDuplicateMatchup(latestT, [patchSrcId, patchTgtId]);
+          this.render(container, latestT);
         }
         } catch (err) {
           console.error('멤버 교환 오류:', err);
@@ -1313,7 +1351,9 @@ const Schedule = {
         selectedPlayer.el.classList.remove('bg-blue-200', 'ring-2', 'ring-blue-700', 'rounded');
         container.querySelectorAll('.replace-player-btn').forEach(b => b.remove());
         selectedPlayer = null;
-        this.render(container, Storage.getTournamentById(tournament.id) || tournament);
+        var latestT2 = Storage.getTournamentById(tournament.id) || tournament;
+        this._checkDuplicateMatchup(latestT2, [pId]);
+        this.render(container, latestT2);
       };
     });
 
@@ -2846,7 +2886,9 @@ const Schedule = {
           });
           closePicker2();
           onDone();
-          this.render(container, Storage.getTournamentById(tournament.id) || tournament);
+          var latestT3 = Storage.getTournamentById(tournament.id) || tournament;
+          this._checkDuplicateMatchup(latestT3, [patchMatchId]);
+          this.render(container, latestT3);
         } catch (err) {
           console.error('멤버 교체 오류:', err);
           if (typeof Modal !== 'undefined' && Modal.toast) Modal.toast('멤버 교체 중 오류가 발생했습니다.', 'error');

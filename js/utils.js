@@ -274,12 +274,12 @@ const Modal = {
       document.body.appendChild(wrap);
     }
     const el = document.createElement('div');
-    const bg = type === 'error' ? '#dc2626' : (type === 'success' ? '#16a34a' : '#374151');
+    const bg = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : type === 'warning' ? '#d97706' : '#374151';
     el.style.cssText = 'max-width:92vw;background:' + bg + ';color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.22);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:auto;text-align:center;white-space:pre-line;';
     el.textContent = message;
     wrap.appendChild(el);
     requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
-    const dur = type === 'error' ? 4200 : 2200;
+    const dur = (type === 'error' || type === 'warning') ? 4200 : 2200;
     setTimeout(() => {
       el.style.opacity = '0';
       el.style.transform = 'translateY(8px)';
