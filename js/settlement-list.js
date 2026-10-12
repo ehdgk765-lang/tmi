@@ -14,7 +14,7 @@ const SettlementList = {
     for (var i = 0; i < settled.length; i++) {
       var ev = settled[i];
       var s = ev.settlement;
-      var hostName = s.host || ev.host || '-';
+      var hostName = ev.host || s.host || '-';
       if (!hostMap[hostName]) {
         hostMap[hostName] = { count: 0, totalFee: 0, totalRequest: 0 };
       }
@@ -180,7 +180,7 @@ const SettlementList = {
         '</div>' +
       '</div>' +
       '<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">' +
-        '<span>호스트: <span class="font-medium text-gray-700">' + this._escapeHtml(stl.host || '-') + '</span></span>' +
+        '<span>호스트: <span class="font-medium text-gray-700">' + this._escapeHtml(ev.host || stl.host || '-') + '</span></span>' +
         '<span>코트: ' + courtCnt + '면</span>' +
         '<span>코트비: ' + this._formatNum(totalCourtFee) + '원</span>' +
         (ballInfo ? '<span>' + ballInfo + '</span>' : '') +
