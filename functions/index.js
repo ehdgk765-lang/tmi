@@ -12,6 +12,17 @@ function encodeKey(name) {
   });
 }
 
+// 날짜 문자열(YYYY-MM-DD)을 "M/D(요일)" 형식으로 변환
+function formatDateWithDay(dateStr) {
+  if (!dateStr) return '';
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return dateStr;
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (isNaN(d.getTime())) return dateStr;
+  return (d.getMonth() + 1) + '/' + d.getDate() + '(' + days[d.getDay()] + ')';
+}
+
 // 알림 큐 처리: 새 항목이 생성되면 FCM 푸시 전송
 exports.processNotificationQueue = functions
   .region('asia-southeast1')
@@ -21,7 +32,7 @@ exports.processNotificationQueue = functions
     const data = snapshot.val();
     if (!data) return snapshot.ref.remove();
 
-    const { type, eventId, eventTitle, message } = data;
+    const { type, eventId, eventTitle, eventDate, message } = data;
     // RTDB는 배열을 객체({0:"a",1:"b"})로 저장할 수 있으므로 변환 처리
     var targetMembers = data.targetMembers;
     if (targetMembers && !Array.isArray(targetMembers)) {
@@ -36,11 +47,13 @@ exports.processNotificationQueue = functions
     const titles = {
       'waitlist_promoted': '참석 승격',
       'event_full': '마감 알림',
-      'event_unfull': '마감 해제'
+      'event_unfull': '마감 해제',
+      'event_member_changed': '참석 변동'
     };
 
     const notificationTitle = titles[type] || 'TMI Club';
-    const notificationBody = (eventTitle ? '[' + eventTitle + '] ' : '') + (message || '');
+    const datePrefix = formatDateWithDay(eventDate);
+    const notificationBody = (datePrefix ? datePrefix + ' ' : '') + (eventTitle ? '[' + eventTitle + '] ' : '') + (message || '');
 
     // 모든 대상 멤버의 FCM 토큰 수집
     const allTokens = [];

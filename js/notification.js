@@ -194,9 +194,10 @@ var Notification_ = {
     if (filtered.length === 0) return;
 
     var messages = {
-      'waitlist_promoted': '대기에서 참석으로 자동 승격되었습니다.',
+      'waitlist_promoted': '대기에서 참석으로 변경되었습니다.',
       'event_full': '참석 인원이 마감되었습니다.',
-      'event_unfull': '참석 자리가 생겼습니다.'
+      'event_unfull': '참석 자리가 생겼습니다.',
+      'event_member_changed': '참석인원 변동이 생겼습니다.'
     };
 
     var queueRef = rtdbParent.child('notification_queue').push();

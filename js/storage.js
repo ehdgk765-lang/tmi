@@ -713,17 +713,18 @@ const Storage = {
           // 트리거 1: 대기→참석 승격
           if (action === 'remove' && localResult._promotedMember) {
             Notification_.queueNotification('waitlist_promoted', [localResult._promotedMember], eventId, evTitle, evDate, memberName);
+            // 승격 후에도 마감 유지 → 호스트에게 변동 알림
+            if (serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && evHost) {
+              Notification_.queueNotification('event_member_changed', [evHost], eventId, evTitle, evDate, memberName);
+            }
           }
           // 트리거 2: 마감 (참석 추가 후 정원 도달)
           if (action === 'add' && serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && evHost) {
             Notification_.queueNotification('event_full', [evHost], eventId, evTitle, evDate, memberName);
           }
-          // 트리거 3: 마감 해제 (취소 후 정원 미달)
-          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP) {
-            var unfullTargets = evHost ? [evHost] : [];
-            var serverW = self._rtdbToArray(serverAtt.waitlist);
-            for (var _wi = 0; _wi < serverW.length; _wi++) { unfullTargets.push(serverW[_wi]); }
-            Notification_.queueNotification('event_unfull', unfullTargets, eventId, evTitle, evDate, memberName);
+          // 트리거 3: 마감 해제 (취소 후 정원 미달) → 호스트에게만
+          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP && evHost) {
+            Notification_.queueNotification('event_unfull', [evHost], eventId, evTitle, evDate, memberName);
           }
         }
       }
@@ -794,15 +795,15 @@ const Storage = {
           var _evHost = _ev ? _ev.host : '';
           if (action === 'remove' && localResult._promotedMember) {
             Notification_.queueNotification('waitlist_promoted', [localResult._promotedMember], eventId, _evTitle, _evDate, memberName);
+            if (serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && _evHost) {
+              Notification_.queueNotification('event_member_changed', [_evHost], eventId, _evTitle, _evDate, memberName);
+            }
           }
           if (action === 'add' && serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && _evHost) {
             Notification_.queueNotification('event_full', [_evHost], eventId, _evTitle, _evDate, memberName);
           }
-          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP) {
-            var _unfullTargets = _evHost ? [_evHost] : [];
-            var _serverW = self._rtdbToArray(serverAtt.waitlist);
-            for (var _uwi = 0; _uwi < _serverW.length; _uwi++) { _unfullTargets.push(_serverW[_uwi]); }
-            Notification_.queueNotification('event_unfull', _unfullTargets, eventId, _evTitle, _evDate, memberName);
+          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP && _evHost) {
+            Notification_.queueNotification('event_unfull', [_evHost], eventId, _evTitle, _evDate, memberName);
           }
         }
       }

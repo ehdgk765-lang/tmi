@@ -46,7 +46,7 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-const CACHE_VERSION = '2.2.27';
+const CACHE_VERSION = '2.2.28';
 const CACHE_NAME = 'tmi-' + CACHE_VERSION;
 
 // 앱 쉘: 로컬 파일만 프리캐시 (CDN은 런타임 캐시)
