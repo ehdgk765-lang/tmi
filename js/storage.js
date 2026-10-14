@@ -145,6 +145,7 @@ const Storage = {
             rtdbRef.set({
               participants: ev.participants || [],
               waitlist: ev.waitlist || [],
+              cancelled: ev.cancelled || [],
               participantTimes: ev.participantTimes || {},
               maxParticipants: ev.maxParticipants || 0,
               maxMale: ev.maxMale || 0,
@@ -329,7 +330,7 @@ const Storage = {
     // RTDB 참석 노드 생성
     var rtdbRef = self._getAttendanceRef(newEvent.id);
     if (rtdbRef) {
-      rtdbRef.set({ participants: [], waitlist: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0, maxMale: newEvent.maxMale || 0, maxFemale: newEvent.maxFemale || 0 })
+      rtdbRef.set({ participants: [], waitlist: [], cancelled: [], participantTimes: {}, maxParticipants: newEvent.maxParticipants || 0, maxMale: newEvent.maxMale || 0, maxFemale: newEvent.maxFemale || 0 })
         .catch(function(e) { console.error('addEvent RTDB node create error:', e); });
     }
     return true;
@@ -380,6 +381,7 @@ const Storage = {
         if (i !== -1) {
           updatedEv.participants = self._data.events[i].participants || [];
           updatedEv.waitlist = self._data.events[i].waitlist || [];
+          updatedEv.cancelled = self._data.events[i].cancelled || [];
           updatedEv.participantTimes = self._data.events[i].participantTimes || {};
           updatedEv.guests = self._data.events[i].guests || [];
           updatedEv.memos = self._data.events[i].memos || {};
@@ -406,6 +408,7 @@ const Storage = {
               participantTimes: current.participantTimes || {},
               guests: current.guests || [],
               memos: current.memos || {},
+              cancelled: self._rtdbToArray(current.cancelled),
               maxParticipants: updatedFields.maxParticipants !== undefined ? (updatedFields.maxParticipants || 0) : (current.maxParticipants || 0),
               maxMale: updatedFields.maxMale !== undefined ? (updatedFields.maxMale || 0) : (current.maxMale || 0),
               maxFemale: updatedFields.maxFemale !== undefined ? (updatedFields.maxFemale || 0) : (current.maxFemale || 0)
@@ -543,6 +546,7 @@ const Storage = {
       if (i !== -1) {
         updatedEv.participants = self._data.events[i].participants || [];
         updatedEv.waitlist = self._data.events[i].waitlist || [];
+        updatedEv.cancelled = self._data.events[i].cancelled || [];
         updatedEv.participantTimes = self._data.events[i].participantTimes || {};
         updatedEv.guests = self._data.events[i].guests || [];
         updatedEv.memos = self._data.events[i].memos || {};
@@ -585,6 +589,7 @@ const Storage = {
           participantTimes: {},
           guests: current.guests || [],
           memos: current.memos || {},
+          cancelled: [],
           maxParticipants: 0,
           maxMale: 0,
           maxFemale: 0
@@ -657,11 +662,12 @@ const Storage = {
           participantTimes: current.participantTimes || {},
           guests: current.guests || [],
           memos: current.memos || {},
+          cancelled: self._rtdbToArray(current.cancelled),
           maxParticipants: current.maxParticipants || 0,
           maxMale: current.maxMale || 0,
           maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
+          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, cancelled: [], maxParticipants: maxP,
           maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -676,6 +682,7 @@ const Storage = {
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
           currentEv.guests = serverAtt.guests || [];
+          currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
       }
       return localResult.result;
@@ -713,11 +720,12 @@ const Storage = {
         participantTimes: current.participantTimes || {},
         guests: current.guests || [],
         memos: current.memos || {},
+        cancelled: self._rtdbToArray(current.cancelled),
         maxParticipants: current.maxParticipants || 0,
         maxMale: current.maxMale || 0,
         maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
+        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, cancelled: [], maxParticipants: maxP,
         maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleAttendanceSingle(att, memberName, attendTime, action);
@@ -732,6 +740,7 @@ const Storage = {
           currentEv.waitlist = self._rtdbToArray(serverAtt.waitlist);
           currentEv.participantTimes = serverAtt.participantTimes || {};
           currentEv.guests = serverAtt.guests || [];
+          currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
       }
     }).catch(function(err) {
@@ -760,6 +769,9 @@ const Storage = {
           action = 'remove';
           ev.participants.splice(idx, 1);
           delete ev.participantTimes[memberName];
+          // 불참 이력 기록
+          if (!ev.cancelled) ev.cancelled = [];
+          if (ev.cancelled.indexOf(memberName) < 0) ev.cancelled.push(memberName);
           // 대기자 승격: 성별 정원을 지키는 첫 번째 대기자 찾기
           if (ev.waitlist.length > 0) {
             var _ggMap = {};
@@ -838,6 +850,9 @@ const Storage = {
           ev.participantTimes[memberName] = attendTime || Date.now();
           var wIdx = ev.waitlist.indexOf(memberName);
           if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+          // 불참 이력에서 제거
+          var cIdx = (ev.cancelled || []).indexOf(memberName);
+          if (cIdx >= 0) ev.cancelled.splice(cIdx, 1);
         }
         return { changed: true, result: true, action: action };
       }
@@ -863,6 +878,9 @@ const Storage = {
       if (idx >= 0) {
         att.participants.splice(idx, 1);
         delete att.participantTimes[memberName];
+        // 불참 이력 기록
+        if (!att.cancelled) att.cancelled = [];
+        if (att.cancelled.indexOf(memberName) < 0) att.cancelled.push(memberName);
         // 대기자 승격: 성별 정원을 지키는 첫 번째 대기자 찾기
         if (att.waitlist.length > 0) {
           var hasGenderLimit = (att.maxMale || 0) > 0 || (att.maxFemale || 0) > 0;
@@ -921,6 +939,9 @@ const Storage = {
       att.participantTimes[memberName] = attendTime || Date.now();
       var wIdx = att.waitlist.indexOf(memberName);
       if (wIdx >= 0) att.waitlist.splice(wIdx, 1);
+      // 불참 이력에서 제거
+      var cIdx = (att.cancelled || []).indexOf(memberName);
+      if (cIdx >= 0) att.cancelled.splice(cIdx, 1);
       return 'added';
     }
   },
@@ -931,9 +952,13 @@ const Storage = {
     if (action === 'remove') {
       var idx = att.waitlist.indexOf(memberName);
       if (idx >= 0) att.waitlist.splice(idx, 1);
+      if (!att.cancelled) att.cancelled = [];
+      if (att.cancelled.indexOf(memberName) < 0) att.cancelled.push(memberName);
     } else {
       // action === 'add' — 이미 있으면 무시 (멱등)
       if (att.waitlist.indexOf(memberName) < 0) att.waitlist.push(memberName);
+      var cIdx = (att.cancelled || []).indexOf(memberName);
+      if (cIdx >= 0) att.cancelled.splice(cIdx, 1);
     }
   },
 
@@ -958,11 +983,12 @@ const Storage = {
           participantTimes: current.participantTimes || {},
           guests: current.guests || [],
           memos: current.memos || {},
+          cancelled: self._rtdbToArray(current.cancelled),
           maxParticipants: current.maxParticipants || 0,
           maxMale: current.maxMale || 0,
           maxFemale: current.maxFemale || 0
         } : {
-          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
+          participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, cancelled: [], maxParticipants: maxP,
           maxMale: maxM, maxFemale: maxF
         };
         self._applyToggleWaitlistSingle(att, memberName, action);
@@ -977,6 +1003,7 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
           currentEv.guests = serverAtt.guests || [];
           currentEv.memos = serverAtt.memos || {};
+          currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
       }
       return localResult.result;
@@ -1009,11 +1036,12 @@ const Storage = {
         participantTimes: current.participantTimes || {},
         guests: current.guests || [],
         memos: current.memos || {},
+        cancelled: self._rtdbToArray(current.cancelled),
         maxParticipants: current.maxParticipants || 0,
         maxMale: current.maxMale || 0,
         maxFemale: current.maxFemale || 0
       } : {
-        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, maxParticipants: maxP,
+        participants: [], waitlist: [], participantTimes: {}, guests: [], memos: {}, cancelled: [], maxParticipants: maxP,
         maxMale: maxM, maxFemale: maxF
       };
       self._applyToggleWaitlistSingle(att, memberName, action);
@@ -1028,6 +1056,7 @@ const Storage = {
           currentEv.participantTimes = serverAtt.participantTimes || {};
           currentEv.guests = serverAtt.guests || [];
           currentEv.memos = serverAtt.memos || {};
+          currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
       }
     }).catch(function(err) {
@@ -1049,9 +1078,13 @@ const Storage = {
         if (idx >= 0) {
           action = 'remove';
           ev.waitlist.splice(idx, 1);
+          if (!ev.cancelled) ev.cancelled = [];
+          if (ev.cancelled.indexOf(memberName) < 0) ev.cancelled.push(memberName);
         } else {
           action = 'add';
           ev.waitlist.push(memberName);
+          var cIdx = (ev.cancelled || []).indexOf(memberName);
+          if (cIdx >= 0) ev.cancelled.splice(cIdx, 1);
         }
         return { changed: true, result: true, action: action };
       }
@@ -1330,6 +1363,10 @@ const Storage = {
           var wIdx = ev.waitlist.indexOf(memberName);
           if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
         }
+        if (ev.cancelled) {
+          var cIdx = ev.cancelled.indexOf(memberName);
+          if (cIdx >= 0) ev.cancelled.splice(cIdx, 1);
+        }
       });
 
       // RTDB 참석 데이터에서 멤버 제거
@@ -1340,13 +1377,17 @@ const Storage = {
             if (!current) return current;
             var participants = self._rtdbToArray(current.participants);
             var waitlist = self._rtdbToArray(current.waitlist);
+            var cancelled = self._rtdbToArray(current.cancelled);
             var times = current.participantTimes || {};
             var pIdx = participants.indexOf(memberName);
             if (pIdx >= 0) { participants.splice(pIdx, 1); delete times[memberName]; }
             var wIdx = waitlist.indexOf(memberName);
             if (wIdx >= 0) waitlist.splice(wIdx, 1);
+            var cIdx = cancelled.indexOf(memberName);
+            if (cIdx >= 0) cancelled.splice(cIdx, 1);
             current.participants = participants;
             current.waitlist = waitlist;
+            current.cancelled = cancelled;
             current.participantTimes = times;
             return current;
           }).catch(function(e) { console.error('deleteMember RTDB sync error:', e); });
@@ -1373,6 +1414,10 @@ const Storage = {
       if (ev.waitlist) {
         var wIdx = ev.waitlist.indexOf(memberName);
         if (wIdx >= 0) ev.waitlist.splice(wIdx, 1);
+      }
+      if (ev.cancelled) {
+        var cIdx = ev.cancelled.indexOf(memberName);
+        if (cIdx >= 0) ev.cancelled.splice(cIdx, 1);
       }
     });
     return true;
@@ -1418,6 +1463,9 @@ const Storage = {
         if (ev.waitlist) {
           ev.waitlist = ev.waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
         }
+        if (ev.cancelled) {
+          ev.cancelled = ev.cancelled.filter(function(n) { return memberNames.indexOf(n) < 0; });
+        }
       });
 
       // RTDB 참석 데이터에서 멤버들 제거
@@ -1428,12 +1476,15 @@ const Storage = {
             if (!current) return current;
             var participants = self._rtdbToArray(current.participants);
             var waitlist = self._rtdbToArray(current.waitlist);
+            var cancelled = self._rtdbToArray(current.cancelled);
             var times = current.participantTimes || {};
             participants = participants.filter(function(n) { return memberNames.indexOf(n) < 0; });
             waitlist = waitlist.filter(function(n) { return memberNames.indexOf(n) < 0; });
+            cancelled = cancelled.filter(function(n) { return memberNames.indexOf(n) < 0; });
             memberNames.forEach(function(n) { delete times[n]; });
             current.participants = participants;
             current.waitlist = waitlist;
+            current.cancelled = cancelled;
             current.participantTimes = times;
             return current;
           }).catch(function(e) { console.error('deleteMembers RTDB sync error:', e); });
@@ -1594,6 +1645,11 @@ const Storage = {
           if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
         }
       }
+      if (ev.cancelled) {
+        for (var i = 0; i < ev.cancelled.length; i++) {
+          if (ev.cancelled[i] === oldName) ev.cancelled[i] = newName;
+        }
+      }
     });
 
     // 3) RTDB 참석 데이터에서 이름 변경
@@ -1604,6 +1660,7 @@ const Storage = {
           if (!current) return current;
           var participants = self._rtdbToArray(current.participants);
           var waitlist = self._rtdbToArray(current.waitlist);
+          var cancelled = self._rtdbToArray(current.cancelled);
           var times = current.participantTimes || {};
           var changed = false;
           for (var i = 0; i < participants.length; i++) {
@@ -1611,6 +1668,9 @@ const Storage = {
           }
           for (var i = 0; i < waitlist.length; i++) {
             if (waitlist[i] === oldName) { waitlist[i] = newName; changed = true; }
+          }
+          for (var i = 0; i < cancelled.length; i++) {
+            if (cancelled[i] === oldName) { cancelled[i] = newName; changed = true; }
           }
           if (times[oldName] !== undefined) {
             times[newName] = times[oldName];
@@ -1620,6 +1680,7 @@ const Storage = {
           if (!changed) return undefined; // abort transaction
           current.participants = participants;
           current.waitlist = waitlist;
+          current.cancelled = cancelled;
           current.participantTimes = times;
           return current;
         }).catch(function(e) { console.error('renameMember RTDB sync error:', e); });
@@ -1668,6 +1729,11 @@ const Storage = {
       if (ev.waitlist) {
         for (var i = 0; i < ev.waitlist.length; i++) {
           if (ev.waitlist[i] === oldName) ev.waitlist[i] = newName;
+        }
+      }
+      if (ev.cancelled) {
+        for (var i = 0; i < ev.cancelled.length; i++) {
+          if (ev.cancelled[i] === oldName) ev.cancelled[i] = newName;
         }
       }
     });
@@ -1889,7 +1955,7 @@ const Storage = {
   _stripAttendance(ev) {
     var copy = {};
     for (var key in ev) {
-      if (ev.hasOwnProperty(key) && key !== 'participants' && key !== 'waitlist' && key !== 'participantTimes' && key !== 'guests' && key !== 'memos') {
+      if (ev.hasOwnProperty(key) && key !== 'participants' && key !== 'waitlist' && key !== 'participantTimes' && key !== 'guests' && key !== 'memos' && key !== 'cancelled') {
         copy[key] = ev[key];
       }
     }
@@ -2155,6 +2221,7 @@ const Storage = {
         updates['attendance/' + ev.id] = {
           participants: ev.participants || [],
           waitlist: ev.waitlist || [],
+          cancelled: ev.cancelled || [],
           participantTimes: ev.participantTimes || {},
           maxParticipants: ev.maxParticipants || 0,
           maxMale: ev.maxMale || 0,
@@ -2191,6 +2258,7 @@ const Storage = {
         if (att) {
           ev.participants = self._rtdbToArray(att.participants);
           ev.waitlist = self._rtdbToArray(att.waitlist);
+          ev.cancelled = self._rtdbToArray(att.cancelled);
           ev.participantTimes = att.participantTimes || {};
           ev.guests = att.guests || [];
           ev.memos = att.memos || {};
@@ -2407,6 +2475,7 @@ const Storage = {
         if (i !== -1) {
           ev.participants = self._data.events[i].participants || [];
           ev.waitlist = self._data.events[i].waitlist || [];
+          ev.cancelled = self._data.events[i].cancelled || [];
           ev.participantTimes = self._data.events[i].participantTimes || {};
           ev.guests = self._data.events[i].guests || [];
           ev.memos = self._data.events[i].memos || {};
@@ -2485,10 +2554,13 @@ const Storage = {
         var oldMemos = JSON.stringify(ev.memos || {});
         var newGuests = JSON.stringify(att.guests || []);
         var oldGuests = JSON.stringify(ev.guests || []);
-        if (newP === oldP && newW === oldW && newMemos === oldMemos && newGuests === oldGuests) return;
+        var newC = JSON.stringify(self._rtdbToArray(att.cancelled));
+        var oldC = JSON.stringify(ev.cancelled || []);
+        if (newP === oldP && newW === oldW && newMemos === oldMemos && newGuests === oldGuests && newC === oldC) return;
 
         ev.participants = self._rtdbToArray(att.participants);
         ev.waitlist = self._rtdbToArray(att.waitlist);
+        ev.cancelled = self._rtdbToArray(att.cancelled);
         ev.participantTimes = att.participantTimes || {};
         ev.memos = att.memos || {};
         ev.guests = att.guests || [];

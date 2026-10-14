@@ -298,8 +298,10 @@ const Calendar = {
       var maxP = ev.maxParticipants || 0;
       var isUnlimited = maxP >= 999;
       var isAttendDisabled = maxP === 0;
+      var cancelled = ev.cancelled || [];
       var isAttending = memberName && participants.indexOf(memberName) >= 0;
       var isWaiting = memberName && waitlist.indexOf(memberName) >= 0;
+      var isCancelled = memberName && cancelled.indexOf(memberName) >= 0;
       var isFull = !isUnlimited && maxP > 0 && participants.length >= maxP;
       // 성별 정원 체크
       var maxMale = ev.maxMale || 0;
@@ -356,30 +358,41 @@ const Calendar = {
         '</div>';
       }
 
-      // 참석자 이름 목록 (남녀 그룹핑)
+      // 참석자 이름 목록 (남녀 그룹핑 + 불참자 혼합)
+      var cancelledMale = [], cancelledFemale = [];
+      for (var ci = 0; ci < cancelled.length; ci++) {
+        if (_genderMap[cancelled[ci]] === 'F') cancelledFemale.push(cancelled[ci]);
+        else cancelledMale.push(cancelled[ci]);
+      }
       var namesList = '';
-      if (participants.length > 0) {
+      if (participants.length > 0 || cancelled.length > 0) {
         var maleNames = [], femaleNames = [];
         for (var j = 0; j < participants.length; j++) {
           if (_genderMap[participants[j]] === 'F') femaleNames.push(participants[j]);
           else maleNames.push(participants[j]);
         }
         namesList = '<div class="mt-1.5 flex flex-col gap-0.5">';
-        if (maleNames.length > 0) {
+        if (maleNames.length > 0 || cancelledMale.length > 0) {
           namesList += '<div class="cal-names-wrap">';
           namesList += '<span class="cal-participant-label text-blue-500 mr-0.5">남' + maleNames.length + '</span>';
           for (var mi = 0; mi < maleNames.length; mi++) {
             var _mGuestTag = _guestNames[maleNames[mi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
             namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-blue-50 text-blue-700 m-px">' + this._escapeHtml(maleNames[mi]) + _mGuestTag + '</span>';
           }
+          for (var cmi = 0; cmi < cancelledMale.length; cmi++) {
+            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledMale[cmi]) + '</span>';
+          }
           namesList += '</div>';
         }
-        if (femaleNames.length > 0) {
+        if (femaleNames.length > 0 || cancelledFemale.length > 0) {
           namesList += '<div class="cal-names-wrap">';
           namesList += '<span class="cal-participant-label text-pink-500 mr-0.5">여' + femaleNames.length + '</span>';
           for (var fi = 0; fi < femaleNames.length; fi++) {
             var _fGuestTag = _guestNames[femaleNames[fi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
             namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-pink-50 text-pink-700 m-px">' + this._escapeHtml(femaleNames[fi]) + _fGuestTag + '</span>';
+          }
+          for (var cfi = 0; cfi < cancelledFemale.length; cfi++) {
+            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledFemale[cfi]) + '</span>';
           }
           namesList += '</div>';
         }
@@ -450,6 +463,8 @@ const Calendar = {
       } else if (isWaiting) {
         cardExtra = ' ring-2 ring-yellow-400 ring-inset';
         statusBadge = '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-400 text-yellow-900">대기 중</span>';
+      } else if (isCancelled) {
+        statusBadge = '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">불참</span>';
       }
       var myEventClass = (isAttending || isWaiting) ? ' cal-my-event' : '';
 
@@ -1765,16 +1780,31 @@ const Calendar = {
       '</div>';
     };
 
+    var cancelled = ev.cancelled || [];
     var currentItems = '';
     for (var ci = 0; ci < participants.length; ci++) currentItems += buildCurrentItem(participants[ci], 'participant');
     if (waitlist.length > 0) {
       currentItems += '<div class="text-xs font-semibold text-gray-500 mt-2 mb-0.5 px-2">대기 ' + waitlist.length + '명</div>';
       for (var wi = 0; wi < waitlist.length; wi++) currentItems += buildCurrentItem(waitlist[wi], 'waitlist', wi + 1);
     }
+    if (cancelled.length > 0) {
+      currentItems += '<div class="text-xs font-semibold text-gray-400 mt-2 mb-0.5 px-2">불참 ' + cancelled.length + '명</div>';
+      for (var cni = 0; cni < cancelled.length; cni++) {
+        var cg = genderMap[cancelled[cni]];
+        var cgCls = cg === 'F' ? 'bg-pink-50 text-pink-300' : 'bg-blue-50 text-blue-300';
+        currentItems += '<div class="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-gray-50">' +
+          '<span class="text-sm text-gray-400 line-through flex-1">' + self._escapeHtml(cancelled[cni]) + '</span>' +
+          '<span class="text-xs px-1.5 py-0.5 rounded ' + cgCls + '">' + (cg === 'F' ? '여' : '남') + '</span>' +
+          '<button type="button" class="ap-readd-btn text-gray-300 hover:text-blue-500 transition" data-name="' + self._escapeAttr(cancelled[cni]) + '" title="재참석">' +
+            '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>' +
+          '</button>' +
+        '</div>';
+      }
+    }
 
     // 추가 가능한 멤버
     var available = allPlayers.filter(function(p) {
-      return participants.indexOf(p.name) < 0 && waitlist.indexOf(p.name) < 0;
+      return participants.indexOf(p.name) < 0 && waitlist.indexOf(p.name) < 0 && cancelled.indexOf(p.name) < 0;
     });
     available.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ko'); });
 
@@ -1910,6 +1940,22 @@ const Calendar = {
           await Storage.toggleWaitlist(ev.id, name);
         } else {
           await Storage.toggleAttendance(ev.id, name);
+        }
+        refreshModal();
+      };
+    });
+
+    // 불참자 재참석 버튼
+    modal.querySelectorAll('.ap-readd-btn').forEach(function(btn) {
+      btn.onclick = async function() {
+        var name = this.dataset.name;
+        btn.disabled = true;
+        var result = await Storage.toggleAttendance(ev.id, name);
+        if (result === 'full' || result === 'gender_full') {
+          await Storage.toggleWaitlist(ev.id, name);
+          if (typeof Modal !== 'undefined' && Modal.toast) {
+            Modal.toast(name + ' 님이 대기 목록에 추가되었습니다 (정원 초과)', 'info');
+          }
         }
         refreshModal();
       };
