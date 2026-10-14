@@ -60,8 +60,9 @@ var Notification_ = {
   // ─── 토큰 등록 ───
   async _registerToken() {
     try {
+      // 기존 service-worker.js 등록을 재사용 (별도 SW 등록 시 스코프 충돌)
       if (!this._swRegistration) {
-        this._swRegistration = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+        this._swRegistration = await navigator.serviceWorker.ready;
       }
       var token = await this._messaging.getToken({
         vapidKey: window.FCM_VAPID_KEY || '',
