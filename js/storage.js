@@ -398,6 +398,10 @@ const Storage = {
         (updatedFields.maxMale !== undefined && (updatedFields.maxMale || 0) !== _oldMaxMale) ||
         (updatedFields.maxFemale !== undefined && (updatedFields.maxFemale || 0) !== _oldMaxFemale);
       if (hasLimitChange) {
+        // 승격 감지를 위해 변경 전 대기자 + 참석자 캡처
+        var _editEvBefore = self._data.events.find(function(e) { return e.id === eventId; });
+        var _preWaitlistNames = _editEvBefore ? ((_editEvBefore.waitlist || []).slice()) : [];
+        var _preParticipantNames = _editEvBefore ? ((_editEvBefore.participants || []).slice()) : [];
         var rtdbRef = self._getAttendanceRef(eventId);
         if (rtdbRef) {
           rtdbRef.transaction(function(current) {
@@ -462,6 +466,20 @@ const Storage = {
                 currentEv.memos = serverAtt.memos || {};
               }
               self._onRemoteChange();
+              // ─── FCM 알림: 정원 변경으로 대기자 승격 감지 ───
+              if (typeof Notification_ !== 'undefined') {
+                var newP = self._rtdbToArray(serverAtt.participants);
+                var evForNotif = currentEv || _editEvBefore;
+                var _nEvTitle = evForNotif ? evForNotif.title : '';
+                var _nEvDate = evForNotif ? evForNotif.date : '';
+                var _triggerBy = typeof App !== 'undefined' ? App.getMemberName() : 'admin';
+                for (var _pwi = 0; _pwi < _preWaitlistNames.length; _pwi++) {
+                  var _pwName = _preWaitlistNames[_pwi];
+                  if (newP.indexOf(_pwName) >= 0 && _preParticipantNames.indexOf(_pwName) < 0) {
+                    Notification_.queueNotification('waitlist_promoted', [_pwName], eventId, _nEvTitle, _nEvDate, _triggerBy);
+                  }
+                }
+              }
             }
           }).catch(function(e) { console.error('editEvent RTDB sync error:', e); });
         }
@@ -684,6 +702,30 @@ const Storage = {
           currentEv.guests = serverAtt.guests || [];
           currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
+        // ─── FCM 알림 트리거 ───
+        if (typeof Notification_ !== 'undefined' && serverAtt) {
+          var serverP = self._rtdbToArray(serverAtt.participants);
+          var serverMaxP = serverAtt.maxParticipants || 0;
+          var ev = currentEv || self._data.events.find(function(e) { return e.id === eventId; });
+          var evTitle = ev ? ev.title : '';
+          var evDate = ev ? ev.date : '';
+          var evHost = ev ? ev.host : '';
+          // 트리거 1: 대기→참석 승격
+          if (action === 'remove' && localResult._promotedMember) {
+            Notification_.queueNotification('waitlist_promoted', [localResult._promotedMember], eventId, evTitle, evDate, memberName);
+          }
+          // 트리거 2: 마감 (참석 추가 후 정원 도달)
+          if (action === 'add' && serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && evHost) {
+            Notification_.queueNotification('event_full', [evHost], eventId, evTitle, evDate, memberName);
+          }
+          // 트리거 3: 마감 해제 (취소 후 정원 미달)
+          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP) {
+            var unfullTargets = evHost ? [evHost] : [];
+            var serverW = self._rtdbToArray(serverAtt.waitlist);
+            for (var _wi = 0; _wi < serverW.length; _wi++) { unfullTargets.push(serverW[_wi]); }
+            Notification_.queueNotification('event_unfull', unfullTargets, eventId, evTitle, evDate, memberName);
+          }
+        }
       }
       return localResult.result;
     } catch (err) {
@@ -742,6 +784,27 @@ const Storage = {
           currentEv.guests = serverAtt.guests || [];
           currentEv.cancelled = self._rtdbToArray(serverAtt.cancelled);
         }
+        // ─── FCM 알림 트리거 ───
+        if (typeof Notification_ !== 'undefined' && serverAtt) {
+          var serverP = self._rtdbToArray(serverAtt.participants);
+          var serverMaxP = serverAtt.maxParticipants || 0;
+          var _ev = currentEv || self._data.events.find(function(e) { return e.id === eventId; });
+          var _evTitle = _ev ? _ev.title : '';
+          var _evDate = _ev ? _ev.date : '';
+          var _evHost = _ev ? _ev.host : '';
+          if (action === 'remove' && localResult._promotedMember) {
+            Notification_.queueNotification('waitlist_promoted', [localResult._promotedMember], eventId, _evTitle, _evDate, memberName);
+          }
+          if (action === 'add' && serverMaxP > 0 && serverMaxP < 999 && serverP.length >= serverMaxP && _evHost) {
+            Notification_.queueNotification('event_full', [_evHost], eventId, _evTitle, _evDate, memberName);
+          }
+          if (action === 'remove' && serverMaxP > 0 && serverMaxP < 999 && localResult._preParticipantCount >= serverMaxP && serverP.length < serverMaxP) {
+            var _unfullTargets = _evHost ? [_evHost] : [];
+            var _serverW = self._rtdbToArray(serverAtt.waitlist);
+            for (var _uwi = 0; _uwi < _serverW.length; _uwi++) { _unfullTargets.push(_serverW[_uwi]); }
+            Notification_.queueNotification('event_unfull', _unfullTargets, eventId, _evTitle, _evDate, memberName);
+          }
+        }
       }
     }).catch(function(err) {
       console.error('toggleAttendance RTDB optimistic error:', err);
@@ -763,6 +826,8 @@ const Storage = {
         if (!ev.waitlist) ev.waitlist = [];
         if (!ev.participantTimes) ev.participantTimes = {};
         var action;
+        var _preParticipantCount = ev.participants.length;
+        var _promotedMember = null;
         var idx = ev.participants.indexOf(memberName);
         if (idx >= 0) {
           // 참석 취소
@@ -804,6 +869,7 @@ const Storage = {
               var promoted = ev.waitlist.splice(promotedIdx, 1)[0];
               ev.participants.push(promoted);
               ev.participantTimes[promoted] = Date.now();
+              _promotedMember = promoted;
             }
           }
         } else {
@@ -854,7 +920,7 @@ const Storage = {
           var cIdx = (ev.cancelled || []).indexOf(memberName);
           if (cIdx >= 0) ev.cancelled.splice(cIdx, 1);
         }
-        return { changed: true, result: true, action: action };
+        return { changed: true, result: true, action: action, _promotedMember: _promotedMember, _preParticipantCount: _preParticipantCount };
       }
     }
     return { changed: false, result: false };

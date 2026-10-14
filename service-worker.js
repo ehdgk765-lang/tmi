@@ -1,5 +1,5 @@
 // service-worker.js - PWA 오프라인 캐시 + 앱 쉘 관리
-const CACHE_VERSION = '2.2.23';
+const CACHE_VERSION = '2.2.24';
 const CACHE_NAME = 'tmi-' + CACHE_VERSION;
 
 // 앱 쉘: 로컬 파일만 프리캐시 (CDN은 런타임 캐시)
@@ -17,6 +17,7 @@ const APP_SHELL = [
   'js/firebase-config.js',
   'js/roles-config.js',
   'js/storage.js',
+  'js/notification.js',
   'js/results.js',
   'js/players.js',
   'js/tournament.js',

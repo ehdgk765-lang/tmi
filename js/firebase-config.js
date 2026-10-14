@@ -15,3 +15,7 @@ firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
 const fbRtdb = firebase.database();
+
+// FCM Web Push VAPID 키 (Firebase Console → Project Settings → Cloud Messaging → Web Push certificates)
+// ⚠️ 아래 값을 Firebase Console에서 생성한 VAPID 공개키로 교체하세요
+window.FCM_VAPID_KEY = 'BJ3ohp6i5A4bu7pINiKVkv_Mdb1c6tZ7kIDAMy6uM6TAKPUmasMoaYGtTziRRpg3seenhaeV5UpFTdYGVdk6EqI';

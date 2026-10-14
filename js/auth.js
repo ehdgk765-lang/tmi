@@ -62,6 +62,10 @@ const Auth = {
         Storage.startRealtimeSync();
         // 네트워크 상태 감지 초기화
         Storage.initNetworkStatus();
+        // FCM 알림 초기화 (클럽 유저만)
+        if (typeof Notification_ !== 'undefined' && RolesConfig.isClubUser()) {
+          Notification_.init();
+        }
 
         // 멤버: 이름 검증 (앱 전환 전)
         if (RolesConfig.isMember()) {
@@ -454,6 +458,9 @@ const Auth = {
 
   async logout() {
     if (await Modal.confirm('로그아웃 하시겠습니까?')) {
+      if (typeof Notification_ !== 'undefined') {
+        await Notification_.removeCurrentToken();
+      }
       Storage.clearData();
       localStorage.removeItem('tennis_last_uid');
       localStorage.removeItem('tennis_member_name');
