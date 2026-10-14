@@ -180,13 +180,12 @@ var Notification_ = {
     var rtdbParent = this._getRtdbParent();
     if (!rtdbParent) return;
 
-    var myName = typeof App !== 'undefined' ? App.getMemberName() : '';
-    // 자기 자신 제외 + 빈 값 제거 + 중복 제거
+    // 빈 값 제거 + 중복 제거
     var filtered = [];
     var seen = {};
     for (var i = 0; i < targetMembers.length; i++) {
       var name = targetMembers[i];
-      if (name && name !== myName && !seen[name]) {
+      if (name && !seen[name]) {
         filtered.push(name);
         seen[name] = true;
       }

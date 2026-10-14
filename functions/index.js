@@ -21,10 +21,17 @@ exports.processNotificationQueue = functions
     const data = snapshot.val();
     if (!data) return snapshot.ref.remove();
 
-    const { type, targetMembers, eventId, eventTitle, message } = data;
-    if (!targetMembers || !Array.isArray(targetMembers) || targetMembers.length === 0) {
+    const { type, eventId, eventTitle, message } = data;
+    // RTDB는 배열을 객체({0:"a",1:"b"})로 저장할 수 있으므로 변환 처리
+    var targetMembers = data.targetMembers;
+    if (targetMembers && !Array.isArray(targetMembers)) {
+      targetMembers = Object.values(targetMembers);
+    }
+    if (!targetMembers || targetMembers.length === 0) {
+      console.log('targetMembers 없음, 큐 삭제');
       return snapshot.ref.remove();
     }
+    console.log('알림 처리 시작:', type, '대상:', targetMembers.join(', '));
 
     const titles = {
       'waitlist_promoted': '참석 승격',
