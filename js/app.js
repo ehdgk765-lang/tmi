@@ -424,15 +424,13 @@ const App = {
     reader.onload = function(e) {
       try {
         var wb = XLSX.read(e.target.result, { type: 'array' });
-        // 파일 이름에서 월 추출 시도 → 없으면 현재 날짜 기준
-        var fileName = file.name || '';
-        var fileMonthMatch = fileName.match(/(\d{1,2})\s*월/);
-        var fileYearMatch = fileName.match(/(\d{2,4})\s*년/);
+        // 셀렉트 박스에서 선택된 월 사용
+        var monthSelect = document.getElementById('reservation-month-select');
         var now = new Date();
-        var curMonth = fileMonthMatch ? parseInt(fileMonthMatch[1], 10) : (now.getMonth() + 1);
-        var curYear = fileYearMatch
-          ? String(fileYearMatch[1]).slice(-2)
-          : String(now.getFullYear()).slice(2);
+        var curMonth = monthSelect ? parseInt(monthSelect.value, 10) : (now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2);
+        var curYear = String(now.getFullYear()).slice(2);
+        // 선택 월이 현재 월보다 작으면 내년으로 판단
+        if (curMonth <= now.getMonth()) curYear = String(now.getFullYear() + 1).slice(2);
         var yearMonthStr = curYear + '년 ' + curMonth + '월';
         var monthStr = curMonth + '월';
         var resSheets = wb.SheetNames.filter(function(n) { return n.indexOf('대관') >= 0; });
@@ -1008,11 +1006,22 @@ const App = {
           '<div class="px-4 py-3">' +
             '<h3 class="font-semibold text-gray-700 text-sm mb-3">대관 일정 업로드</h3>' +
             '<div class="flex gap-2">' +
+              (function() {
+                var now = new Date();
+                var nextM = now.getMonth() + 2; // 다음 달 (1-based)
+                var nextY = now.getFullYear();
+                if (nextM > 12) { nextM = 1; nextY++; }
+                var resMonthOpts = '';
+                for (var rm = 1; rm <= 12; rm++) {
+                  resMonthOpts += '<option value="' + rm + '"' + (rm === nextM ? ' selected' : '') + '>' + rm + '월</option>';
+                }
+                return '<select id="reservation-month-select" class="px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-violet-500 focus:border-violet-500">' + resMonthOpts + '</select>';
+              })() +
               '<button id="reservation-upload-btn" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-xl hover:from-violet-600 hover:to-purple-600 active:scale-[0.98] transition-all font-medium whitespace-nowrap shadow-sm shadow-violet-200/50 text-sm">엑셀 업로드</button>' +
               '<input type="file" id="reservation-file-input" accept=".xlsx,.xls" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none">' +
               '<button id="reservation-clear-btn" class="px-4 py-2.5 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all font-medium whitespace-nowrap text-sm">초기화</button>' +
             '</div>' +
-            '<p class="text-xs text-gray-400 mt-2">대관 내역 엑셀(.xlsx)을 업로드하면 주차별 일정으로 변환됩니다.</p>' +
+            '<p class="text-xs text-gray-400 mt-2">선택한 월의 대관 시트를 엑셀에서 찾아 주차별 일정으로 변환합니다.</p>' +
           '</div>' +
           '<div id="reservation-weeks-area"></div>' +
         '</div>' +
@@ -3293,14 +3302,14 @@ const App = {
             ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}
-            <div class="flex items-center justify-between mb-2 pr-6 gap-2">
+            <div class="flex items-center justify-between gap-2 mb-2 pr-6">
               <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
-              <div class="flex items-center gap-1.5 flex-shrink-0">
+              <div class="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
                 ${t.status === 'completed'
-                  ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
-                  : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
-                ${t.isTeamMode ? '<span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">팀전</span>' : ''}
-                <span class="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">대진표</span>
+                  ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
+                  : '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
+                ${t.isTeamMode ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">팀전</span>' : ''}
+                <span class="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">대진표</span>
               </div>
             </div>
             <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
@@ -3324,14 +3333,14 @@ const App = {
           ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>` : ''}
-          <div class="flex items-center justify-between mb-2 pr-6 gap-2">
+          <div class="flex items-center justify-between gap-2 mb-2 pr-6">
             <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
-            <div class="flex items-center gap-1.5 flex-shrink-0">
+            <div class="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
               ${t.status === 'completed'
-                ? '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
-                : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
-              ${gameLabel ? `<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">${gameLabel}</span>` : ''}
-              <span class="text-xs px-2 py-1 rounded-full whitespace-nowrap ${t.format === 'tournament' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
+                : '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">진행중</span>'}
+              ${gameLabel ? `<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">${gameLabel}</span>` : ''}
+              <span class="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap ${t.format === 'tournament' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
                 ${t.format === 'tournament' ? '토너먼트' : '리그'}
               </span>
             </div>
