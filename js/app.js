@@ -3291,7 +3291,9 @@ const App = {
         let mCount = 0, fCount = 0;
         playerNames.forEach(name => {
           const p = regPlayers.find(rp => rp.name === name);
-          if (p) { if (p.gender === 'M') mCount++; else fCount++; }
+          const gender = p?.gender || (t.males?.includes(name) ? 'M' : t.females?.includes(name) ? 'F' : null);
+          if (gender === 'M') mCount++;
+          else if (gender === 'F') fCount++;
         });
         const _gd = t.gameDate ? new Date(t.gameDate + 'T00:00:00') : new Date(t.createdAt);
         const _dayNames = ['일','월','화','수','목','금','토'];

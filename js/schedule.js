@@ -896,6 +896,7 @@ const Schedule = {
                   <th class="text-center px-2 py-2">패</th>
                   <th class="text-center px-2 py-2">득실</th>
                   <th class="text-center px-2 py-2">승점</th>
+                  ${canEdit ? '<th class="text-center px-2 py-2"></th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -920,6 +921,7 @@ const Schedule = {
                     '<td class="text-center px-2 py-2 text-red-500">' + s.losses + '</td>' +
                     '<td class="text-center px-2 py-2 text-purple-600 font-bold">' + s.scorePoints + '</td>' +
                     '<td class="text-center px-2 py-2 text-orange-600 font-medium">' + s.matchPoints + '</td>' +
+                    (canEdit ? '<td class="text-center px-1 py-2"><button class="sch-replace-btn text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-lg transition font-medium whitespace-nowrap" data-old-name="' + Results.escapeHtml(s.name) + '">교체</button></td>' : '') +
                   '</tr>';
                 }).join(''); })()}
               </tbody>
@@ -945,6 +947,7 @@ const Schedule = {
                 <th class="text-center px-2 py-2">패</th>
                 <th class="text-center px-2 py-2">득실</th>
                 <th class="text-center px-2 py-2">승점</th>
+                ${canEdit ? '<th class="text-center px-2 py-2"></th>' : ''}
               </tr>
             </thead>
             <tbody>
@@ -968,6 +971,7 @@ const Schedule = {
                   '<td class="text-center px-2 py-2 text-red-500">' + s.losses + '</td>' +
                   '<td class="text-center px-2 py-2 text-purple-600 font-bold">' + s.scorePoints + '</td>' +
                   '<td class="text-center px-2 py-2 text-orange-600 font-medium">' + s.matchPoints + '</td>' +
+                  (canEdit ? '<td class="text-center px-1 py-2"><button class="sch-replace-btn text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-lg transition font-medium whitespace-nowrap" data-old-name="' + Results.escapeHtml(s.name) + '">교체</button></td>' : '') +
                 '</tr>';
               }).join(''); })()}
             </tbody>
@@ -995,6 +999,13 @@ const Schedule = {
         const count = rows.length;
         const unit = key === 'sch-team' ? '팀' : '명';
         btn.textContent = hidden ? '접기' : '더보기 (' + count + unit + ')';
+      };
+    });
+
+    // 멤버 교체 버튼
+    container.querySelectorAll('.sch-replace-btn').forEach(btn => {
+      btn.onclick = () => {
+        this._showReplaceModal(btn.dataset.oldName, tournament, container);
       };
     });
 
@@ -2938,5 +2949,165 @@ const Schedule = {
         this.render(container, tournament);
       };
     });
+  },
+
+  // ── 멤버 교체 모달 ──
+  _showReplaceModal(oldName, tournament, container) {
+    // 현재 대진표의 모든 참가자 이름 수집
+    const currentNames = new Set();
+    (tournament.timeSlots || []).forEach(slot => {
+      (slot.matches || []).forEach(m => {
+        if (m.player1) m.player1.split(' / ').forEach(n => currentNames.add(n));
+        if (m.player2) m.player2.split(' / ').forEach(n => currentNames.add(n));
+      });
+    });
+
+    // 교체 후보: 전체 선수 중 대진표 미참가자 (성별 포함)
+    const allPlayers = Storage.getPlayers ? Storage.getPlayers() : [];
+    const candidatesM = allPlayers.filter(p => p.gender === 'M' && !currentNames.has(p.name));
+    const candidatesF = allPlayers.filter(p => p.gender === 'F' && !currentNames.has(p.name));
+    const candidatesU = allPlayers.filter(p => !p.gender && !currentNames.has(p.name));
+
+    const genderBadge = (g) => g === 'M'
+      ? '<span class="text-[10px] px-1 py-0.5 rounded font-medium bg-blue-100 text-blue-700 ml-1">남</span>'
+      : g === 'F' ? '<span class="text-[10px] px-1 py-0.5 rounded font-medium bg-pink-100 text-pink-700 ml-1">여</span>' : '';
+    const renderCandidates = (list, gender) => list.map(p =>
+      '<button class="replace-candidate w-full text-left px-3 py-2.5 text-sm rounded-xl hover:bg-blue-50 active:bg-blue-100 transition truncate flex items-center" data-name="' + Results.escapeHtml(p.name) + '" data-gender="' + (gender || '') + '">' +
+        Results.escapeHtml(p.name) + genderBadge(gender) +
+      '</button>'
+    ).join('');
+
+    let listHtml = renderCandidates(candidatesM, 'M') + renderCandidates(candidatesF, 'F') + renderCandidates(candidatesU, '');
+    if (!listHtml) {
+      listHtml = '<p class="text-gray-400 text-sm text-center py-4">교체 가능한 멤버가 없습니다.</p>';
+    }
+
+    const modalHtml = '<div id="replace-modal-overlay" class="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="animation:fadeIn .15s">' +
+      '<div class="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col" style="animation:slideUp .2s">' +
+        '<div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">' +
+          '<h3 class="font-bold text-gray-800 text-base">' + Results.escapeHtml(oldName) + ' 교체</h3>' +
+          '<button id="replace-modal-close" class="text-gray-400 hover:text-gray-600 p-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>' +
+        '</div>' +
+        '<div class="px-4 py-3 border-b border-gray-100 flex-shrink-0">' +
+          '<p class="text-xs text-gray-500 mb-2">게스트 또는 새 멤버로 교체</p>' +
+          '<div class="flex gap-1.5">' +
+            '<input type="text" id="replace-custom-input" class="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="이름 입력" autocomplete="off">' +
+            '<select id="replace-gender-select" class="px-2 py-2 border border-gray-300 rounded-xl text-sm">' +
+              '<option value="M">남</option>' +
+              '<option value="F">여</option>' +
+            '</select>' +
+            '<label class="flex items-center gap-1 text-xs text-amber-700 whitespace-nowrap"><input type="checkbox" id="replace-guest-cb" class="w-3.5 h-3.5 rounded border-gray-300 text-amber-500" checked>게스트</label>' +
+            '<button id="replace-custom-btn" class="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:scale-95 transition flex-shrink-0">교체</button>' +
+          '</div>' +
+        '</div>' +
+        (listHtml.indexOf('replace-candidate') >= 0 ? '<div class="px-4 pt-2 flex-shrink-0"><p class="text-xs text-gray-500">기존 멤버에서 선택</p></div>' : '') +
+        '<div class="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">' +
+          listHtml +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    const existing = document.getElementById('replace-modal-overlay');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const overlay = document.getElementById('replace-modal-overlay');
+    const close = () => overlay.remove();
+    const self = this;
+
+    document.getElementById('replace-modal-close').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    // 직접 입력 교체 (게스트 포함)
+    const customInput = document.getElementById('replace-custom-input');
+    document.getElementById('replace-custom-btn').onclick = () => {
+      const newName = customInput.value.trim();
+      if (!newName) { customInput.focus(); return; }
+      if (currentNames.has(newName)) {
+        Modal.alert('"' + newName + '"은(는) 이미 대진표에 있습니다.');
+        return;
+      }
+      const gender = document.getElementById('replace-gender-select').value;
+      const isGuest = document.getElementById('replace-guest-cb').checked;
+      close();
+      self._executeReplace(oldName, newName, tournament, container, { gender: gender, isGuest: isGuest });
+    };
+    customInput.onkeydown = (e) => {
+      if (e.key === 'Enter') document.getElementById('replace-custom-btn').click();
+    };
+
+    // 후보 목록 클릭 교체 (기존 멤버 — 게스트 아님)
+    overlay.querySelectorAll('.replace-candidate').forEach(btn => {
+      btn.onclick = () => {
+        close();
+        self._executeReplace(oldName, btn.dataset.name, tournament, container, { gender: btn.dataset.gender, isGuest: false });
+      };
+    });
+  },
+
+  // ── 일괄 교체 실행 ──
+  // options: { gender: 'M'|'F', isGuest: true|false }
+  async _executeReplace(oldName, newName, tournament, container, options) {
+    const tid = tournament.id;
+    const opts = options || {};
+
+    const replaceName = (str) => {
+      if (!str) return str;
+      return str.split(' / ').map(n => n === oldName ? newName : n).join(' / ');
+    };
+
+    const ok = await Storage.updateTournament(tid, (t) => {
+      // players 배열 교체
+      if (t.players) {
+        t.players = t.players.map(p => p === oldName ? newName : p);
+        if (!t.players.includes(newName)) t.players.push(newName);
+      }
+
+      // males/females 배열: 기존 이름의 성별 확인 후 제거
+      const wasInMales = t.males && t.males.includes(oldName);
+      const wasInFemales = t.females && t.females.includes(oldName);
+      if (t.males) t.males = t.males.filter(n => n !== oldName);
+      if (t.females) t.females = t.females.filter(n => n !== oldName);
+      // 새 이름을 성별에 맞게 추가 (명시된 성별 > 기존 이름의 성별)
+      const newGender = opts.gender || (wasInMales ? 'M' : wasInFemales ? 'F' : null);
+      if (newGender === 'M') {
+        if (!t.males) t.males = [];
+        if (!t.males.includes(newName)) t.males.push(newName);
+      } else if (newGender === 'F') {
+        if (!t.females) t.females = [];
+        if (!t.females.includes(newName)) t.females.push(newName);
+      }
+
+      // guests 배열 처리
+      if (!t.guests) t.guests = [];
+      t.guests = t.guests.filter(n => n !== oldName);
+      if (opts.isGuest) {
+        if (!t.guests.includes(newName)) t.guests.push(newName);
+      }
+
+      // 모든 타임슬롯의 모든 매치 교체
+      if (t.timeSlots) {
+        for (const slot of t.timeSlots) {
+          for (const m of (slot.matches || [])) {
+            m.player1 = replaceName(m.player1);
+            m.player2 = replaceName(m.player2);
+            if (m.winner) m.winner = replaceName(m.winner);
+          }
+          // 쉬는 멤버 배열 교체
+          if (slot.resting) {
+            slot.resting = slot.resting.map(n => n === oldName ? newName : n);
+          }
+        }
+      }
+    });
+
+    if (!ok) {
+      Modal.toast('교체에 실패했습니다.', 'error');
+      return;
+    }
+
+    Modal.toast(oldName + ' → ' + newName + ' 교체 완료', 'success');
+    const fresh = Storage.getTournamentById(tid);
+    if (fresh) this.render(container, fresh);
   },
 };

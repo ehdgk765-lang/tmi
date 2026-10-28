@@ -248,6 +248,7 @@ const Tournament = {
         });
       };
     });
+
   },
 
   getRoundNames(totalRounds) {
