@@ -2028,8 +2028,7 @@ const Schedule = {
       ctx.fillStyle = '#0d9488';
       const mCount = allPlayers.filter(n => isMale(n)).length;
       const fCount = allPlayers.filter(n => isFemale(n)).length;
-      const gCount = tournament.guests?.filter(g => allPlayers.includes(g)).length || 0;
-      const rosterTitle = `참가자 명단 (남 ${mCount} · 여 ${fCount}${gCount > 0 ? ` · 게 ${gCount}` : ''}) — ${allPlayers.length}명`;
+      const rosterTitle = `참가자 명단 (남 ${mCount} · 여 ${fCount}) — ${allPlayers.length}명`;
       ctx.fillText(rosterTitle, PAD + 14, curY + 16);
 
       const rosterStartY = curY + 28;
@@ -2046,12 +2045,6 @@ const Schedule = {
         ctx.font = `11px ${FONT}`;
         ctx.fillStyle = '#1f2937';
         ctx.fillText(name, cx + 17, cy + rosterCellH / 2);
-        if (tournament.guests?.includes(name)) {
-          const tw = ctx.measureText(name).width;
-          ctx.font = `bold 9px ${FONT}`;
-          ctx.fillStyle = '#b45309';
-          ctx.fillText('게', cx + 19 + tw, cy + rosterCellH / 2);
-        }
       };
 
       if (isTeamMode && teamGroups) {
@@ -2184,26 +2177,17 @@ const Schedule = {
       ctx.font = `bold 14px ${FONT}`;
       ctx.fillStyle = '#1f2937';
       ctx.textBaseline = 'middle';
-      const _isGuest = tournament.guests?.includes(name);
       if (align === 'right') {
-        // 오른쪽 정렬: [이름 게 ●]
+        // 오른쪽 정렬: [이름 ●]
         ctx.beginPath();
         ctx.arc(x + w - 14, y + h / 2, 5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
         ctx.fillStyle = '#1f2937';
         ctx.textAlign = 'right';
-        const nameEndX = x + w - 24;
-        ctx.fillText(name, nameEndX - (_isGuest ? 16 : 0), y + h / 2);
-        if (_isGuest) {
-          ctx.font = `bold 10px ${FONT}`;
-          ctx.fillStyle = '#b45309';
-          ctx.textAlign = 'right';
-          ctx.fillText('게', nameEndX, y + h / 2);
-          ctx.font = `bold 14px ${FONT}`;
-        }
+        ctx.fillText(name, x + w - 24, y + h / 2);
       } else {
-        // 왼쪽 정렬: [● 이름 게]
+        // 왼쪽 정렬: [● 이름]
         ctx.beginPath();
         ctx.arc(x + 14, y + h / 2, 5, 0, Math.PI * 2);
         ctx.fillStyle = color;
@@ -2211,13 +2195,6 @@ const Schedule = {
         ctx.fillStyle = '#1f2937';
         ctx.textAlign = 'left';
         ctx.fillText(name, x + 24, y + h / 2);
-        if (_isGuest) {
-          const tw = ctx.measureText(name).width;
-          ctx.font = `bold 10px ${FONT}`;
-          ctx.fillStyle = '#b45309';
-          ctx.fillText('게', x + 27 + tw, y + h / 2);
-          ctx.font = `bold 14px ${FONT}`;
-        }
       }
     };
 
@@ -2412,12 +2389,6 @@ const Schedule = {
           ctx.fillStyle = '#4b5563';
           ctx.textAlign = 'left';
           ctx.fillText(name, riX + 20, riY + 5);
-          if (tournament.guests?.includes(name)) {
-            const _tw = ctx.measureText(name).width;
-            ctx.font = `bold 8px ${FONT}`;
-            ctx.fillStyle = '#b45309';
-            ctx.fillText('게', riX + 22 + _tw, riY + 5);
-          }
           riY += 13;
         });
         if (resting.length > MAX_REST_DISPLAY) {
