@@ -648,7 +648,8 @@ const Schedule = {
       if (tiredM.length > 0 || tiredF.length > 0) {
         const restedM = slotMales.filter(p => (consecutiveGames[p] || 0) < 3);
         const restedF = slotFemales.filter(p => (consecutiveGames[p] || 0) < 3);
-        const minNeeded = isSingles ? 2 : 4;
+        const courtN = Array.isArray(courts) ? courts.length : courts;
+        const minNeeded = (isSingles ? 2 : 4) * courtN;
         if (restedM.length + restedF.length >= minNeeded) {
           effectiveM = restedM;
           effectiveF = restedF;
