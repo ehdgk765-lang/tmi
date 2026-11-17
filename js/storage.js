@@ -296,7 +296,7 @@ const Storage = {
 
   // 정규 일정 여부 판별
   isRegularEvent(ev) {
-    return ev && ev.title && ev.title.indexOf('정규 일정') >= 0;
+    return ev && (ev.isRegular || (ev.title && ev.title.indexOf('정규 일정') >= 0));
   },
 
   // 이벤트 정렬 헬퍼

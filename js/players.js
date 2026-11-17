@@ -8,8 +8,6 @@ const Players = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">회원 관리</h2>
-
         <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-1 mb-4 flex gap-1">
           <button id="players-tab-list" class="flex-1 py-2 text-sm font-semibold rounded-lg transition ${this._subTab === 'list' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">멤버 목록</button>
           <button id="players-tab-groups" class="flex-1 py-2 text-sm font-semibold rounded-lg transition ${this._subTab === 'groups' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">조별 관리</button>
@@ -98,7 +96,7 @@ const Players = {
                     <span class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">${i + 1}</span>
                     <span class="member-name-display text-gray-800 font-medium truncate cursor-pointer hover:text-blue-700 transition" data-id="${p.id}" title="클릭하여 이름 수정">${this.escapeHtml(p.name)}</span>
                     <input type="text" autocomplete="off" class="member-name-edit hidden px-2 py-1 border border-blue-500 rounded-lg text-sm font-medium text-gray-800 focus:ring-2 focus:ring-blue-700 focus:outline-none" data-id="${p.id}" value="${this.escapeAttr(p.name)}" maxlength="20" style="width:80px">
-                    <button class="gender-toggle-btn text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 cursor-pointer active:scale-95 transition ${p.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}"
+                    <button class="gender-toggle-btn text-xs px-2.5 py-1 rounded-md font-medium flex-shrink-0 cursor-pointer active:scale-95 transition ${p.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}"
                       data-id="${p.id}">${p.gender === 'M' ? '남' : '여'}</button>
                   </div>
                   <button class="delete-player-btn text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg px-3 py-1 transition text-sm flex-shrink-0 ml-2"

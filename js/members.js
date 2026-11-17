@@ -13,7 +13,6 @@ const Members = {
     var self = this;
     var html =
       '<div class="max-w-lg mx-auto">' +
-        '<h2 class="text-2xl font-bold text-gray-800 mb-4">회원 관리</h2>' +
         // 서브탭
         '<div class="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1">' +
           '<button id="members-tab-list" class="flex-1 py-2 text-sm font-semibold rounded-lg transition ' +

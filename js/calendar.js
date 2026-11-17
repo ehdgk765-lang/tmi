@@ -371,16 +371,16 @@ const Calendar = {
           if (_genderMap[participants[j]] === 'F') femaleNames.push(participants[j]);
           else maleNames.push(participants[j]);
         }
-        namesList = '<div class="mt-1.5 flex flex-col gap-0.5">';
+        namesList = '<div class="mt-2 flex flex-col gap-1.5">';
         if (maleNames.length > 0 || cancelledMale.length > 0) {
           namesList += '<div class="cal-names-wrap">';
           namesList += '<span class="cal-participant-label text-blue-500 mr-0.5">남' + maleNames.length + '</span>';
           for (var mi = 0; mi < maleNames.length; mi++) {
             var _mGuestTag = _guestNames[maleNames[mi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-blue-50 text-blue-700 m-px">' + this._escapeHtml(maleNames[mi]) + _mGuestTag + '</span>';
+            namesList += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 m-px">' + this._escapeHtml(maleNames[mi]) + _mGuestTag + '</span>';
           }
           for (var cmi = 0; cmi < cancelledMale.length; cmi++) {
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledMale[cmi]) + '</span>';
+            namesList += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledMale[cmi]) + '</span>';
           }
           namesList += '</div>';
         }
@@ -389,10 +389,10 @@ const Calendar = {
           namesList += '<span class="cal-participant-label text-pink-500 mr-0.5">여' + femaleNames.length + '</span>';
           for (var fi = 0; fi < femaleNames.length; fi++) {
             var _fGuestTag = _guestNames[femaleNames[fi]] ? '<span class="text-[9px] text-amber-600">게</span>' : '';
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-pink-50 text-pink-700 m-px">' + this._escapeHtml(femaleNames[fi]) + _fGuestTag + '</span>';
+            namesList += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-pink-50 text-pink-700 m-px">' + this._escapeHtml(femaleNames[fi]) + _fGuestTag + '</span>';
           }
           for (var cfi = 0; cfi < cancelledFemale.length; cfi++) {
-            namesList += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledFemale[cfi]) + '</span>';
+            namesList += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400 line-through m-px">' + this._escapeHtml(cancelledFemale[cfi]) + '</span>';
           }
           namesList += '</div>';
         }
@@ -410,13 +410,13 @@ const Calendar = {
           if (_genderMap[waitlist[w2]] === 'F') wFemaleNames.push(waitlist[w2]);
           else wMaleNames.push(waitlist[w2]);
         }
-        waitlistHtml = '<div class="mt-1.5 flex flex-col gap-0.5">';
+        waitlistHtml = '<div class="mt-2 flex flex-col gap-1.5">';
         waitlistHtml += '<span class="cal-participant-label text-gray-400">대기 ' + waitlist.length + '명</span>';
         if (wMaleNames.length > 0) {
           waitlistHtml += '<div class="cal-names-wrap">';
           waitlistHtml += '<span class="cal-participant-label text-blue-500 mr-0.5">남</span>';
           for (var wmi = 0; wmi < wMaleNames.length; wmi++) {
-            waitlistHtml += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-yellow-50 text-yellow-700 border border-yellow-200 m-px">' + wOrderMap[wMaleNames[wmi]] + '.' + this._escapeHtml(wMaleNames[wmi]) + '</span>';
+            waitlistHtml += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-200 m-px">' + wOrderMap[wMaleNames[wmi]] + '.' + this._escapeHtml(wMaleNames[wmi]) + '</span>';
           }
           waitlistHtml += '</div>';
         }
@@ -424,7 +424,7 @@ const Calendar = {
           waitlistHtml += '<div class="cal-names-wrap">';
           waitlistHtml += '<span class="cal-participant-label text-pink-500 mr-0.5">여</span>';
           for (var wfi = 0; wfi < wFemaleNames.length; wfi++) {
-            waitlistHtml += '<span class="cal-participant-name inline-block px-1 py-px rounded bg-yellow-50 text-yellow-700 border border-yellow-200 m-px">' + wOrderMap[wFemaleNames[wfi]] + '.' + this._escapeHtml(wFemaleNames[wfi]) + '</span>';
+            waitlistHtml += '<span class="cal-participant-name inline-block px-1.5 py-0.5 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-200 m-px">' + wOrderMap[wFemaleNames[wfi]] + '.' + this._escapeHtml(wFemaleNames[wfi]) + '</span>';
           }
           waitlistHtml += '</div>';
         }
@@ -575,21 +575,21 @@ const Calendar = {
         '</div>' +
       '</div>';
 
-      html += '<div class="p-3 rounded-xl ' + color.bg + cardExtra + myEventClass + ' mb-2" data-event-id="' + ev.id + '">' +
+      html += '<div class="p-4 rounded-2xl ' + color.bg + cardExtra + myEventClass + ' mb-3" data-event-id="' + ev.id + '">' +
                 '<div class="flex items-start gap-3">' +
                   '<div class="w-1 self-stretch rounded-full ' + color.dot + ' flex-shrink-0 mt-0.5"></div>' +
                   '<div class="flex-1 min-w-0">' +
-                    '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1">' +
+                    '<div class="font-semibold text-sm ' + color.text + ' flex items-center gap-1.5">' +
                       (isFull || isGenderFull ? '<span class="cal-closed-badge flex-shrink-0">(마감)</span>' : '') +
                       '<span class="min-w-0 truncate">' + this._escapeHtml(ev.title) + '</span>' +
                       (statusBadge ? '<span class="flex-shrink-0">' + statusBadge + '</span>' : '') +
                       actionBtns +
                     '</div>' +
-                    (this._formatTimeRange(ev) || ev.date ? '<div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/></svg><span>' + (ev.date ? this._formatShortDate(ev.date) + ' ' : '') + (this._formatTimeRange(ev) || '') + '</span></div>' : '') +
-                    (ev.description ? '<div class="text-xs text-gray-400 mt-1 italic">' + this._escapeHtml(ev.description) + '</div>' : '') +
-                    (ev.courts && ev.courts.length > 0 ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span>' + this._escapeHtml(ev.courts.map(function(c) { var b = ev.courtBookers && ev.courtBookers[c]; return c + (b ? '(' + b + ')' : ''); }).join(', ')) + '</span></div>' : '') +
-                    (ev.host ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg><span>호스트: ' + this._escapeHtml(ev.host) + '</span></div>' : '') +
-                    (ev.createdBy ? '<div class="text-xs text-gray-400 mt-1">' + this._escapeHtml(ev.createdBy) + ' 등록</div>' : '') +
+                    (this._formatTimeRange(ev) || ev.date ? '<div class="text-xs text-gray-500 mt-1 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/></svg><span>' + (ev.date ? this._formatShortDate(ev.date) + ' ' : '') + (this._formatTimeRange(ev) || '') + '</span></div>' : '') +
+                    (ev.description ? '<div class="text-xs text-gray-400 mt-1.5 italic">' + this._escapeHtml(ev.description) + '</div>' : '') +
+                    (ev.courts && ev.courts.length > 0 ? '<div class="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span>' + this._escapeHtml(ev.courts.map(function(c) { var b = ev.courtBookers && ev.courtBookers[c]; return c + (b ? '(' + b + ')' : ''); }).join(', ')) + '</span></div>' : '') +
+                    (ev.host ? '<div class="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg><span>호스트: ' + this._escapeHtml(ev.host) + '</span></div>' : '') +
+                    (ev.createdBy ? '<div class="text-xs text-gray-400 mt-1.5">' + this._escapeHtml(ev.createdBy) + ' 등록</div>' : '') +
                     attendInfo +
                   '</div>' +
                 '</div>' +
@@ -1720,7 +1720,7 @@ const Calendar = {
         '다가오는 일정 <span class="text-xs font-normal text-gray-400 ml-1">' + upcoming.length + '건</span>' +
         '<svg class="w-4 h-4 ml-auto text-gray-400 transition-transform' + (isOpen ? ' rotate-180' : '') + '" id="upcoming-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
       '</h3>' +
-      '<div id="upcoming-scroll" class="overflow-y-auto' + (isOpen ? '' : ' hidden') + ' mt-3" style="max-height:60vh">';
+      '<div id="upcoming-scroll" class="' + (isOpen ? '' : 'hidden') + ' mt-3">';
 
     for (var di = 0; di < dates.length; di++) {
       var dateStr = dates[di];
@@ -2049,6 +2049,12 @@ const Calendar = {
     var hasEventCourts = eventCourtCount > 0;
     var hasEventTime = !!(ev.startTime && ev.endTime);
 
+    // 대진표 기본 이름 생성
+    var dateLabel = ev.date ? App._formatDateWithDay(ev.date) : '';
+    var courtBaseName = App._getCourtBaseName();
+    var timeRange = defaultStart.replace(':00', '') + '~' + defaultEnd.replace(':00', '');
+    var defaultBracketName = (dateLabel ? dateLabel + ' ' : '') + (courtBaseName ? courtBaseName + ' ' : '') + timeRange + ' 대진표';
+
     var modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
@@ -2058,7 +2064,7 @@ const Calendar = {
         // === 설정 화면 ===
         '<div id="bm-settings-view" class="space-y-4">' +
           '<h3 class="text-lg font-bold text-gray-800 text-center">대진표 생성</h3>' +
-          '<input type="text" autocomplete="off" id="bm-name" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:border-blue-500 transition" value="' + this._escapeAttr(ev.title + ' 대진표') + '">' +
+          '<input type="text" autocomplete="off" id="bm-name" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:border-blue-500 transition" value="' + this._escapeAttr(defaultBracketName) + '">' +
           // 참석자 현황
           '<div class="flex justify-center gap-3">' +
             '<span class="text-sm font-medium text-blue-600">남 ' + males.length + '명</span>' +
@@ -2164,7 +2170,7 @@ const Calendar = {
             '<h3 class="text-lg font-bold text-gray-800">쉬는 사람 배정</h3>' +
           '</div>' +
           '<div id="bm-rest-info" class="text-xs text-gray-500 text-center"></div>' +
-          '<div id="bm-rest-slots" class="space-y-3 overflow-y-auto" style="max-height:55vh"></div>' +
+          '<div id="bm-rest-slots" class="space-y-3"></div>' +
           '<div class="flex gap-2">' +
             '<button type="button" id="bm-rest-back2" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">돌아가기</button>' +
             '<button type="button" id="bm-rest-auto" class="flex-1 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-100 transition">자동추천</button>' +
@@ -2577,7 +2583,7 @@ const Calendar = {
         return;
       }
 
-      var bracketName = modal.querySelector('#bm-name').value.trim() || (ev.title + ' 대진표');
+      var bracketName = modal.querySelector('#bm-name').value.trim() || defaultBracketName;
       var gameDate = ev.date || new Date().toISOString().slice(0, 10);
       var tournament = {
         id: Storage.generateId(),
@@ -2687,7 +2693,7 @@ const Calendar = {
         return;
       }
 
-      var bracketName = modal.querySelector('#bm-name').value.trim() || (ev.title + ' 대진표');
+      var bracketName = modal.querySelector('#bm-name').value.trim() || defaultBracketName;
       var gameDate = ev.date || new Date().toISOString().slice(0, 10);
       var tournament = {
         id: Storage.generateId(),

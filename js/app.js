@@ -864,7 +864,7 @@ const App = {
 
   showHome() {
     this._viewMode = 'home';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = '';
     this._updateMenuActive();
     this.navigate(this.currentTab || RolesConfig.getDefaultTab());
@@ -872,7 +872,7 @@ const App = {
 
   showCalendar() {
     this._viewMode = 'calendar';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     // 탭 active 스타일 제거
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
@@ -886,7 +886,7 @@ const App = {
 
   showMembers() {
     this._viewMode = 'members';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
       tab.classList.remove('tab-active');
@@ -899,7 +899,7 @@ const App = {
 
   showPlayers() {
     this._viewMode = 'players';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
       tab.classList.remove('tab-active');
@@ -912,7 +912,7 @@ const App = {
 
   showStats() {
     this._viewMode = 'stats';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
       tab.classList.remove('tab-active');
@@ -925,7 +925,7 @@ const App = {
 
   showSettlement() {
     this._viewMode = 'settlement';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
       tab.classList.remove('tab-active');
@@ -938,7 +938,7 @@ const App = {
 
   showSettings() {
     this._viewMode = 'settings';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = 'none';
     document.querySelectorAll('[data-tab]').forEach(function(tab) {
       tab.classList.remove('tab-active');
@@ -1656,7 +1656,7 @@ const App = {
         }
         wd.templates.forEach(function(t) {
           totalEvents++;
-          if (events.some(function(e) { return e.date === wd.dateStr && e.title === t.title; })) {
+          if (events.some(function(e) { return e.date === wd.dateStr && e.startTime === t.startTime && e.endTime === t.endTime; })) {
             registeredCount++;
           }
         });
@@ -1704,16 +1704,20 @@ const App = {
       var wd = weekDays[i];
       for (var j = 0; j < wd.templates.length; j++) {
         var tmpl = wd.templates[j];
-        var exists = events.some(function(e) { return e.date === wd.dateStr && e.title === tmpl.title; });
+        var exists = events.some(function(e) { return e.date === wd.dateStr && e.startTime === tmpl.startTime && e.endTime === tmpl.endTime; });
         if (exists) { skipped++; continue; }
 
         var courtCount = tmpl.courts.length;
         var hours = parseInt(tmpl.endTime) - parseInt(tmpl.startTime);
         var is3h = hours >= 3;
+        var timeLabel = tmpl.startTime.replace(':00', '') + '~' + tmpl.endTime.replace(':00', '');
+        var baseName = this._getCourtBaseName();
+        var eventTitle = this._formatDateWithDay(wd.dateStr) + (baseName ? ' ' + baseName : '') + ' ' + timeLabel + ' 대진표';
 
         events.push({
           id: Storage.generateId(),
-          title: tmpl.title,
+          title: eventTitle,
+          isRegular: true,
           date: wd.dateStr,
           startTime: tmpl.startTime,
           endTime: tmpl.endTime,
@@ -1779,7 +1783,7 @@ const App = {
 
       // 해당 날짜의 정규 일정 이벤트를 모두 찾기 (시간순 정렬)
       var dayEvents = events.filter(function(e) {
-        return e.date === dateStr && e.title.indexOf('정규 일정') >= 0;
+        return e.date === dateStr && (e.isRegular || e.title.indexOf('정규 일정') >= 0 || e.title.indexOf('대진표') >= 0);
       }).sort(function(a, b) {
         return (a.startTime || '').localeCompare(b.startTime || '');
       });
@@ -1793,8 +1797,8 @@ const App = {
       for (var j = 0; j < dayEvents.length; j++) {
         var ev = dayEvents[j];
         var participants = ev.participants || [];
-        // 제목에서 코트명+시간 추출 (예: "코트1 6~9 정규 일정" → "코트1 6~9")
-        var label = ev.title.replace(' 정규 일정', '');
+        // 제목에서 시간 부분 추출 (새 형식: "11/8(일) 선정 09~12 대진표", 구 형식: "20~22 정규 일정")
+        var label = ev.title.replace(/^\d+\/\d+\([^)]+\)\s*/, '').replace(/\s*대진표$/, '').replace(' 정규 일정', '');
         lines.push('* ' + wd.day + '일(' + dayNames[wd.dow] + ') ' + label + ' : ' + participants.length + '명');
         if (participants.length > 0) {
           for (var pi = 0; pi < participants.length; pi += 6) {
@@ -1834,6 +1838,18 @@ const App = {
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  _formatDateWithDay(dateStr) {
+    var d = new Date(dateStr + 'T00:00:00');
+    var dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    return (d.getMonth() + 1) + '/' + d.getDate() + '(' + dayNames[d.getDay()] + ')';
+  },
+
+  _getCourtBaseName() {
+    var courts = Storage.getCourts();
+    if (!courts || courts.length === 0) return '';
+    return courts[0].name.replace(/\s*\d*면$/, '');
   },
 
   // 역할 목록 Firestore에서 로드하여 UI 갱신
@@ -2012,7 +2028,7 @@ const App = {
   navigate(tabName, tournamentId) {
     // 탭 전환 시 홈 모드로 전환 + 탭 네비 보이기
     this._viewMode = 'home';
-    var tabNav = document.querySelector('header nav');
+    var tabNav = document.getElementById('bottom-nav');
     if (tabNav) tabNav.style.display = '';
     this._updateMenuActive();
 
@@ -2071,7 +2087,6 @@ const App = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-xl font-bold text-gray-800 mb-3">대회 만들기</h2>
         <div class="flex gap-2 mb-4">
           <button data-subtab="auto"
             class="sub-tab flex-1 px-3 py-1.5 rounded-full text-xs font-semibold transition
@@ -2115,6 +2130,7 @@ const App = {
     }
 
     patchDOM(container, `
+      <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-4">
       <form id="create-form" class="form-compact space-y-3">
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">대회명</label>
@@ -2178,10 +2194,11 @@ const App = {
         <div id="participants-section"></div>
 
         <button type="submit"
-          class="w-full py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-base shadow-md shadow-blue-200/50">
+          class="mt-2 py-2.5 px-10 mx-auto block bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-sm shadow-md shadow-blue-200/50">
           대회 생성
         </button>
-      </form>`);
+      </form>
+      </div>`);
 
     const gameTypeRadios = container.querySelectorAll('input[name="gameType"]');
     gameTypeRadios.forEach(r => {
@@ -2460,7 +2477,6 @@ const App = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-xl font-bold text-gray-800 mb-3">대진표 작성</h2>
         <div class="flex gap-2 mb-4">
           <button data-subtab="time-court"
             class="sub-tab flex-1 px-3 py-1.5 rounded-full text-xs font-semibold transition
@@ -2494,6 +2510,7 @@ const App = {
   _renderCustomScheduleForm(container) {
     patchDOM(container, `
       <p class="text-[11px] text-gray-400 mb-3">빈 대진표를 생성한 후, 직접 매치를 추가할 수 있습니다.</p>
+      <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-4">
       <form id="custom-schedule-form" class="form-compact space-y-3">
         <div>
           <div class="flex items-center justify-between mb-1">
@@ -2538,7 +2555,7 @@ const App = {
 
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">코트 수</label>
-          <div class="grid grid-cols-4 gap-1.5">
+          <div class="grid grid-cols-4 gap-2">
             ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
               <label class="cursor-pointer">
                 <input type="radio" name="cs-courts" value="${n}" ${n === 2 ? 'checked' : ''} class="sr-only peer">
@@ -2551,10 +2568,11 @@ const App = {
         </div>
 
         <button type="submit"
-          class="w-full py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-base shadow-md shadow-blue-200/50">
+          class="mt-2 py-2.5 px-10 mx-auto block bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-sm shadow-md shadow-blue-200/50">
           빈 대진표 생성
         </button>
-      </form>`);
+      </form>
+      </div>`);
 
     container.querySelector('#custom-schedule-form').onsubmit = (e) => {
       e.preventDefault();
@@ -2565,9 +2583,10 @@ const App = {
 
       const gameDate = container.querySelector('#cs-date').value || new Date().toISOString().slice(0, 10);
       const customName = container.querySelector('#cs-name').value.trim();
+      const courtName = this._getCourtBaseName();
       const tournament = {
         id: Storage.generateId(),
-        name: customName || `${gameDate} 커스텀 대진표`,
+        name: customName || `${this._formatDateWithDay(gameDate)}${courtName ? ' ' + courtName : ''} 커스텀 대진표`,
         format: 'schedule',
         isCustom: true,
         gameDate,
@@ -2610,102 +2629,102 @@ const App = {
     }
 
     patchDOM(container, `
-      <div class="flex items-center justify-end gap-4 mb-3">
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" id="sch-team-mode" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
-          <span class="text-[11px] text-gray-500">팀전</span>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" id="allow-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
-          <span id="allow-mixed-label" class="text-[11px] text-gray-500">섞어복식 허용</span>
-        </label>
-      </div>
-
-      <!-- 단식/복식 선택 -->
-      <div class="mb-3">
-        <label class="block text-xs font-semibold text-gray-700 mb-1">경기 방식</label>
-        <div class="flex gap-2">
-          <label class="flex-1 cursor-pointer">
+      <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 px-3 py-2.5 mb-2">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex gap-1.5">
+          <label class="cursor-pointer">
             <input type="radio" name="sch-match-type" value="doubles" checked class="sr-only peer">
-            <div class="border-2 border-gray-200 rounded-lg py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
-              <span class="font-semibold text-gray-800 text-sm">복식</span>
-              <div class="text-[10px] text-gray-500">2 vs 2</div>
+            <div class="border-2 border-gray-200 rounded-lg px-4 py-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+              <span class="font-semibold text-gray-800 text-xs">복식</span>
             </div>
           </label>
-          <label class="flex-1 cursor-pointer">
+          <label class="cursor-pointer">
             <input type="radio" name="sch-match-type" value="singles" class="sr-only peer">
-            <div class="border-2 border-gray-200 rounded-lg py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
-              <span class="font-semibold text-gray-800 text-sm">단식</span>
-              <div class="text-[10px] text-gray-500">1 vs 1</div>
+            <div class="border-2 border-gray-200 rounded-lg px-4 py-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+              <span class="font-semibold text-gray-800 text-xs">단식</span>
             </div>
           </label>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" id="sch-team-mode" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+            <span class="text-[11px] text-gray-500">팀전</span>
+          </label>
+          <!-- 혼복허용 주석처리
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" id="allow-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300 focus:ring-blue-700">
+            <span id="allow-mixed-label" class="text-[11px] text-gray-500">혼복허용</span>
+          </label>
+          -->
         </div>
       </div>
+      </div>
 
-      <form id="schedule-form" class="form-compact space-y-3">
-        <!-- 대진표 이름 -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">대진표 이름</label>
-          <input type="text" autocomplete="off" id="schedule-name" maxlength="30"
-            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700"
-            placeholder="미입력 시 게임 날짜로 자동 생성">
-        </div>
-
-        <!-- 게임 날짜 -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">게임 날짜</label>
-          <input type="date" id="schedule-date" value="${new Date().toISOString().slice(0, 10)}"
-            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700">
+      <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 px-3 py-3">
+      <form id="schedule-form" class="form-compact space-y-2.5">
+        <!-- 대진표 이름 + 게임 날짜 (한 줄) -->
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="block text-xs font-semibold text-gray-700 mb-0.5">대진표 이름</label>
+            <input type="text" autocomplete="off" id="schedule-name" maxlength="30"
+              class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700"
+              placeholder="자동 생성">
+          </div>
+          <div class="w-[130px] shrink-0">
+            <label class="block text-xs font-semibold text-gray-700 mb-0.5">날짜</label>
+            <input type="date" id="schedule-date" value="${new Date().toISOString().slice(0, 10)}"
+              class="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700">
+          </div>
         </div>
 
         <!-- 시간 설정 -->
         <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">시간 설정</label>
-          <div class="flex items-center gap-2">
-            <select id="start-time" class="flex-1 px-2 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
+          <label class="block text-xs font-semibold text-gray-700 mb-0.5">시간</label>
+          <div class="flex items-center gap-1.5">
+            <select id="start-time" class="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
               ${this.generateTimeOptions('20:00')}
             </select>
-            <span class="text-gray-500 font-medium text-sm">~</span>
-            <select id="end-time" class="flex-1 px-2 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
+            <span class="text-gray-400 text-xs">~</span>
+            <select id="end-time" class="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-blue-700 bg-white">
               ${this.generateTimeOptions('22:00')}
             </select>
           </div>
-          <div class="flex gap-1 mt-1.5">
-            <button type="button" class="quick-time-btn px-2.5 py-0.5 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="06:00" data-end="08:00">06~08</button>
-            <button type="button" class="quick-time-btn px-2.5 py-0.5 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="08:00" data-end="10:00">08~10</button>
-            <button type="button" class="quick-time-btn px-2.5 py-0.5 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="18:00" data-end="20:00">18~20</button>
-            <button type="button" class="quick-time-btn px-2.5 py-0.5 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="18:00" data-end="21:00">18~21</button>
-            <button type="button" class="quick-time-btn px-2.5 py-0.5 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="20:00" data-end="22:00">20~22</button>
+          <div class="flex gap-1 mt-1">
+            <button type="button" class="quick-time-btn px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="06:00" data-end="08:00">06~08</button>
+            <button type="button" class="quick-time-btn px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="08:00" data-end="10:00">08~10</button>
+            <button type="button" class="quick-time-btn px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="18:00" data-end="20:00">18~20</button>
+            <button type="button" class="quick-time-btn px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="18:00" data-end="21:00">18~21</button>
+            <button type="button" class="quick-time-btn px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition" data-start="20:00" data-end="22:00">20~22</button>
           </div>
-          <p id="time-info" class="text-[11px] text-gray-500 mt-1"></p>
+          <p id="time-info" class="text-[11px] text-gray-500 mt-0.5"></p>
         </div>
 
         <!-- 몸풀기 + 코트 수 (한 줄) -->
-        <div class="flex gap-3">
+        <div class="flex gap-2">
           <div class="w-1/3">
-            <label class="block text-xs font-semibold text-gray-700 mb-1">몸풀기</label>
-            <div class="flex gap-1.5">
+            <label class="block text-xs font-semibold text-gray-700 mb-0.5">몸풀기</label>
+            <div class="flex gap-1">
               <label class="cursor-pointer flex-1">
                 <input type="radio" name="warmup-time" value="10" class="sr-only peer">
-                <div class="border-2 border-gray-200 rounded-lg py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <div class="border-2 border-gray-200 rounded-lg py-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
                   <span class="font-semibold text-gray-800 text-xs">10분</span>
                 </div>
               </label>
               <label class="cursor-pointer flex-1">
                 <input type="radio" name="warmup-time" value="15" checked class="sr-only peer">
-                <div class="border-2 border-gray-200 rounded-lg py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                <div class="border-2 border-gray-200 rounded-lg py-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
                   <span class="font-semibold text-gray-800 text-xs">15분</span>
                 </div>
               </label>
             </div>
           </div>
           <div class="flex-1">
-            <label class="block text-xs font-semibold text-gray-700 mb-1">코트 수</label>
+            <label class="block text-xs font-semibold text-gray-700 mb-0.5">코트 수</label>
             <div class="grid grid-cols-4 gap-1.5">
               ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
                 <label class="cursor-pointer">
                   <input type="radio" name="courts" value="${n}" ${n === 2 ? 'checked' : ''} class="sr-only peer">
-                  <div class="border-2 border-gray-200 rounded-lg py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                  <div class="border-2 border-gray-200 rounded-lg py-1 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
                     <span class="font-semibold text-gray-800 text-xs">${n}면</span>
                   </div>
                 </label>
@@ -2715,17 +2734,17 @@ const App = {
         </div>
 
         <!-- 게스트 추가 -->
-        <div class="bg-amber-50/80 border border-amber-200 rounded-xl p-3">
-          <label class="block text-xs font-semibold text-gray-700 mb-1.5">게스트 추가</label>
-          <div class="flex gap-1.5">
+        <div class="bg-amber-50/80 border border-amber-200 rounded-lg p-2">
+          <label class="block text-xs font-semibold text-gray-700 mb-1">게스트 추가</label>
+          <div class="flex gap-1.5 items-center">
             <input type="text" id="guest-name-input" placeholder="이름" autocomplete="off"
-              class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
-            <select id="guest-gender-select" class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs">
+              class="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+            <select id="guest-gender-select" class="shrink-0 px-2 py-1 border border-gray-300 rounded-md text-xs">
               <option value="male">남</option>
               <option value="female">여</option>
             </select>
             <button type="button" id="guest-add-btn"
-              class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 active:scale-95 transition">추가</button>
+              class="shrink-0 px-2.5 py-1 bg-amber-500 text-white rounded-md text-xs font-medium hover:bg-amber-600 active:scale-95 transition whitespace-nowrap">추가</button>
           </div>
         </div>
 
@@ -2740,7 +2759,7 @@ const App = {
             <span class="text-xs text-gray-500">${males.length}명 중 선택</span>
             <button type="button" id="sch-male-all-btn" class="text-xs text-blue-700 font-medium hover:underline">전체 선택</button>
           </div>
-          <div id="male-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
+          <div id="male-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
             ${males.map(p => {
               const tn = _teamMap[p.name];
               return `
@@ -2765,7 +2784,7 @@ const App = {
             <span class="text-xs text-gray-500">${females.length}명 중 선택</span>
             <button type="button" id="sch-female-all-btn" class="text-xs text-blue-700 font-medium hover:underline">전체 선택</button>
           </div>
-          <div id="female-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-36 overflow-y-auto divide-y divide-gray-50">
+          <div id="female-list" class="bg-white/80 backdrop-blur-sm border border-white/60 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
             ${females.map(p => {
               const tn = _teamMap[p.name];
               return `
@@ -2783,19 +2802,21 @@ const App = {
         <div id="preview-info" class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 hidden">
         </div>
 
-        <!-- 쉬는 사람 배정 버튼 -->
+        <!-- 쉬는 사람 배정 + 대진표 생성 -->
         <div id="sch-rest-section" class="border-t border-gray-100 pt-3">
-          <button type="button" id="sch-rest-btn" class="w-full py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-700 hover:bg-amber-100 transition">
-            쉬는 사람 배정
-          </button>
+          <div class="flex gap-2">
+            <button type="button" id="sch-rest-btn" class="flex-1 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-700 hover:bg-amber-100 active:scale-[0.98] transition">
+              쉬는 사람 배정
+            </button>
+            <button type="submit"
+              class="flex-1 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-sm shadow-md shadow-blue-200/50">
+              대진표 생성
+            </button>
+          </div>
           <p id="sch-rest-summary" class="text-xs text-amber-600 mt-1 text-center hidden"></p>
         </div>
-
-        <button type="submit"
-          class="w-full py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-base shadow-md shadow-blue-200/50">
-          대진표 생성
-        </button>
       </form>
+      </div>
 
       <!-- 쉬는 사람 배정 화면 -->
       <div id="sch-rest-view" class="hidden space-y-3">
@@ -2806,7 +2827,7 @@ const App = {
           <h3 class="text-base font-bold text-gray-800">쉬는 사람 배정</h3>
         </div>
         <div id="sch-rest-info" class="text-xs text-gray-500 text-center"></div>
-        <div id="sch-rest-slots" class="space-y-3 overflow-y-auto" style="max-height:60vh"></div>
+        <div id="sch-rest-slots" class="space-y-3"></div>
         <div class="flex gap-2">
           <button type="button" id="sch-rest-back2" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">돌아가기</button>
           <button type="button" id="sch-rest-auto" class="flex-1 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-100 transition">자동추천</button>
@@ -3164,9 +3185,10 @@ const App = {
 
       const gameDate = container.querySelector('#schedule-date').value || new Date().toISOString().slice(0, 10);
       const customName = container.querySelector('#schedule-name').value.trim();
+      const courtName = this._getCourtBaseName();
       const tournament = {
         id: Storage.generateId(),
-        name: customName || `${gameDate} ${s.startTime} 대진표`,
+        name: customName || `${this._formatDateWithDay(gameDate)}${courtName ? ' ' + courtName : ''} ${parseInt(s.startTime)}~${parseInt(s.endTime)} 대진표`,
         format: 'schedule',
         isSingles: s.isSingles,
         isTeamMode,
@@ -3271,9 +3293,10 @@ const App = {
 
       const gameDate = container.querySelector('#schedule-date').value || new Date().toISOString().slice(0, 10);
       const customName = container.querySelector('#schedule-name').value.trim();
+      const courtName = this._getCourtBaseName();
       const tournament = {
         id: Storage.generateId(),
-        name: customName || `${gameDate} ${startTime} 대진표`,
+        name: customName || `${this._formatDateWithDay(gameDate)}${courtName ? ' ' + courtName : ''} ${parseInt(startTime)}~${parseInt(endTime)} 대진표`,
         format: 'schedule',
         isSingles,
         isTeamMode,
@@ -3508,9 +3531,9 @@ const App = {
       patchDOM(container, `
         <div class="max-w-lg mx-auto text-center py-12">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-100/30 border border-white/60 p-8">
-            <div class="text-5xl mb-4">🎾</div>
-            <h2 class="text-xl font-bold text-gray-800 mb-2">등록된 대진표가 없습니다</h2>
-            <p class="text-gray-500 mb-4">새로운 매치를 만들어보세요!</p>
+            <div class="text-3xl mb-3">🎾</div>
+            <p class="text-sm font-semibold text-gray-600 mb-1">등록된 대진표가 없습니다</p>
+            <p class="text-xs text-gray-400">새로운 매치를 만들어보세요!</p>
           </div>
         </div>`);
       return;
@@ -3578,13 +3601,13 @@ const App = {
         const _dayNames = ['일','월','화','수','목','금','토'];
         const _dateLabel = `${_gd.getMonth()+1}/${_gd.getDate()}(${_dayNames[_gd.getDay()]})`;
         return `
-          <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
+          <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-xl px-3 py-2.5 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
                data-id="${t.id}">
-            ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}
-            <div class="flex items-center justify-between gap-2 mb-2 pr-6">
-              <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
+            <div class="flex items-center justify-between gap-2 mb-1 pr-5">
+              <h3 class="font-bold text-gray-800 text-sm min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
               <div class="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
                 ${t.status === 'completed'
                   ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
@@ -3593,8 +3616,8 @@ const App = {
                 <span class="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">대진표</span>
               </div>
             </div>
-            <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
-              <span class="whitespace-nowrap">남${mCount} · 여${fCount}</span>
+            <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+              <span class="whitespace-nowrap">남${mCount}·여${fCount}</span>
               <span class="whitespace-nowrap">${_dateLabel}</span>
               ${t.isCustom ? `<span class="whitespace-nowrap">코트 ${t.courts}면</span>` : `<span class="whitespace-nowrap">${t.startTime}~${t.endTime}</span>`}
               <span class="whitespace-nowrap">${completed}/${allMatches.length}경기</span>
@@ -3609,13 +3632,13 @@ const App = {
       const isDoubles = t.gameType ? GAME_TYPES[t.gameType]?.doubles : false;
       const countLabel = isDoubles ? `${t.players.length}팀` : `${t.players.length}명`;
       return `
-        <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
+        <div class="tournament-card relative bg-white/80 backdrop-blur-sm border ${myCardClass} rounded-xl px-3 py-2.5 cursor-pointer hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-200 transition-all shadow-sm shadow-blue-50/30"
              data-id="${t.id}">
-          ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          ${canEditT ? `<button type="button" class="delete-tournament-btn absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition" data-id="${t.id}">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>` : ''}
-          <div class="flex items-center justify-between gap-2 mb-2 pr-6">
-            <h3 class="font-bold text-gray-800 min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
+          <div class="flex items-center justify-between gap-2 mb-1 pr-5">
+            <h3 class="font-bold text-gray-800 text-sm min-w-0 truncate">${Results.escapeHtml(t.name)}</h3>
             <div class="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
               ${t.status === 'completed'
                 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">완료</span>'
@@ -3626,7 +3649,7 @@ const App = {
               </span>
             </div>
           </div>
-          <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+          <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
             <span class="whitespace-nowrap">${countLabel}</span>
             <span class="whitespace-nowrap">${dateLabel2}</span>
             ${t.status === 'completed' && t.format === 'tournament' ?
@@ -3637,8 +3660,7 @@ const App = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">대진표</h2>
-        <div class="space-y-4">
+        <div class="space-y-2">
           ${monthKeys.map(key => {
             const items = monthGroups[key];
             const collapsed = !!this._monthCollapsed[key];
@@ -3651,13 +3673,13 @@ const App = {
             }
             return `
               <div class="month-group">
-                <button type="button" class="month-toggle w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition" data-month="${key}">
+                <button type="button" class="month-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition" data-month="${key}">
                   <span class="font-semibold text-gray-700 text-sm">${label} <span class="text-gray-400 font-normal">(${items.length})</span></span>
                   <svg class="w-4 h-4 text-gray-400 transition-transform ${collapsed ? '' : 'rotate-180'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                   </svg>
                 </button>
-                <div class="month-content space-y-3 mt-3 pb-1 ${collapsed ? 'hidden' : ''}" style="max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch">
+                <div class="month-content space-y-2 mt-2 pb-1 ${collapsed ? 'hidden' : ''}">
                   ${items.map(t => renderCard(t)).join('')}
                 </div>
               </div>`;

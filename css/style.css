@@ -78,15 +78,68 @@ html.dark #offline-banner {
   color-scheme: only light;
 }
 
-/* 기본 색상 명시 (브라우저 강제 다크모드 대비) */
+/* 기본 색상 명시 + 고정 뷰포트 (주소표시줄 튕김 방지) */
 html {
   background-color: #ffffff;
   color: #1f2937;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   width: 100%;
+}
+
+#app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+#main-content {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+
+/* Webkit 커스텀 스크롤바 (Chrome, Safari, Edge) — 앱 전체 */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.25);
+}
+
+/* 스크롤 공통 — 앱 내 모든 스크롤 영역 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
+}
+
+/* 다크모드 스크롤바 */
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
+}
+html.dark * {
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
 }
 
 /* ── OS/브라우저 강제 다크모드 차단 (앱이 라이트 모드일 때) ── */
@@ -114,27 +167,50 @@ input, select, textarea {
 }
 
 /* safe-area 대응 (노치 폰) */
-body {
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
 
 header {
   width: 100%;
+  flex-shrink: 0;
   padding-top: env(safe-area-inset-top, 0);
   padding-left: env(safe-area-inset-left, 0);
   padding-right: env(safe-area-inset-right, 0);
 }
 
-/* 탭 네비게이션 */
-.tab-active {
-  color: #2563eb !important;
-  border-bottom-color: #2563eb !important;
-  font-weight: 700;
-  background: linear-gradient(to top, rgba(37, 99, 235, 0.06), transparent);
+/* 하단 탭 네비게이션 */
+.bottom-nav {
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
 }
-
-[data-tab] {
-  min-height: 44px; /* 최소 터치 영역 */
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #9ca3af;
+  transition: color 0.15s;
+  position: relative;
+  min-height: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.bottom-nav-item svg {
+  width: 20px;
+  height: 20px;
+}
+.bottom-nav-item.tab-active {
+  color: #2563eb !important;
+  font-weight: 600;
 }
 
 /* 사이드 메뉴 */
@@ -160,6 +236,7 @@ header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
+  touch-action: pan-y;
 }
 .calendar-dates {
   grid-auto-rows: 1fr;
@@ -182,6 +259,7 @@ header {
   transition: background-color 0.15s;
   min-height: 56px;
   overflow: hidden;
+  touch-action: pan-y;
 }
 .calendar-day:hover {
   background-color: #f3f4f6;
@@ -453,22 +531,6 @@ header {
   -moz-appearance: textfield;
 }
 
-/* 스크롤바 스타일 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
 /* 포맷 선택 라디오 */
 .format-option input:checked + div {
   border-color: #2563eb;
@@ -656,6 +718,67 @@ html.dark .custom-modal-box .text-blue-500 {
   min-height: 28px;
 }
 
+/* ============================================
+   데스크톱 레이아웃: 하단탭 → 좌측 사이드바
+   ============================================ */
+@media (min-width: 768px) {
+  #app-container {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  header {
+    grid-column: 1 / -1;
+  }
+  .bottom-nav {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: column;
+    justify-content: flex-start;
+    border-top: none;
+    border-right: 1px solid #e5e7eb;
+    box-shadow: none;
+    padding: 12px 8px;
+    padding-bottom: 0;
+    gap: 2px;
+  }
+  .bottom-nav-item {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    gap: 10px;
+    font-size: 13px;
+    border-radius: 10px;
+    transition: color 0.15s, background-color 0.15s;
+  }
+  .bottom-nav-item:hover {
+    background-color: #f3f4f6;
+  }
+  .bottom-nav-item svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .bottom-nav-item.tab-active {
+    background-color: #eff6ff;
+  }
+  #main-content {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+/* 와이드 데스크톱: 사이드바 넓게 */
+@media (min-width: 1200px) {
+  #app-container {
+    grid-template-columns: 220px 1fr;
+  }
+  .bottom-nav-item {
+    padding: 10px 16px;
+  }
+}
+
 /* 모바일 최적화 */
 @media (max-width: 640px) {
   /* 대진표: 모바일에서 1열로 */
@@ -773,11 +896,6 @@ html.dark .custom-modal-box .text-blue-500 {
     max-width: 70px;
     font-size: 11px !important;
   }
-  [data-tab] {
-    font-size: 11px !important;
-    padding-left: 2px !important;
-    padding-right: 2px !important;
-  }
 
   /* 일정 카드: 액션 버튼 축소 */
   .cal-share-btn,
@@ -785,16 +903,16 @@ html.dark .custom-modal-box .text-blue-500 {
   .cal-settlement-btn,
   .cal-edit-btn,
   .cal-delete-btn {
-    width: 1.5rem !important;
-    height: 1.5rem !important;
+    width: 1.75rem !important;
+    height: 1.75rem !important;
   }
   .cal-share-btn svg,
   .cal-bracket-btn svg,
   .cal-settlement-btn svg,
   .cal-edit-btn svg,
   .cal-delete-btn svg {
-    width: 0.75rem !important;
-    height: 0.75rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
   }
 
   /* 일정 카드: 참석/대기 버튼 폰트 축소 */
@@ -804,8 +922,8 @@ html.dark .custom-modal-box .text-blue-500 {
   .cal-cancel-waitlist-btn,
   .cal-add-participant-btn {
     font-size: 11px !important;
-    padding-top: 0.25rem !important;
-    padding-bottom: 0.25rem !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
   }
 
   /* 일정 카드: 참석자 이름 뱃지 축소 */
@@ -847,6 +965,25 @@ html.dark .custom-modal-box .text-blue-500 {
 .pwa-install-banner.pwa-banner-hiding {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* ─── 모바일 UI 개선: 공통 스타일 ─── */
+
+/* 모바일 버튼 active 피드백 */
+@media (max-width: 640px) {
+  button:active:not(:disabled),
+  [role="button"]:active:not(:disabled) {
+    transform: scale(0.97);
+    transition: transform 0.1s;
+  }
+}
+
+/* 공통 카드 스타일 */
+.card-base {
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  border: 1px solid #f3f4f6;
+  transition: box-shadow 0.2s;
 }
 
 /* ─── Dark Mode ─── */
@@ -910,17 +1047,32 @@ html.dark header h1 {
   color: transparent !important;
 }
 
-/* 탭 */
-html.dark .tab-active {
+/* 하단 탭 (다크모드) */
+html.dark .bottom-nav {
+  background: #1e293b;
+  border-top-color: #334155;
+  box-shadow: 0 -1px 3px rgba(0,0,0,0.2);
+}
+html.dark .bottom-nav-item {
+  color: #64748b;
+}
+html.dark .bottom-nav-item.tab-active {
   color: #60a5fa !important;
-  border-bottom-color: #60a5fa !important;
-  background: linear-gradient(to top, rgba(96, 165, 250, 0.08), transparent) !important;
 }
-html.dark [data-tab] {
-  color: #94a3b8;
-}
-html.dark [data-tab]:hover {
-  color: #cbd5e1;
+
+/* 데스크톱 사이드바 (다크모드) */
+@media (min-width: 768px) {
+  html.dark .bottom-nav {
+    border-right-color: #334155;
+    border-top: none;
+    box-shadow: none;
+  }
+  html.dark .bottom-nav-item:hover {
+    background-color: #334155;
+  }
+  html.dark .bottom-nav-item.tab-active {
+    background-color: rgba(59, 130, 246, 0.12);
+  }
 }
 
 /* 배경 오버라이드 */
@@ -1227,14 +1379,6 @@ html.dark .swap-player:hover {
 /* 브래킷 스크롤 힌트 */
 html.dark .bracket-scroll-hint::after {
   background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.9));
-}
-
-/* 스크롤바 */
-html.dark ::-webkit-scrollbar-thumb {
-  background: #475569;
-}
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
 }
 
 /* 캘린더 다크모드 */
@@ -1954,26 +2098,3 @@ html.dark .text-teal-600 {
   --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-/* ============================================
-   다가오는 일정 스크롤 영역
-   ============================================ */
-#upcoming-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-#upcoming-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-#upcoming-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-#upcoming-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-html.dark #upcoming-scroll {
-  scrollbar-color: #475569 transparent;
-}
-html.dark #upcoming-scroll::-webkit-scrollbar-thumb {
-  background: #475569;
-}

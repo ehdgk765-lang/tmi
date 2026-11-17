@@ -15,9 +15,9 @@ const Stats = {
       patchDOM(container, `
         <div class="max-w-lg mx-auto text-center py-12">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-50/30 border border-white/60 p-8">
-            <div class="text-5xl mb-4">📊</div>
-            <h2 class="text-xl font-bold text-gray-800 mb-2">통계가 없습니다</h2>
-            <p class="text-gray-500">완료된 대진표가 있으면 통계가 표시됩니다.</p>
+            <div class="text-3xl mb-3">📊</div>
+            <p class="text-sm font-semibold text-gray-600 mb-1">통계가 없습니다</p>
+            <p class="text-xs text-gray-400">완료된 대진표가 있으면 통계가 표시됩니다.</p>
           </div>
         </div>`);
       return;
@@ -33,9 +33,7 @@ const Stats = {
 
     patchDOM(container, `
       <div class="max-w-lg mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">통계</h2>
-
-        <div class="flex gap-2 mb-6">
+        <div class="flex gap-2 mb-4">
           <button data-stats-mode="monthly"
             class="sub-tab flex-1 px-4 py-2 rounded-full text-sm font-semibold transition
             ${this._viewMode === 'monthly' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
@@ -249,16 +247,16 @@ const Stats = {
           <div class="flex items-center gap-2">
             <span class="font-semibold text-gray-700 text-sm">메달 순위</span>
             <div class="flex gap-1 stats-gender-btns" onclick="event.stopPropagation()">
-              <button data-gender="all" class="stats-medal-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('all')}">전체</button>
-              <button data-gender="M" class="stats-medal-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('M')}">남</button>
-              <button data-gender="F" class="stats-medal-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('F')}">여</button>
+              <button data-gender="all" class="stats-medal-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('all')}">전체</button>
+              <button data-gender="M" class="stats-medal-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('M')}">남</button>
+              <button data-gender="F" class="stats-medal-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('F')}">여</button>
             </div>
           </div>
           <svg class="w-5 h-5 text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
           </svg>
         </div>
-        ${collapsed ? '' : `<table class="w-full text-sm standings-table">
+        ${collapsed ? '' : `<div class="overflow-x-auto"><table class="w-full text-sm standings-table">
           <thead>
             <tr class="border-b border-gray-100 text-gray-500 text-xs">
               <th class="text-center px-2 py-2 w-10">#</th>
@@ -293,7 +291,7 @@ const Stats = {
               </tr>`;
             }).join('')}
           </tbody>
-        </table>`}
+        </table></div>`}
       </div>`;
 
     // 성별 필터 이벤트
@@ -323,9 +321,9 @@ const Stats = {
       container.innerHTML = `
         <div class="text-center py-8">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-50/30 border border-white/60 p-8">
-            <div class="text-4xl mb-3">👥</div>
-            <p class="text-gray-500">등록된 조가 없습니다.</p>
-            <p class="text-gray-400 text-sm mt-1">회원 관리에서 조를 추가하면 조별 통계가 표시됩니다.</p>
+            <div class="text-2xl mb-2">👥</div>
+            <p class="text-sm text-gray-500">등록된 조가 없습니다.</p>
+            <p class="text-xs text-gray-400 mt-1">회원 관리에서 조를 추가하면 조별 통계가 표시됩니다.</p>
           </div>
         </div>`;
       return;
@@ -335,8 +333,8 @@ const Stats = {
       container.innerHTML = `
         <div class="text-center py-8">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm shadow-blue-50/30 border border-white/60 p-8">
-            <div class="text-4xl mb-3">📊</div>
-            <p class="text-gray-500">완료된 대진표가 없습니다.</p>
+            <div class="text-2xl mb-2">📊</div>
+            <p class="text-sm text-gray-500">완료된 대진표가 없습니다.</p>
           </div>
         </div>`;
       return;
@@ -528,9 +526,9 @@ const Stats = {
           <div class="flex items-center gap-2">
             <span class="font-semibold text-gray-700 text-sm">개인 순위</span>
             <div class="flex gap-1 stats-gender-btns" onclick="event.stopPropagation()">
-              <button data-gender="all" class="stats-part-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('all')}">전체</button>
-              <button data-gender="M" class="stats-part-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('M')}">남</button>
-              <button data-gender="F" class="stats-part-gender px-2 py-0.5 rounded-full text-xs font-medium transition ${genderBtnCls('F')}">여</button>
+              <button data-gender="all" class="stats-part-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('all')}">전체</button>
+              <button data-gender="M" class="stats-part-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('M')}">남</button>
+              <button data-gender="F" class="stats-part-gender px-2.5 py-1 rounded-full text-xs font-medium transition ${genderBtnCls('F')}">여</button>
             </div>
           </div>
           <svg class="w-5 h-5 text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
