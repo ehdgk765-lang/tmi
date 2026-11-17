@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = 'v2.1.20';
+    var APP_VERSION = 'v2.1.21';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -48,12 +48,12 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"Pretendard Variable"', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', '"Helvetica Neue"', '"Segoe UI"', '"Apple SD Gothic Neo"', '"Noto Sans KR"', '"Malgun Gothic"', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', 'sans-serif'] } } } }</script>
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+  <!-- Firebase SDK (defer: 병렬 다운로드, 문서 순서대로 실행) -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
   <!-- Kakao SDK -->
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
   <script>
@@ -64,8 +64,8 @@
       console.warn('[Kakao] SDK 로드 실패');
     }
   </script>
-  <!-- morphdom: DOM diffing for flicker-free updates -->
-  <script src="https://unpkg.com/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
+  <!-- morphdom: DOM diffing for flicker-free updates (defer: patchDOM은 정의만, 실제 호출은 로컬 스크립트에서) -->
+  <script defer src="https://unpkg.com/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
   <script>
     function patchDOM(container, html) {
       if (!container.firstElementChild) {
@@ -314,7 +314,7 @@
       'js/app.js',
       'js/auth.js'
     ].forEach(function(src) {
-      document.write('<script src="' + src + '?v=' + APP_VERSION + '"><\/script>');
+      document.write('<script defer src="' + src + '?v=' + APP_VERSION + '"><\/script>');
     });
   </script>
   <script>

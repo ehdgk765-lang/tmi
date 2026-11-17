@@ -2136,6 +2136,9 @@ const Storage = {
 
   // ─── Firestore → 메모리 (초기 로드) ───
 
+  _heavyDataLoaded: false,
+  _heavyDataPromise: null,
+
   async loadFromFirestore() {
     var user = fbAuth.currentUser;
     if (!user) return;
@@ -2169,15 +2172,36 @@ const Storage = {
       this._loadDoc('reservations', results[4]);
       this._loadDoc('settings', results[5]);
 
-      await this._loadEventsFromCollection(parent);
-      await this._loadTournamentsFromCollection(parent);
+      // 무거운 데이터(이벤트, 대진표, 출석)는 백그라운드로 로드 → 화면 먼저 표시
+      this._heavyDataLoaded = false;
+      this._heavyDataPromise = this._loadHeavyData(parent);
+    } catch (err) {
+      console.error('Firestore load error:', err);
+    }
+  },
 
-      // RTDB 참석 마이그레이션 + 로드
+  async _loadHeavyData(parent) {
+    try {
+      await Promise.all([
+        this._loadEventsFromCollection(parent),
+        this._loadTournamentsFromCollection(parent)
+      ]);
       await this._migrateAttendanceToRtdb(parent);
       await this._loadAttendanceFromRtdb();
       await this._migrateEventColors(parent);
     } catch (err) {
-      console.error('Firestore load error:', err);
+      console.error('Heavy data load error:', err);
+    }
+    this._heavyDataLoaded = true;
+    // 로드 완료 → 현재 탭의 render만 재호출 (navigate 미사용으로 깜빡임 방지)
+    if (typeof App !== 'undefined' && App.currentTab) {
+      var tab = App.currentTab;
+      var c = document.getElementById('main-content');
+      if (c) {
+        if (tab === 'calendar' && typeof Calendar !== 'undefined') Calendar.render(c);
+        else if (tab === 'active') App.renderTournamentList(c);
+        else if (tab === 'stats' && typeof Stats !== 'undefined') Stats.render(c);
+      }
     }
   },
 
@@ -2506,6 +2530,23 @@ const Storage = {
     this._unsubGroups = listenDoc('groups');
     this._unsubReservations = listenDoc('reservations');
     this._unsubSettings = listenDoc('settings');
+
+    // 컬렉션 리스너(events, tournaments, RTDB attendance)는
+    // heavy data 로드 완료 후 설정 (초기 스냅샷 충돌 방지)
+    var setupCollectionListeners = function() {
+      self._setupCollectionListeners(parent);
+    };
+    if (this._heavyDataLoaded) {
+      setupCollectionListeners();
+    } else if (this._heavyDataPromise) {
+      this._heavyDataPromise.then(setupCollectionListeners);
+    } else {
+      setupCollectionListeners();
+    }
+  },
+
+  _setupCollectionListeners(parent) {
+    var self = this;
 
     // events: 컬렉션 리스너 (문서별 추가/수정/삭제 반영, 참석 데이터는 RTDB가 관리)
     this._unsubEvents = parent.collection('events').onSnapshot(function(snap) {
