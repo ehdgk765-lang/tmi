@@ -155,15 +155,26 @@ const App = {
   },
 
   navigateToEvent(eventId) {
-    var events = Storage.getEvents();
-    var ev = events.find(function(e) { return e.id === eventId; });
+    var self = this;
+    var ev = Storage.getEvents().find(function(e) { return e.id === eventId; });
+
+    if (!ev && Storage._heavyDataPromise && !Storage._heavyDataLoaded) {
+      // 이벤트 데이터가 아직 로딩 중 → 로드 완료 후 재시도
+      Storage._heavyDataPromise.then(function() {
+        self._navigateToEventFinal(eventId);
+      });
+      return;
+    }
+    this._navigateToEventFinal(eventId);
+  },
+
+  _navigateToEventFinal(eventId) {
+    var ev = Storage.getEvents().find(function(e) { return e.id === eventId; });
     if (!ev) {
-      // 삭제된 일정 → 일반 접속으로 전환
       if (typeof Modal !== 'undefined') Modal.toast('삭제된 일정입니다.', 'error');
       this.navigate(RolesConfig.getDefaultTab());
       return;
     }
-    // 캘린더 탭 접근 가능 여부 확인
     var visibleTabs = RolesConfig.getVisibleTabs();
     if (visibleTabs.indexOf('calendar') < 0) {
       if (typeof Modal !== 'undefined') Modal.toast('이 일정에 접근할 수 없습니다.', 'error');
@@ -175,11 +186,13 @@ const App = {
     Calendar._currentMonth = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
     Calendar._selectedDate = ev.date;
     this.navigate('calendar');
-    // 렌더 후 하이라이트
+    // 렌더 완료 후 하이라이트 (DOM 반영 대기)
     var self = this;
-    setTimeout(function() {
-      Calendar._highlightEvent(eventId);
-    }, 300);
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        Calendar._highlightEvent(eventId);
+      }, 200);
+    });
   },
 
   // 멤버 이름 관련
