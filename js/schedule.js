@@ -576,8 +576,8 @@ const Schedule = {
     return matches;
   },
 
-  // 대진표 생성 (lateEntries: { playerName: "HH:MM" }, earlyLeaves: { playerName: "HH:MM" }, typeDistribution: { MD: 3, XD: 2, WD: 3 } | null)
-  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, earlyLeaves, typeDistribution, warmupMinutes, gameMinutes) {
+  // 대진표 생성 (lateEntries: { playerName: "HH:MM" }, earlyLeaves: { playerName: "HH:MM" }, typeDistribution: { MD: 3, XD: 2, WD: 3 } | null, restPlan: { "HH:MM": ["선수1","선수2"] } | null)
+  generate(males, females, courts, startTime, endTime, allowMixed, isSingles, lateEntries, earlyLeaves, typeDistribution, warmupMinutes, gameMinutes, restPlan) {
     const slots = this.calculateTimeSlots(startTime, endTime, warmupMinutes, gameMinutes);
     const gameCounts = {};
     [...males, ...females].forEach(p => { gameCounts[p] = 0; });
@@ -603,6 +603,19 @@ const Schedule = {
         const missedSlots = slots.filter(t => t > earlyTime).length;
         if (missedSlots > 0 && gameCounts.hasOwnProperty(player)) {
           gameCounts[player] = (gameCounts[player] || 0) - missedSlots;
+        }
+      }
+    }
+
+    // 쉬는 사람 사전 배정: 지정 슬롯만큼 음수 보정 → 참여 슬롯에서 우선 배정
+    if (restPlan) {
+      for (const [time, restPlayers] of Object.entries(restPlan)) {
+        for (const p of restPlayers) {
+          const isAlreadyOut = (lateEntries && lateEntries[p] && lateEntries[p] > time) ||
+                               (earlyLeaves && earlyLeaves[p] && earlyLeaves[p] < time);
+          if (!isAlreadyOut && gameCounts.hasOwnProperty(p)) {
+            gameCounts[p] = (gameCounts[p] || 0) - 1;
+          }
         }
       }
     }
@@ -639,6 +652,13 @@ const Schedule = {
       if (earlyLeaves) {
         slotMales = slotMales.filter(p => !earlyLeaves[p] || earlyLeaves[p] >= time);
         slotFemales = slotFemales.filter(p => !earlyLeaves[p] || earlyLeaves[p] >= time);
+      }
+
+      // 쉬는 사람 사전 배정: 해당 슬롯 지정 선수 제외
+      if (restPlan && restPlan[time]) {
+        const restSet = new Set(restPlan[time]);
+        slotMales = slotMales.filter(p => !restSet.has(p));
+        slotFemales = slotFemales.filter(p => !restSet.has(p));
       }
 
       // 4연속 배치 방지: 3경기 연속 출전 선수 제외
@@ -1264,7 +1284,9 @@ const Schedule = {
               tournament.allowMixed, tournament.isSingles,
               Object.keys(lateEntries).length > 0 ? lateEntries : null,
               Object.keys(earlyLeaves).length > 0 ? earlyLeaves : null,
-              tournament.typeDistribution || null
+              tournament.typeDistribution || null,
+              tournament.warmupMinutes, tournament.gameMinutes,
+              tournament.restPlan || null
             );
 
             tournament.timeSlots = newTimeSlots;

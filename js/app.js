@@ -2783,11 +2783,36 @@ const App = {
         <div id="preview-info" class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 hidden">
         </div>
 
+        <!-- 쉬는 사람 배정 버튼 -->
+        <div id="sch-rest-section" class="border-t border-gray-100 pt-3">
+          <button type="button" id="sch-rest-btn" class="w-full py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-700 hover:bg-amber-100 transition">
+            쉬는 사람 배정
+          </button>
+          <p id="sch-rest-summary" class="text-xs text-amber-600 mt-1 text-center hidden"></p>
+        </div>
+
         <button type="submit"
           class="w-full py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all font-semibold text-base shadow-md shadow-blue-200/50">
           대진표 생성
         </button>
-      </form>`);
+      </form>
+
+      <!-- 쉬는 사람 배정 화면 -->
+      <div id="sch-rest-view" class="hidden space-y-3">
+        <div class="flex items-center gap-2 mb-2">
+          <button type="button" id="sch-rest-back" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-gray-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <h3 class="text-base font-bold text-gray-800">쉬는 사람 배정</h3>
+        </div>
+        <div id="sch-rest-info" class="text-xs text-gray-500 text-center"></div>
+        <div id="sch-rest-slots" class="space-y-3 overflow-y-auto" style="max-height:60vh"></div>
+        <div class="flex gap-2">
+          <button type="button" id="sch-rest-back2" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">돌아가기</button>
+          <button type="button" id="sch-rest-auto" class="flex-1 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-100 transition">자동추천</button>
+          <button type="button" id="sch-rest-generate" class="flex-1 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl text-sm font-semibold hover:from-blue-600 hover:to-indigo-600 transition">생성</button>
+        </div>
+      </div>`);
 
     const updateCounts = () => {
       const maleChecked = container.querySelectorAll('.male-cb:checked').length;
@@ -2919,6 +2944,258 @@ const App = {
       };
     });
 
+    // === 쉬는 사람 배정 로직 ===
+    let schRestPlan = {};
+    const schSettingsEls = [container.querySelector('#schedule-form'), ...container.querySelectorAll('.flex.items-center.justify-end.gap-4.mb-3'), container.querySelector('.mb-3')];
+    const schRestView = container.querySelector('#sch-rest-view');
+
+    const getSchSettings = () => {
+      const startTime = container.querySelector('#start-time').value;
+      const endTime = container.querySelector('#end-time').value;
+      const courts = parseInt(container.querySelector('input[name="courts"]:checked').value);
+      const warmupMin = parseInt(container.querySelector('input[name="warmup-time"]:checked')?.value) || 15;
+      const isSingles = container.querySelector('input[name="sch-match-type"]:checked')?.value === 'singles';
+      const allowMixed = container.querySelector('#allow-mixed')?.checked || false;
+      const selectedMales = Array.from(container.querySelectorAll('.male-cb:checked')).map(cb => cb.value);
+      const selectedFemales = Array.from(container.querySelectorAll('.female-cb:checked')).map(cb => cb.value);
+      return { startTime, endTime, courts, warmupMin, isSingles, allowMixed, selectedMales, selectedFemales };
+    };
+
+    const updateSchRestSummary = () => {
+      const summaryEl = container.querySelector('#sch-rest-summary');
+      const assignedSlots = Object.keys(schRestPlan).filter(k => schRestPlan[k] && schRestPlan[k].length > 0);
+      if (assignedSlots.length > 0) {
+        summaryEl.textContent = assignedSlots.length + '개 슬롯에 쉬는 사람 배정됨';
+        summaryEl.classList.remove('hidden');
+      } else {
+        summaryEl.classList.add('hidden');
+      }
+    };
+
+    const saveSchChipsToRestPlan = () => {
+      schRestPlan = {};
+      schRestView.querySelectorAll('.rest-slot-section').forEach(section => {
+        const time = section.dataset.time;
+        const selected = [];
+        section.querySelectorAll('.rest-chip.selected').forEach(chip => {
+          selected.push(chip.dataset.player);
+        });
+        if (selected.length > 0) {
+          schRestPlan[time] = selected;
+        }
+      });
+    };
+
+    const renderSchRestView = () => {
+      const s = getSchSettings();
+      const allPlrs = [...s.selectedMales, ...s.selectedFemales];
+      const slots = Schedule.calculateTimeSlots(s.startTime, s.endTime, s.warmupMin, 25);
+      const playersPerCourt = s.isSingles ? 2 : 4;
+      const restPerSlot = Math.max(0, allPlrs.length - (s.courts * playersPerCourt));
+
+      const allPlayersData = Storage.getPlayers();
+      const gMap = {};
+      allPlayersData.forEach(p => { gMap[p.name] = p.gender; });
+      // 게스트 성별도 추가
+      container.querySelectorAll('.guest-item input:checked').forEach(cb => {
+        const name = cb.value;
+        const label = cb.closest('label');
+        if (label) {
+          const isMale = label.classList.contains('sch-male-item');
+          gMap[name] = isMale ? 'M' : 'F';
+        }
+      });
+
+      schRestView.querySelector('#sch-rest-info').textContent =
+        '총 ' + allPlrs.length + '명 / ' + s.courts + '코트 — 슬롯당 쉬는 인원: ' + restPerSlot + '명';
+
+      const slotsEl = schRestView.querySelector('#sch-rest-slots');
+      let html = '';
+      for (let i = 0; i < slots.length; i++) {
+        const time = slots[i];
+        const assigned = schRestPlan[time] || [];
+        const assignedSet = {};
+        assigned.forEach(p => { assignedSet[p] = true; });
+        const selectedCount = assigned.length;
+        const counterClass = selectedCount === restPerSlot ? 'text-green-600' :
+                            selectedCount > restPerSlot ? 'text-red-500' : 'text-gray-400';
+
+        html += `<div class="rest-slot-section border border-gray-200 rounded-xl p-2.5" data-time="${time}">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-gray-700">${time}</span>
+            <span class="rest-slot-counter text-xs font-medium ${counterClass}">${selectedCount} / ${restPerSlot}명</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">`;
+
+        for (let j = 0; j < allPlrs.length; j++) {
+          const p = allPlrs[j];
+          const g = gMap[p] || 'M';
+          const isSelected = !!assignedSet[p];
+          const chipClass = isSelected ?
+            'bg-amber-100 border-amber-300 text-amber-800' :
+            (g === 'M' ? 'bg-white border-gray-200 text-gray-700' : 'bg-white border-pink-200 text-gray-700');
+          const genderBadge = g === 'M' ? '<span class="text-[10px] text-blue-400">남</span>' : '<span class="text-[10px] text-pink-400">여</span>';
+
+          html += `<button type="button" class="rest-chip px-2 py-1 border rounded-lg text-xs font-medium transition flex items-center gap-0.5 ${chipClass}${isSelected ? ' selected' : ''}" data-player="${Results.escapeHtml(p)}">${Results.escapeHtml(p)}${genderBadge}</button>`;
+        }
+        html += '</div></div>';
+      }
+      slotsEl.innerHTML = html;
+
+      // 칩 클릭 이벤트
+      slotsEl.querySelectorAll('.rest-chip').forEach(chip => {
+        chip.onclick = () => {
+          chip.classList.toggle('selected');
+          const section = chip.closest('.rest-slot-section');
+          const pg = gMap[chip.dataset.player] || 'M';
+          if (chip.classList.contains('selected')) {
+            chip.className = chip.className.replace(/bg-white border-(?:gray|pink)-200 text-gray-700/, 'bg-amber-100 border-amber-300 text-amber-800');
+          } else {
+            const normalClass = pg === 'M' ? 'bg-white border-gray-200 text-gray-700' : 'bg-white border-pink-200 text-gray-700';
+            chip.className = chip.className.replace(/bg-amber-100 border-amber-300 text-amber-800/, normalClass);
+          }
+          const count = section.querySelectorAll('.rest-chip.selected').length;
+          const counterEl = section.querySelector('.rest-slot-counter');
+          counterEl.textContent = count + ' / ' + restPerSlot + '명';
+          counterEl.className = 'rest-slot-counter text-xs font-medium ' +
+            (count === restPerSlot ? 'text-green-600' : count > restPerSlot ? 'text-red-500' : 'text-gray-400');
+        };
+      });
+    };
+
+    // "쉬는 사람 배정" 버튼
+    const schRestBtn = container.querySelector('#sch-rest-btn');
+    if (schRestBtn) {
+      schRestBtn.onclick = () => {
+        const s = getSchSettings();
+        if (s.startTime >= s.endTime) {
+          Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+          return;
+        }
+        const allPlrs = [...s.selectedMales, ...s.selectedFemales];
+        if (allPlrs.length < (s.isSingles ? 2 : 4)) {
+          Modal.alert('먼저 멤버를 선택해주세요.');
+          return;
+        }
+        const playersPerCourt = s.isSingles ? 2 : 4;
+        const restPerSlot = allPlrs.length - (s.courts * playersPerCourt);
+        if (restPerSlot <= 0) {
+          Modal.alert('현재 인원과 코트 수로는 쉬는 사람이 없습니다.');
+          return;
+        }
+        renderSchRestView();
+        // 폼과 옵션 숨기기
+        container.querySelector('#schedule-form').classList.add('hidden');
+        container.querySelectorAll(':scope > .flex.items-center.justify-end, :scope > .mb-3').forEach(el => el.classList.add('hidden'));
+        schRestView.classList.remove('hidden');
+      };
+    }
+
+    // rest-view 돌아가기
+    const goBackToSchSettings = () => {
+      saveSchChipsToRestPlan();
+      schRestView.classList.add('hidden');
+      container.querySelector('#schedule-form').classList.remove('hidden');
+      container.querySelectorAll(':scope > .flex.items-center.justify-end, :scope > .mb-3').forEach(el => el.classList.remove('hidden'));
+      updateSchRestSummary();
+    };
+    container.querySelector('#sch-rest-back').onclick = goBackToSchSettings;
+    container.querySelector('#sch-rest-back2').onclick = goBackToSchSettings;
+
+    // "자동추천" 버튼
+    container.querySelector('#sch-rest-auto').onclick = () => {
+      const s = getSchSettings();
+      const tempSlots = Schedule.generate(s.selectedMales, s.selectedFemales, s.courts, s.startTime, s.endTime, s.allowMixed, s.isSingles, null, null, null, s.warmupMin, 25);
+      if (!tempSlots || tempSlots.length === 0) return;
+      const allPlrs = [...s.selectedMales, ...s.selectedFemales];
+      schRestPlan = {};
+      tempSlots.forEach(slot => {
+        const played = {};
+        slot.matches.forEach(m => {
+          if (m.player1) m.player1.split(' / ').forEach(p => { played[p] = true; });
+          if (m.player2) m.player2.split(' / ').forEach(p => { played[p] = true; });
+        });
+        const resting = allPlrs.filter(p => !played[p]);
+        if (resting.length > 0) schRestPlan[slot.time] = resting;
+      });
+      renderSchRestView();
+    };
+
+    // rest-view "생성" 버튼
+    container.querySelector('#sch-rest-generate').onclick = () => {
+      saveSchChipsToRestPlan();
+      const s = getSchSettings();
+
+      if (s.startTime >= s.endTime) {
+        Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        return;
+      }
+      const allPlrs = [...s.selectedMales, ...s.selectedFemales];
+      const minPlayers = s.isSingles ? 2 : 4;
+      if (allPlrs.length < minPlayers) {
+        Modal.alert(`최소 ${minPlayers}명의 멤버를 선택해주세요.`);
+        return;
+      }
+      const possibleTypes = Schedule.getPossibleTypes(s.selectedMales, s.selectedFemales, s.allowMixed, s.isSingles);
+      if (possibleTypes.length === 0) {
+        Modal.alert('참석자 성별 구성으로 경기를 만들 수 없습니다.');
+        return;
+      }
+
+      let typeDistribution = null;
+      const isManualMode = container.querySelector('#type-mode-manual')?.checked;
+      if (isManualMode) {
+        typeDistribution = {};
+        container.querySelectorAll('.type-count-input').forEach(el => {
+          const count = parseInt(el.textContent) || 0;
+          if (count > 0) typeDistribution[el.dataset.type] = count;
+        });
+      }
+
+      const isTeamMode = container.querySelector('#sch-team-mode')?.checked || false;
+      const guests = Array.from(container.querySelectorAll('.guest-item input:checked')).map(cb => cb.value);
+      const restPlanToUse = Object.keys(schRestPlan).length > 0 ? schRestPlan : null;
+      const timeSlots = Schedule.generate(s.selectedMales, s.selectedFemales, s.courts, s.startTime, s.endTime, s.allowMixed, s.isSingles, null, null, typeDistribution, s.warmupMin, 25, restPlanToUse);
+
+      if (timeSlots.length === 0) {
+        Modal.alert('시간이 부족합니다. 몸풀기 ' + s.warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
+        return;
+      }
+
+      const gameDate = container.querySelector('#schedule-date').value || new Date().toISOString().slice(0, 10);
+      const customName = container.querySelector('#schedule-name').value.trim();
+      const tournament = {
+        id: Storage.generateId(),
+        name: customName || `${gameDate} ${s.startTime} 대진표`,
+        format: 'schedule',
+        isSingles: s.isSingles,
+        isTeamMode,
+        setCount: 1,
+        courts: s.courts,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        allowMixed: s.allowMixed,
+        warmupMinutes: s.warmupMin,
+        gameMinutes: 25,
+        gameDate,
+        males: s.selectedMales,
+        females: s.selectedFemales,
+        players: allPlrs,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        timeSlots,
+        typeDistribution,
+        guests,
+        restPlan: restPlanToUse || undefined,
+      };
+
+      const tournaments = Storage.getTournaments();
+      tournaments.push(tournament);
+      Storage.saveTournaments(tournaments);
+      this.navigate('active', tournament.id);
+    };
+
     container.querySelector('#schedule-form').onsubmit = (e) => {
       e.preventDefault();
 
@@ -2984,7 +3261,8 @@ const App = {
         }
       }
 
-      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, null, typeDistribution, warmupMin, 25);
+      const restPlanToUse = Object.keys(schRestPlan).length > 0 ? schRestPlan : null;
+      const timeSlots = Schedule.generate(selectedMales, selectedFemales, courts, startTime, endTime, allowMixed, isSingles, null, null, typeDistribution, warmupMin, 25, restPlanToUse);
 
       if (timeSlots.length === 0) {
         Modal.alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
@@ -3016,6 +3294,7 @@ const App = {
         timeSlots,
         typeDistribution,
         guests,
+        restPlan: restPlanToUse || undefined,
       };
 
       const tournaments = Storage.getTournaments();

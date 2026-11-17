@@ -2053,97 +2053,123 @@ const Calendar = {
     modal.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML =
-      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-3 sm:p-5 space-y-4 overflow-y-auto" style="max-height:90vh">' +
-        '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden"></div>' +
-        '<h3 class="text-lg font-bold text-gray-800 text-center">대진표 생성</h3>' +
-        '<input type="text" autocomplete="off" id="bm-name" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:border-blue-500 transition" value="' + this._escapeAttr(ev.title + ' 대진표') + '">' +
-        // 참석자 현황
-        '<div class="flex justify-center gap-3">' +
-          '<span class="text-sm font-medium text-blue-600">남 ' + males.length + '명</span>' +
-          '<span class="text-sm font-medium text-pink-600">여 ' + females.length + '명</span>' +
-          '<span class="text-sm text-gray-500">총 ' + participants.length + '명</span>' +
-          (guestNames.length > 0 ? '<span class="text-sm font-medium text-amber-600">(게 ' + guestNames.length + ')</span>' : '') +
-        '</div>' +
-        // 일정 정보 (코트/시간 요약)
-        (hasEventCourts || hasEventTime ?
-          '<div class="bg-gray-50 rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">' +
-            (hasEventCourts ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + eventCourtCount + '</b>코트 (' + ev.courts.map(function(c) { return self._escapeHtml(c); }).join(', ') + ')</span>' : '') +
-            (hasEventTime ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + defaultStart + ' ~ ' + defaultEnd + '</b></span>' : '') +
-          '</div>'
-        : '') +
-        // 복식/단식
-        '<div>' +
-          '<label class="block text-xs font-semibold text-gray-500 mb-1.5">경기 방식</label>' +
-          '<div class="flex gap-2">' +
-            '<label class="flex-1 cursor-pointer">' +
-              '<input type="radio" name="bm-match-type" value="doubles" checked class="sr-only peer">' +
-              '<div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">복식</div>' +
-            '</label>' +
-            '<label class="flex-1 cursor-pointer">' +
-              '<input type="radio" name="bm-match-type" value="singles" class="sr-only peer">' +
-              '<div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">단식</div>' +
-            '</label>' +
+      '<div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-3 sm:p-5 overflow-y-auto" style="max-height:90vh">' +
+        '<div class="w-10 h-1 bg-gray-300 rounded-full mx-auto sm:hidden mb-3"></div>' +
+        // === 설정 화면 ===
+        '<div id="bm-settings-view" class="space-y-4">' +
+          '<h3 class="text-lg font-bold text-gray-800 text-center">대진표 생성</h3>' +
+          '<input type="text" autocomplete="off" id="bm-name" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:border-blue-500 transition" value="' + this._escapeAttr(ev.title + ' 대진표') + '">' +
+          // 참석자 현황
+          '<div class="flex justify-center gap-3">' +
+            '<span class="text-sm font-medium text-blue-600">남 ' + males.length + '명</span>' +
+            '<span class="text-sm font-medium text-pink-600">여 ' + females.length + '명</span>' +
+            '<span class="text-sm text-gray-500">총 ' + participants.length + '명</span>' +
+            (guestNames.length > 0 ? '<span class="text-sm font-medium text-amber-600">(게 ' + guestNames.length + ')</span>' : '') +
           '</div>' +
-        '</div>' +
-        // 코트 수 (이벤트에 코트가 없을 때만 표시)
-        (hasEventCourts ?
-          '<input type="hidden" name="bm-courts" value="' + eventCourtCount + '" checked>'
-        :
+          // 일정 정보 (코트/시간 요약)
+          (hasEventCourts || hasEventTime ?
+            '<div class="bg-gray-50 rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">' +
+              (hasEventCourts ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + eventCourtCount + '</b>코트 (' + ev.courts.map(function(c) { return self._escapeHtml(c); }).join(', ') + ')</span>' : '') +
+              (hasEventTime ? '<span class="text-xs text-gray-600"><b class="text-blue-600">' + defaultStart + ' ~ ' + defaultEnd + '</b></span>' : '') +
+            '</div>'
+          : '') +
+          // 복식/단식
           '<div>' +
-            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">코트 수</label>' +
-            '<div class="flex flex-wrap gap-1.5">' +
-              [1,2,3,4,5,6,7,8].map(function(n) {
-                return '<label class="cursor-pointer">' +
-                  '<input type="radio" name="bm-courts" value="' + n + '"' + (n === 2 ? ' checked' : '') + ' class="sr-only peer">' +
-                  '<div class="w-9 h-9 flex items-center justify-center border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-bold">' + n + '</div>' +
-                '</label>';
-              }).join('') +
+            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">경기 방식</label>' +
+            '<div class="flex gap-2">' +
+              '<label class="flex-1 cursor-pointer">' +
+                '<input type="radio" name="bm-match-type" value="doubles" checked class="sr-only peer">' +
+                '<div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">복식</div>' +
+              '</label>' +
+              '<label class="flex-1 cursor-pointer">' +
+                '<input type="radio" name="bm-match-type" value="singles" class="sr-only peer">' +
+                '<div class="border-2 border-gray-200 rounded-xl py-2 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">단식</div>' +
+              '</label>' +
             '</div>' +
-          '</div>'
-        ) +
-        // 시간 (이벤트에 시간이 없을 때만 표시)
-        (hasEventTime ?
-          '<input type="hidden" id="bm-start" value="' + defaultStart + '">' +
-          '<input type="hidden" id="bm-end" value="' + defaultEnd + '">'
-        :
-          '<div class="flex gap-2">' +
-            '<div class="flex-1">' +
-              '<label class="block text-xs font-semibold text-gray-500 mb-1.5">시작</label>' +
-              '<select id="bm-start" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
+          '</div>' +
+          // 코트 수 (이벤트에 코트가 없을 때만 표시)
+          (hasEventCourts ?
+            '<input type="hidden" name="bm-courts" value="' + eventCourtCount + '" checked>'
+          :
+            '<div>' +
+              '<label class="block text-xs font-semibold text-gray-500 mb-1.5">코트 수</label>' +
+              '<div class="flex flex-wrap gap-1.5">' +
+                [1,2,3,4,5,6,7,8].map(function(n) {
+                  return '<label class="cursor-pointer">' +
+                    '<input type="radio" name="bm-courts" value="' + n + '"' + (n === 2 ? ' checked' : '') + ' class="sr-only peer">' +
+                    '<div class="w-9 h-9 flex items-center justify-center border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-bold">' + n + '</div>' +
+                  '</label>';
+                }).join('') +
+              '</div>' +
+            '</div>'
+          ) +
+          // 시간 (이벤트에 시간이 없을 때만 표시)
+          (hasEventTime ?
+            '<input type="hidden" id="bm-start" value="' + defaultStart + '">' +
+            '<input type="hidden" id="bm-end" value="' + defaultEnd + '">'
+          :
+            '<div class="flex gap-2">' +
+              '<div class="flex-1">' +
+                '<label class="block text-xs font-semibold text-gray-500 mb-1.5">시작</label>' +
+                '<select id="bm-start" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
+              '</div>' +
+              '<div class="flex-1">' +
+                '<label class="block text-xs font-semibold text-gray-500 mb-1.5">종료</label>' +
+                '<select id="bm-end" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
+              '</div>' +
+            '</div>'
+          ) +
+          // 몸풀기 시간
+          '<div>' +
+            '<label class="block text-xs font-semibold text-gray-500 mb-1.5">몸풀기 시간</label>' +
+            '<div class="flex gap-1.5">' +
+              '<label class="cursor-pointer flex-1">' +
+                '<input type="radio" name="bm-warmup" value="10" class="sr-only peer">' +
+                '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">10분</div>' +
+              '</label>' +
+              '<label class="cursor-pointer flex-1">' +
+                '<input type="radio" name="bm-warmup" value="15" checked class="sr-only peer">' +
+                '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">15분</div>' +
+              '</label>' +
             '</div>' +
-            '<div class="flex-1">' +
-              '<label class="block text-xs font-semibold text-gray-500 mb-1.5">종료</label>' +
-              '<select id="bm-end" class="w-full px-2 py-2 border border-gray-300 rounded-xl text-sm">' + timeOptions + '</select>' +
-            '</div>' +
-          '</div>'
-        ) +
-        // 몸풀기 시간
-        '<div>' +
-          '<label class="block text-xs font-semibold text-gray-500 mb-1.5">몸풀기 시간</label>' +
-          '<div class="flex gap-1.5">' +
-            '<label class="cursor-pointer flex-1">' +
-              '<input type="radio" name="bm-warmup" value="10" class="sr-only peer">' +
-              '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">10분</div>' +
-            '</label>' +
-            '<label class="cursor-pointer flex-1">' +
-              '<input type="radio" name="bm-warmup" value="15" checked class="sr-only peer">' +
-              '<div class="border-2 border-gray-200 rounded-xl py-1.5 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition text-sm font-medium">15분</div>' +
+          '</div>' +
+          // 옵션
+          '<div class="flex items-center justify-end gap-4">' +
+            '<label class="flex items-center gap-1.5 cursor-pointer">' +
+              '<input type="checkbox" id="bm-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300">' +
+              '<span id="bm-mixed-label" class="text-xs text-gray-500">섞어복식 허용</span>' +
             '</label>' +
           '</div>' +
+          // 게임 종류 설정 (자동/수동)
+          '<div id="bm-type-section"></div>' +
+          // 쉬는 사람 배정 버튼
+          '<div id="bm-rest-section" class="border-t border-gray-100 pt-3">' +
+            '<button type="button" id="bm-rest-btn" class="w-full py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-700 hover:bg-amber-100 transition">' +
+              '쉬는 사람 배정' +
+            '</button>' +
+            '<p id="bm-rest-summary" class="text-xs text-amber-600 mt-1 text-center hidden"></p>' +
+          '</div>' +
+          // 버튼
+          '<div class="flex gap-2">' +
+            '<button type="button" class="bm-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">취소</button>' +
+            '<button type="button" class="bm-submit flex-1 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl text-sm font-semibold hover:from-blue-600 hover:to-indigo-600 transition">생성</button>' +
+          '</div>' +
         '</div>' +
-        // 옵션
-        '<div class="flex items-center justify-end gap-4">' +
-          '<label class="flex items-center gap-1.5 cursor-pointer">' +
-            '<input type="checkbox" id="bm-mixed" class="w-3.5 h-3.5 text-blue-700 rounded border-gray-300">' +
-            '<span id="bm-mixed-label" class="text-xs text-gray-500">섞어복식 허용</span>' +
-          '</label>' +
-        '</div>' +
-        // 게임 종류 설정 (자동/수동)
-        '<div id="bm-type-section"></div>' +
-        // 버튼
-        '<div class="flex gap-2">' +
-          '<button type="button" class="bm-cancel flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">취소</button>' +
-          '<button type="button" class="bm-submit flex-1 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl text-sm font-semibold hover:from-blue-600 hover:to-indigo-600 transition">생성</button>' +
+        // === 쉬는 사람 배정 화면 ===
+        '<div id="bm-rest-view" class="hidden space-y-3">' +
+          '<div class="flex items-center gap-2">' +
+            '<button type="button" id="bm-rest-back" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-gray-500">' +
+              '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>' +
+            '</button>' +
+            '<h3 class="text-lg font-bold text-gray-800">쉬는 사람 배정</h3>' +
+          '</div>' +
+          '<div id="bm-rest-info" class="text-xs text-gray-500 text-center"></div>' +
+          '<div id="bm-rest-slots" class="space-y-3 overflow-y-auto" style="max-height:55vh"></div>' +
+          '<div class="flex gap-2">' +
+            '<button type="button" id="bm-rest-back2" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">돌아가기</button>' +
+            '<button type="button" id="bm-rest-auto" class="flex-1 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-100 transition">자동추천</button>' +
+            '<button type="button" id="bm-rest-generate" class="flex-1 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl text-sm font-semibold hover:from-blue-600 hover:to-indigo-600 transition">생성</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
 
@@ -2345,6 +2371,248 @@ const Calendar = {
     // 초기 렌더링
     renderTypeSection();
 
+    // === 쉬는 사람 배정 로직 ===
+    var currentRestPlan = {};
+    var settingsView = modal.querySelector('#bm-settings-view');
+    var restView = modal.querySelector('#bm-rest-view');
+
+    function getModalSettings() {
+      return {
+        startTime: modal.querySelector('#bm-start').value,
+        endTime: modal.querySelector('#bm-end').value,
+        courts: getCourtCount(),
+        warmupMin: getWarmupMin(),
+        isSingles: modal.querySelector('input[name="bm-match-type"]:checked').value === 'singles',
+        allowMixed: modal.querySelector('#bm-mixed').checked
+      };
+    }
+
+    function updateRestSummary() {
+      var summaryEl = modal.querySelector('#bm-rest-summary');
+      var assignedSlots = Object.keys(currentRestPlan).filter(function(k) {
+        return currentRestPlan[k] && currentRestPlan[k].length > 0;
+      });
+      if (assignedSlots.length > 0) {
+        summaryEl.textContent = assignedSlots.length + '개 슬롯에 쉬는 사람 배정됨';
+        summaryEl.classList.remove('hidden');
+      } else {
+        summaryEl.classList.add('hidden');
+      }
+    }
+
+    function saveChipsToRestPlan() {
+      currentRestPlan = {};
+      restView.querySelectorAll('.rest-slot-section').forEach(function(section) {
+        var time = section.dataset.time;
+        var selected = [];
+        section.querySelectorAll('.rest-chip.selected').forEach(function(chip) {
+          selected.push(chip.dataset.player);
+        });
+        if (selected.length > 0) {
+          currentRestPlan[time] = selected;
+        }
+      });
+    }
+
+    function renderRestView() {
+      var s = getModalSettings();
+      var slots = Schedule.calculateTimeSlots(s.startTime, s.endTime, s.warmupMin, 25);
+      var playersPerCourt = s.isSingles ? 2 : 4;
+      var restPerSlot = Math.max(0, participants.length - (s.courts * playersPerCourt));
+
+      var infoEl = restView.querySelector('#bm-rest-info');
+      infoEl.textContent = '총 ' + participants.length + '명 / ' + s.courts + '코트 — 슬롯당 쉬는 인원: ' + restPerSlot + '명';
+
+      var slotsEl = restView.querySelector('#bm-rest-slots');
+      var html = '';
+      for (var i = 0; i < slots.length; i++) {
+        var time = slots[i];
+        var assigned = currentRestPlan[time] || [];
+        var assignedSet = {};
+        assigned.forEach(function(p) { assignedSet[p] = true; });
+        var selectedCount = assigned.length;
+
+        var counterClass = selectedCount === restPerSlot ? 'text-green-600' :
+                          selectedCount > restPerSlot ? 'text-red-500' : 'text-gray-400';
+
+        html += '<div class="rest-slot-section border border-gray-200 rounded-xl p-2.5" data-time="' + time + '">' +
+          '<div class="flex items-center justify-between mb-2">' +
+            '<span class="text-sm font-semibold text-gray-700">' + time + '</span>' +
+            '<span class="rest-slot-counter text-xs font-medium ' + counterClass + '">' + selectedCount + ' / ' + restPerSlot + '명</span>' +
+          '</div>' +
+          '<div class="flex flex-wrap gap-1.5">';
+
+        for (var j = 0; j < participants.length; j++) {
+          var p = participants[j];
+          var g = genderMap[p];
+          var isSelected = !!assignedSet[p];
+          var chipClass = isSelected ?
+            'bg-amber-100 border-amber-300 text-amber-800' :
+            (g === 'M' ? 'bg-white border-gray-200 text-gray-700' : 'bg-white border-pink-200 text-gray-700');
+          var genderBadge = g === 'M' ? '<span class="text-[10px] text-blue-400">남</span>' : '<span class="text-[10px] text-pink-400">여</span>';
+
+          html += '<button type="button" class="rest-chip px-2 py-1 border rounded-lg text-xs font-medium transition flex items-center gap-0.5 ' +
+            chipClass + (isSelected ? ' selected' : '') + '" data-player="' + self._escapeAttr(p) + '">' +
+            self._escapeHtml(p) + genderBadge + '</button>';
+        }
+
+        html += '</div></div>';
+      }
+      slotsEl.innerHTML = html;
+
+      // 칩 클릭 이벤트 바인딩
+      slotsEl.querySelectorAll('.rest-chip').forEach(function(chip) {
+        chip.onclick = function() {
+          chip.classList.toggle('selected');
+          var section = chip.closest('.rest-slot-section');
+          if (chip.classList.contains('selected')) {
+            chip.className = chip.className.replace(/bg-white border-(?:gray|pink)-200 text-gray-700/, 'bg-amber-100 border-amber-300 text-amber-800');
+          } else {
+            var pg = genderMap[chip.dataset.player];
+            var normalClass = pg === 'M' ? 'bg-white border-gray-200 text-gray-700' : 'bg-white border-pink-200 text-gray-700';
+            chip.className = chip.className.replace(/bg-amber-100 border-amber-300 text-amber-800/, normalClass);
+          }
+          // 카운터 업데이트
+          var count = section.querySelectorAll('.rest-chip.selected').length;
+          var counterEl = section.querySelector('.rest-slot-counter');
+          counterEl.textContent = count + ' / ' + restPerSlot + '명';
+          counterEl.className = 'rest-slot-counter text-xs font-medium ' +
+            (count === restPerSlot ? 'text-green-600' : count > restPerSlot ? 'text-red-500' : 'text-gray-400');
+        };
+      });
+    }
+
+    // "쉬는 사람 배정" 버튼 클릭
+    modal.querySelector('#bm-rest-btn').onclick = function() {
+      var s = getModalSettings();
+      if (s.startTime >= s.endTime) {
+        Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        return;
+      }
+      var playersPerCourt = s.isSingles ? 2 : 4;
+      var restPerSlot = participants.length - (s.courts * playersPerCourt);
+      if (restPerSlot <= 0) {
+        Modal.alert('현재 인원과 코트 수로는 쉬는 사람이 없습니다.');
+        return;
+      }
+      renderRestView();
+      settingsView.classList.add('hidden');
+      restView.classList.remove('hidden');
+    };
+
+    // "돌아가기" 버튼
+    function goBackToSettings() {
+      saveChipsToRestPlan();
+      restView.classList.add('hidden');
+      settingsView.classList.remove('hidden');
+      updateRestSummary();
+    }
+    modal.querySelector('#bm-rest-back').onclick = goBackToSettings;
+    modal.querySelector('#bm-rest-back2').onclick = goBackToSettings;
+
+    // "자동추천" 버튼
+    modal.querySelector('#bm-rest-auto').onclick = function() {
+      var s = getModalSettings();
+      // 임시 generate 호출로 자동 결과 추출
+      var tempSlots = Schedule.generate(males, females, s.courts, s.startTime, s.endTime, s.allowMixed, s.isSingles, null, null, null, s.warmupMin, 25);
+      if (!tempSlots || tempSlots.length === 0) return;
+
+      var allSet = {};
+      participants.forEach(function(p) { allSet[p] = true; });
+
+      currentRestPlan = {};
+      tempSlots.forEach(function(slot) {
+        var played = {};
+        slot.matches.forEach(function(m) {
+          if (m.player1) m.player1.split(' / ').forEach(function(p) { played[p] = true; });
+          if (m.player2) m.player2.split(' / ').forEach(function(p) { played[p] = true; });
+        });
+        var resting = participants.filter(function(p) { return !played[p]; });
+        if (resting.length > 0) {
+          currentRestPlan[slot.time] = resting;
+        }
+      });
+
+      renderRestView();
+    };
+
+    // rest-view "생성" 버튼
+    modal.querySelector('#bm-rest-generate').onclick = function() {
+      saveChipsToRestPlan();
+      // settings-view의 생성 버튼과 동일한 로직 실행 (restPlan 포함)
+      var s = getModalSettings();
+
+      if (s.startTime >= s.endTime) {
+        Modal.alert('종료 시간은 시작 시간보다 뒤여야 합니다.');
+        return;
+      }
+
+      var minPlayers = s.isSingles ? 2 : 4;
+      if (participants.length < minPlayers) {
+        Modal.alert('최소 ' + minPlayers + '명의 참석자가 필요합니다.');
+        return;
+      }
+
+      var possibleTypes = Schedule.getPossibleTypes(males, females, s.allowMixed, s.isSingles);
+      if (possibleTypes.length === 0) {
+        Modal.alert('참석자 성별 구성으로 경기를 만들 수 없습니다.');
+        return;
+      }
+
+      // 수동 게임 종류 설정 수집
+      var typeDistribution = null;
+      var isManualMode = modal.querySelector('#bm-type-mode-manual');
+      if (isManualMode && isManualMode.checked) {
+        typeDistribution = {};
+        modal.querySelectorAll('.bm-type-count').forEach(function(el) {
+          var count = parseInt(el.textContent) || 0;
+          if (count > 0) typeDistribution[el.dataset.type] = count;
+        });
+      }
+
+      var restPlanToUse = Object.keys(currentRestPlan).length > 0 ? currentRestPlan : null;
+      var timeSlots = Schedule.generate(males, females, s.courts, s.startTime, s.endTime, s.allowMixed, s.isSingles, null, null, typeDistribution, s.warmupMin, 25, restPlanToUse);
+      if (timeSlots.length === 0) {
+        Modal.alert('시간이 부족합니다. 몸풀기 ' + s.warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
+        return;
+      }
+
+      var bracketName = modal.querySelector('#bm-name').value.trim() || (ev.title + ' 대진표');
+      var gameDate = ev.date || new Date().toISOString().slice(0, 10);
+      var tournament = {
+        id: Storage.generateId(),
+        name: bracketName,
+        format: 'schedule',
+        isSingles: s.isSingles,
+        isTeamMode: false,
+        setCount: 1,
+        courts: s.courts,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        allowMixed: s.allowMixed,
+        warmupMinutes: s.warmupMin,
+        gameMinutes: 25,
+        gameDate: gameDate,
+        males: males,
+        females: females,
+        players: participants.slice(),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        timeSlots: timeSlots,
+        eventId: ev.id || null,
+        guests: guestNames.length > 0 ? guestNames : undefined,
+        restPlan: restPlanToUse || undefined,
+      };
+
+      var tournaments = Storage.getTournaments();
+      tournaments.push(tournament);
+      Storage.saveTournaments(tournaments);
+
+      closeModal();
+      App.navigate('active', tournament.id);
+    };
+
     // 닫기
     var closeModal = function() {
       if (window.visualViewport) {
@@ -2412,7 +2680,8 @@ const Calendar = {
         }
       }
 
-      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, null, typeDistribution, warmupMin, 25);
+      var restPlanToUse = Object.keys(currentRestPlan).length > 0 ? currentRestPlan : null;
+      var timeSlots = Schedule.generate(males, females, courts, startTime, endTime, allowMixed, isSingles, null, null, typeDistribution, warmupMin, 25, restPlanToUse);
       if (timeSlots.length === 0) {
         Modal.alert('시간이 부족합니다. 몸풀기 ' + warmupMin + '분 + 최소 1게임(25분) 이상 설정해주세요.');
         return;
@@ -2443,6 +2712,7 @@ const Calendar = {
         timeSlots: timeSlots,
         eventId: ev.id || null,
         guests: guestNames.length > 0 ? guestNames : undefined,
+        restPlan: restPlanToUse || undefined,
       };
 
       var tournaments = Storage.getTournaments();
