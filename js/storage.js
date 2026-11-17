@@ -2785,7 +2785,13 @@ const Storage = {
         } else if (App.currentTab) {
           // 폼 편집 중에는 재렌더링 스킵 (체크박스/입력 상태 보존)
           if (App.currentTab === 'schedule' || App.currentTab === 'create') return;
-          App.navigate(App.currentTab);
+          // navigate 대신 탭별 render 직접 호출 (깜빡임 방지)
+          var c = document.getElementById('main-content');
+          if (c) {
+            var tab = App.currentTab;
+            if (tab === 'active') App.renderTournamentList(c);
+            else if (tab === 'stats' && typeof Stats !== 'undefined') Stats.render(c);
+          }
         }
       }
     }, 300);
