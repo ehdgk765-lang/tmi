@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <script>
     // 앱 버전 (수정 배포 시 이 값만 변경하면 캐시 갱신)
-    var APP_VERSION = 'v2.2.5';
+    var APP_VERSION = 'v2.2.6';
 
     // 딥링크: URL 파라미터에서 이벤트 ID 추출
     var _pendingEventId = null;
@@ -435,6 +435,18 @@
         App.showPwaInstallBanner('android');
       }
     });
+
+    // WebView 뷰포트 스크롤 방지: #main-content 바깥 touchmove 차단
+    document.addEventListener('touchmove', function(e) {
+      var el = e.target;
+      while (el && el !== document.body && el !== document.documentElement) {
+        if (el.id === 'main-content') return;
+        var ov = el.style.overflowY || getComputedStyle(el).overflowY;
+        if ((ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight) return;
+        el = el.parentElement;
+      }
+      e.preventDefault();
+    }, { passive: false });
 
     // 앱 시작 (Auth가 제어)
     document.addEventListener('DOMContentLoaded', function() {

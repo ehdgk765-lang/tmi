@@ -2051,7 +2051,9 @@ const Calendar = {
 
     // 대진표 기본 이름 생성
     var dateLabel = ev.date ? App._formatDateWithDay(ev.date) : '';
-    var courtBaseName = App._getCourtBaseName();
+    var courtBaseName = (ev.courts && ev.courts.length > 0)
+      ? ev.courts[0].replace(/\s*\d*면$/, '')
+      : App._getCourtBaseName();
     var timeRange = defaultStart.replace(':00', '') + '~' + defaultEnd.replace(':00', '');
     var defaultBracketName = (dateLabel ? dateLabel + ' ' : '') + (courtBaseName ? courtBaseName + ' ' : '') + timeRange + ' 대진표';
 

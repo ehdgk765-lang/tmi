@@ -1724,7 +1724,9 @@ const App = {
         var hours = parseInt(tmpl.endTime) - parseInt(tmpl.startTime);
         var is3h = hours >= 3;
         var timeLabel = tmpl.startTime.replace(':00', '') + '~' + tmpl.endTime.replace(':00', '');
-        var baseName = this._getCourtBaseName();
+        var baseName = tmpl.courts && tmpl.courts.length > 0
+          ? tmpl.courts[0].replace(/\s*\d*면$/, '')
+          : this._getCourtBaseName();
         var eventTitle = this._formatDateWithDay(wd.dateStr) + (baseName ? ' ' + baseName : '') + ' ' + timeLabel + ' 대진표';
 
         events.push({
