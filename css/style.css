@@ -187,9 +187,15 @@ header {
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-around;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: 0;
   box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
   touch-action: manipulation;
+}
+/* PWA 독립실행 모드에서만 safe-area 패딩 적용 */
+@media (display-mode: standalone) {
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 .bottom-nav-item {
   flex: 1;
