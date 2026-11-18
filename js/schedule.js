@@ -1375,6 +1375,11 @@ const Schedule = {
         };
 
         if (!selectedPlayer) {
+          // 빈 슬롯 → 바로 멤버 추가 피커 열기
+          if (!data.name) {
+            this._showReplacePlayerPicker(container, tournament, { el, ...data }, () => {});
+            return;
+          }
           // 첫 번째 멤버 선택
           selectedPlayer = { el, ...data };
           el.classList.add('bg-green-200', 'ring-2', 'ring-green-500', 'rounded');
@@ -1625,7 +1630,7 @@ const Schedule = {
         const mi = +btn.dataset.matchIdx;
         const match = tournament.timeSlots[si]?.matches[mi];
         if (!match) return;
-        const label = `${match.player1} vs ${match.player2}`;
+        const label = `${match.player1 || '미정'} vs ${match.player2 || '미정'}`;
         if (!await Modal.confirm(`이 대진을 삭제하시겠습니까?\n${label}`)) return;
         tournament.timeSlots[si].matches.splice(mi, 1);
         Storage.saveTournamentDirect(tournament);
@@ -2520,16 +2525,30 @@ const Schedule = {
     const _canEdit = this._canEdit || false;
     const isMember = !_canEdit && !!App.getMemberName();
     const isMyMatch = this._isMyMatch(match);
-    if (!match.player1 || !match.player2) return '';
-    const t1Names = match.player1.split(' / ');
-    const t2Names = match.player2.split(' / ');
-    const isDoubles = t1Names.length > 1;
-    const t1Html = isDoubles
-      ? t1Names.map((n, p) => `<div class="text-center">${this.renderSwapPlayer(n, slotIdx, matchIdx, 1, p)}</div>`).join('')
-      : this.renderSwapPlayer(t1Names[0], slotIdx, matchIdx, 1, 0);
-    const t2Html = isDoubles
-      ? t2Names.map((n, p) => `<div class="text-center">${this.renderSwapPlayer(n, slotIdx, matchIdx, 2, p)}</div>`).join('')
-      : this.renderSwapPlayer(t2Names[0], slotIdx, matchIdx, 2, 0);
+    if (!match.player1 && !match.player2) return '';
+    const t1Names = match.player1 ? match.player1.split(' / ') : [];
+    const t2Names = match.player2 ? match.player2.split(' / ') : [];
+    const isDoubles = !this._tournament?.isSingles && (t1Names.length > 1 || t2Names.length > 1
+      || (this._tournament && !this._tournament.isSingles));
+    const emptyPlayerHtml = (team, pos) => `<span class="swap-player empty-slot cursor-pointer hover:bg-yellow-100 rounded px-1 py-0.5 transition inline-flex items-center text-gray-400 italic text-xs"
+      data-slot-idx="${slotIdx}" data-match-idx="${matchIdx}" data-team="${team}" data-pos="${pos}" data-name="">미정</span>`;
+
+    const buildTeamHtml = (names, team) => {
+      if (isDoubles) {
+        const rows = [];
+        for (let p = 0; p < Math.max(names.length, 2); p++) {
+          rows.push('<div class="text-center">' + (names[p]
+            ? this.renderSwapPlayer(names[p], slotIdx, matchIdx, team, p)
+            : emptyPlayerHtml(team, p)) + '</div>');
+        }
+        return rows.join('');
+      }
+      return names.length > 0
+        ? this.renderSwapPlayer(names[0], slotIdx, matchIdx, team, 0)
+        : emptyPlayerHtml(team, 0);
+    };
+    const t1Html = buildTeamHtml(t1Names, 1);
+    const t2Html = buildTeamHtml(t2Names, 2);
 
     // 팀전 모드: 팀 이름
     let t1TeamName = '', t2TeamName = '';
@@ -2632,10 +2651,13 @@ const Schedule = {
       };
 
       return `
-        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-md w-full p-3 sm:p-5 max-h-[85vh] overflow-y-auto">
-          <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
-          <h3 class="text-lg font-bold text-center mb-4">대진 추가</h3>
-          <div class="space-y-4">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-md w-full flex flex-col max-h-[85vh]">
+          <div class="flex-shrink-0 pt-4 px-3 sm:px-5">
+            <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 sm:hidden"></div>
+            <h3 class="text-lg font-bold text-center mb-3">대진 추가</h3>
+          </div>
+          <div class="overflow-y-auto flex-1 px-3 sm:px-5">
+            <div class="space-y-4">
             ${tournament.isCustom ? '' : (presetSlot != null
               ? `<div class="flex items-center gap-2 text-sm text-gray-600">
                   <span class="font-medium bg-gray-100 px-3 py-1.5 rounded-lg">${tournament.timeSlots[selectedSlot].time}</span>
@@ -2694,10 +2716,11 @@ const Schedule = {
               </div>
             </div>
 
-            <div class="flex gap-3 pt-2">
-              <button type="button" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition am-cancel">취소</button>
-              <button type="button" class="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition am-submit">추가</button>
             </div>
+          </div>
+          <div class="flex gap-3 px-3 sm:px-5 py-3 border-t border-gray-100 flex-shrink-0">
+            <button type="button" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition am-cancel">취소</button>
+            <button type="button" class="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition am-submit">추가</button>
           </div>
         </div>`;
     };
@@ -2722,31 +2745,22 @@ const Schedule = {
 
       modal.querySelector('.am-submit').onclick = () => {
         const { t1p1, t1p2, t2p1, t2p2 } = selected;
-        if (isSingles) {
-          if (!t1p1 || !t2p1) {
-            Modal.alert('모든 선수를 선택해주세요.');
-            return;
-          }
-          if (t1p1 === t2p1) {
-            Modal.alert('같은 선수를 선택할 수 없습니다.');
-            return;
-          }
-        } else {
-          if (!t1p1 || !t1p2 || !t2p1 || !t2p2) {
-            Modal.alert('모든 멤버를 선택해주세요.');
-            return;
-          }
-          const names = [t1p1, t1p2, t2p1, t2p2];
-          if (new Set(names).size !== 4) {
-            Modal.alert('중복된 멤버가 있습니다.');
-            return;
-          }
+        // 최소 1명 이상 선택 필수
+        const selectedNames = [t1p1, t1p2, t2p1, t2p2].filter(Boolean);
+        if (selectedNames.length === 0) {
+          Modal.alert('최소 1명 이상 선택해주세요.');
+          return;
+        }
+        // 중복 검사 (선택된 멤버만)
+        if (new Set(selectedNames).size !== selectedNames.length) {
+          Modal.alert('중복된 멤버가 있습니다.');
+          return;
         }
         const slotIdx = tournament.isCustom ? 0 : parseInt(modal.querySelector('#am-slot').value);
 
         // 같은 시간대 멤버 중복 검사 (커스텀 대진표는 시간대 없으므로 제외, 완료된 매치 제외)
         if (!tournament.isCustom) {
-          const newNames = isSingles ? [t1p1, t2p1] : [t1p1, t1p2, t2p1, t2p2];
+          const newNames = (isSingles ? [t1p1, t2p1] : [t1p1, t1p2, t2p1, t2p2]).filter(Boolean);
           const slotExisting = new Set();
           (tournament.timeSlots[slotIdx]?.matches || []).forEach(m => {
             if (m.winner) return; // 완료된 매치의 멤버는 재배치 가능
@@ -2790,8 +2804,8 @@ const Schedule = {
         const newMatch = {
           id: Storage.generateId(),
           court,
-          player1: isSingles ? t1p1 : `${t1p1} / ${t1p2}`,
-          player2: isSingles ? t2p1 : `${t2p1} / ${t2p2}`,
+          player1: isSingles ? (t1p1 || '') : [t1p1, t1p2].filter(Boolean).join(' / '),
+          player2: isSingles ? (t2p1 || '') : [t2p1, t2p2].filter(Boolean).join(' / '),
           scores: null,
           winner: null,
         };
@@ -2878,38 +2892,44 @@ const Schedule = {
     picker.className = 'am-player-picker fixed inset-0 z-[60] flex items-end sm:items-center justify-center';
     picker.style.backgroundColor = 'rgba(0,0,0,0.5)';
     picker.innerHTML = `
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full p-3 sm:p-4 max-h-[70vh] flex flex-col">
-        <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden"></div>
-        <h3 class="text-lg font-bold text-center mb-3">${pickerTitle}</h3>
-        <div class="mb-3">
-          <div class="flex gap-2">
-            <input type="text" autocomplete="off" id="amp-search" placeholder="이름 검색 또는 직접 입력..."
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-            <button type="button" id="amp-custom-add"
-              class="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition whitespace-nowrap">추가</button>
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl sm:max-w-sm w-full flex flex-col max-h-[85vh]">
+        <div class="flex-shrink-0 pt-4 px-3 sm:px-4">
+          <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 sm:hidden"></div>
+          <h3 class="text-lg font-bold text-center mb-3">${pickerTitle}</h3>
+          <div class="mb-3">
+            <div class="flex gap-2">
+              <input type="text" autocomplete="off" id="amp-search" placeholder="이름 검색 또는 직접 입력..."
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+              <button type="button" id="amp-custom-add"
+                class="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition whitespace-nowrap">추가</button>
+            </div>
           </div>
         </div>
-        ${visiblePlayers.length > 0 ? `
-          <div class="text-xs text-gray-400 mb-2">등록된 멤버</div>
-          <div class="overflow-y-auto flex-1">
-            ${buildGroupedPlayerListHtml(visiblePlayers, _teamMap, p => {
-              const isUsed = usedNames.has(p.name);
-              const isBusy = !isUsed && busyNames.has(p.name);
-              const isDisabled = isUsed || isBusy;
-              const tn = _teamMap[p.name];
-              return `
-                <div class="amp-option flex items-center px-3 py-2.5 ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-green-50'} transition"
-                  data-name="${Results.escapeHtml(p.name)}" data-used="${isDisabled}">
-                  <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
-                  <span class="ml-2">${genderBadge(p.gender)}</span>
-                  ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
-                  ${isUsed ? '<span class="ml-auto text-xs text-gray-400">선택됨</span>' : ''}
-                  ${isBusy ? '<span class="ml-auto text-xs text-gray-400">같은 시간대</span>' : ''}
-                </div>`;
-            })}
-          </div>
-        ` : '<p class="text-sm text-gray-400 text-center py-4">등록된 멤버가 없습니다.</p>'}
-        <button type="button" class="mt-3 w-full py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition amp-cancel">취소</button>
+        <div class="overflow-y-auto flex-1 px-3 sm:px-4">
+          ${visiblePlayers.length > 0 ? `
+            <div class="text-xs text-gray-400 mb-2">등록된 멤버</div>
+            <div class="overflow-y-auto flex-1">
+              ${buildGroupedPlayerListHtml(visiblePlayers, _teamMap, p => {
+                const isUsed = usedNames.has(p.name);
+                const isBusy = !isUsed && busyNames.has(p.name);
+                const isDisabled = isUsed || isBusy;
+                const tn = _teamMap[p.name];
+                return `
+                  <div class="amp-option flex items-center px-3 py-2.5 ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-green-50'} transition"
+                    data-name="${Results.escapeHtml(p.name)}" data-used="${isDisabled}">
+                    <span class="text-sm text-gray-800">${Results.escapeHtml(p.name)}</span>
+                    <span class="ml-2">${genderBadge(p.gender)}</span>
+                    ${tn ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded font-medium bg-green-50 text-green-600 border border-green-200">${Results.escapeHtml(tn)}</span>` : ''}
+                    ${isUsed ? '<span class="ml-auto text-xs text-gray-400">선택됨</span>' : ''}
+                    ${isBusy ? '<span class="ml-auto text-xs text-gray-400">같은 시간대</span>' : ''}
+                  </div>`;
+              })}
+            </div>
+          ` : '<p class="text-sm text-gray-400 text-center py-4">등록된 멤버가 없습니다.</p>'}
+        </div>
+        <div class="flex-shrink-0 px-3 sm:px-4 pb-4 pt-2">
+          <button type="button" class="w-full py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition amp-cancel">취소</button>
+        </div>
       </div>`;
 
     document.body.appendChild(picker);
@@ -2963,6 +2983,7 @@ const Schedule = {
 
     const playerKey = team === 1 ? 'player1' : 'player2';
     const otherKey = team === 1 ? 'player2' : 'player1';
+    const isEmptySlot = !oldName;
     // 같은 시간대 전체 매치에서 사용 중인 멤버 수집 (본인 제외, 완료된 매치 제외)
     const slotBusyNames = new Set();
     (tournament.timeSlots[slotIdx]?.matches || []).forEach(m => {
@@ -2970,20 +2991,21 @@ const Schedule = {
       if (m.player1) m.player1.split(' / ').forEach(n => slotBusyNames.add(n));
       if (m.player2) m.player2.split(' / ').forEach(n => slotBusyNames.add(n));
     });
-    slotBusyNames.delete(oldName);
+    if (oldName) slotBusyNames.delete(oldName);
 
     const _teamMap = tournament.isTeamMode ? buildTeamMap() : {};
 
     // 팀 모드: 같은 편 멤버의 팀으로 필터링
-    const sideTeam = tournament.isTeamMode
+    const sideTeam = tournament.isTeamMode && match[playerKey]
       ? match[playerKey].split(' / ').map(n => _teamMap[n]).find(Boolean) || null
       : null;
     const visiblePlayers = sideTeam
       ? allPlayers.filter(p => _teamMap[p.name] === sideTeam)
       : allPlayers;
-    const pickerTitle = sideTeam
-      ? `멤버 교체 — ${Results.escapeHtml(oldName)} (${Results.escapeHtml(sideTeam)})`
-      : `멤버 교체 — ${Results.escapeHtml(oldName)}`;
+    const pickerTitle = isEmptySlot ? '멤버 추가'
+      : sideTeam
+        ? `멤버 교체 — ${Results.escapeHtml(oldName)} (${Results.escapeHtml(sideTeam)})`
+        : `멤버 교체 — ${Results.escapeHtml(oldName)}`;
 
     const picker = document.createElement('div');
     picker.className = 'am-player-picker fixed inset-0 z-[60] flex items-end sm:items-center justify-center';
@@ -3036,30 +3058,36 @@ const Schedule = {
         if (opt.dataset.disabled === 'true') return;
         try {
           const newName = opt.dataset.name;
-          const names = match[playerKey].split(' / ');
-          names[pos] = newName;
+          const names = match[playerKey] ? match[playerKey].split(' / ') : [];
+          if (pos < names.length) {
+            names[pos] = newName;
+          } else {
+            names.push(newName);
+          }
           match[playerKey] = names.join(' / ');
-          // 멤버 교체 시 gameType 자동 재감지
+          // 멤버 교체 시 gameType 자동 재감지 (양쪽 모두 있을 때만)
           const allPlayers2 = Storage.getPlayers();
           const getG = (n) => { const p = allPlayers2.find(pl => pl.name === n); return p ? p.gender : (tournament.males?.includes(n) ? 'M' : tournament.females?.includes(n) ? 'F' : null); };
-          const p1Parts = match.player1.split(' / ');
-          const p2Parts = match.player2.split(' / ');
+          const p1Parts = match.player1 ? match.player1.split(' / ') : [];
+          const p2Parts = match.player2 ? match.player2.split(' / ') : [];
           let newGameType = match.gameType || null;
-          if (p1Parts.length === 1 && p2Parts.length === 1) {
-            const g1 = getG(p1Parts[0]), g2 = getG(p2Parts[0]);
-            if (g1 === 'M' && g2 === 'M') newGameType = 'MS';
-            else if (g1 === 'F' && g2 === 'F') newGameType = 'WS';
-            else newGameType = 'FS';
-          } else {
-            const genders = [p1Parts[0], p1Parts[1] || '', p2Parts[0], p2Parts[1] || ''].map(getG);
-            const aM = genders.every(g => g === 'M');
-            const aF = genders.every(g => g === 'F');
-            const mx = (genders[0] !== genders[1]) && (genders[2] !== genders[3])
-              && genders.filter(g => g === 'M').length === 2 && genders.filter(g => g === 'F').length === 2;
-            if (aM) newGameType = 'MD';
-            else if (aF) newGameType = 'WD';
-            else if (mx) newGameType = 'XD';
-            else newGameType = 'FD';
+          if (p1Parts.length > 0 && p2Parts.length > 0) {
+            if (p1Parts.length === 1 && p2Parts.length === 1) {
+              const g1 = getG(p1Parts[0]), g2 = getG(p2Parts[0]);
+              if (g1 === 'M' && g2 === 'M') newGameType = 'MS';
+              else if (g1 === 'F' && g2 === 'F') newGameType = 'WS';
+              else newGameType = 'FS';
+            } else {
+              const genders = [p1Parts[0], p1Parts[1] || '', p2Parts[0], p2Parts[1] || ''].map(getG);
+              const aM = genders.every(g => g === 'M');
+              const aF = genders.every(g => g === 'F');
+              const mx = (genders[0] !== genders[1]) && (genders[2] !== genders[3])
+                && genders.filter(g => g === 'M').length === 2 && genders.filter(g => g === 'F').length === 2;
+              if (aM) newGameType = 'MD';
+              else if (aF) newGameType = 'WD';
+              else if (mx) newGameType = 'XD';
+              else newGameType = 'FD';
+            }
           }
           match.gameType = newGameType;
           const patchMatchId = match.id;
